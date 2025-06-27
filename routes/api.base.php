@@ -66,6 +66,7 @@ use App\Http\Controllers\API\UploadArtistImageController;
 use App\Http\Controllers\API\UploadController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\UserInvitationController;
+use App\Http\Controllers\API\MusicDiscoveryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Pusher\Pusher;
@@ -224,6 +225,12 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
         // Media browser routes
         Route::get('browse/folders', FetchSubfoldersController::class);
         Route::get('browse/songs', PaginateFolderSongsController::class);
+
+        Route::prefix('music-discovery')->name('music-discovery.')->group(static function (): void {
+            Route::post('search-seed', [MusicDiscoveryController::class, 'searchSeedTracks'])->name('search-seed');
+            Route::post('discover', [MusicDiscoveryController::class, 'discoverMusic'])->name('discover');
+            Route::get('track-features/{trackId}', [MusicDiscoveryController::class, 'getTrackFeatures'])->name('track-features');
+        });
     });
 
     // Object-storage (S3) routes

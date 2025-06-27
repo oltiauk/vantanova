@@ -11,7 +11,8 @@
               <Btn highlight @click.prevent="requestAddPodcastForm">
                 <Icon :icon="faAdd" fixed-width />
               </Btn>
-            </BtnGroup>
+            <Btn v-if="canInvite" highlight @click="showInviteUserForm">Invite</Btn>
+          </BtnGroup>
           </div>
         </template>
       </ScreenHeader>

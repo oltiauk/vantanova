@@ -205,4 +205,9 @@ export const routes: Route[] = [
       path: '.+',
     },
   },
+  {
+    name: 'music-discovery',
+    path: '/discover',
+    screen: 'MusicDiscovery'
+  },
 ]

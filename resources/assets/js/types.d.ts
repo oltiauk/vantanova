@@ -407,6 +407,7 @@ declare type ScreenName =
   | 'MediaBrowser'
   | 'Invitation.Accept'
   | 'Password.Reset'
+  | 'MusicDiscovery' 
   | '404'
 
 declare type ArtistAlbumCardLayout = 'full' | 'compact'

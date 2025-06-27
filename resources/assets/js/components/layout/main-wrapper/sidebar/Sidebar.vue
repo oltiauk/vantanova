@@ -20,6 +20,23 @@
 
     <section v-koel-overflow-fade class="pt-2 pb-10 overflow-y-auto space-y-8">
       <SidebarYourMusicSection />
+      
+      <!-- MUSIC DISCOVERY SECTION - Using proper Koel pattern -->
+      <SidebarSection>
+        <template #header>
+          <SidebarSectionHeader>Discovery</SidebarSectionHeader>
+        </template>
+        
+        <ul class="menu">
+          <SidebarItem :href="url('music-discovery')" screen="MusicDiscovery">
+            <template #icon>
+              <Icon :icon="faSearch" fixed-width />
+            </template>
+            Discover Music
+          </SidebarItem>
+        </ul>
+      </SidebarSection>
+  
       <SidebarPlaylistsSection />
       <SidebarManageSection v-if="showManageSection" />
     </section>
@@ -37,7 +54,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faTimes, faSearch } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { eventBus } from '@/utils/eventBus'
 import { useAuthorization } from '@/composables/useAuthorization'
@@ -54,8 +71,11 @@ import SidebarManageSection from './SidebarManageSection.vue'
 import SidebarPlaylistsSection from './SidebarPlaylistsSection.vue'
 import SidebarToggleButton from '@/components/layout/main-wrapper/sidebar/SidebarToggleButton.vue'
 import SidebarYourMusicSection from './SidebarYourLibrarySection.vue'
+import SidebarSection from '@/components/layout/main-wrapper/sidebar/SidebarSection.vue'
+import SidebarSectionHeader from '@/components/layout/main-wrapper/sidebar/SidebarSectionHeader.vue'
+import SidebarItem from '@/components/layout/main-wrapper/sidebar/SidebarItem.vue'
 
-const { onRouteChanged } = useRouter()
+const { onRouteChanged, url } = useRouter()
 const { isAdmin } = useAuthorization()
 const { allowsUpload } = useUpload()
 const { isPlus } = useKoelPlus()

@@ -6,6 +6,7 @@ use App\Http\Integrations\Spotify\SpotifyClient;
 use App\Models\Album;
 use App\Models\Artist;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 
 class SpotifyService
 {
@@ -48,5 +49,135 @@ class SpotifyService
             $this->client->search("$album->name artist:{$album->artist->name}", 'album', ['limit' => 1]),
             'albums.items.0.images.0.url'
         );
+    }
+
+    // === NEW MUSIC DISCOVERY METHODS ===
+
+    /**
+     * Search for tracks on Spotify for music discovery
+     */
+    public function searchTracks(string $query, int $limit = 20): array
+    {
+        if (!static::enabled()) {
+            return ['tracks' => ['items' => []]];
+        }
+
+        try {
+            $response = $this->client->search($query, 'track', ['limit' => $limit]);
+            return $response ?: ['tracks' => ['items' => []]];
+
+        } catch (\Exception $e) {
+            Log::error('Spotify track search error', [
+                'message' => $e->getMessage(),
+                'query' => $query
+            ]);
+            return ['tracks' => ['items' => []]];
+        }
+    }
+
+    /**
+     * Get track details by ID
+     */
+    public function getTrackDetails(string $trackId): ?array
+    {
+        if (!static::enabled()) {
+            return null;
+        }
+
+        try {
+            return $this->client->getTrack($trackId);
+
+        } catch (\Exception $e) {
+            Log::error('Spotify track details error', [
+                'message' => $e->getMessage(),
+                'track_id' => $trackId
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Get multiple tracks by IDs (batch request)
+     */
+    public function batchGetTracks(array $trackIds): array
+    {
+        if (!static::enabled() || empty($trackIds)) {
+            return ['tracks' => []];
+        }
+
+        try {
+            // Split into chunks of 50 (Spotify's limit)
+            $chunks = array_chunk($trackIds, 50);
+            $allTracks = [];
+
+            foreach ($chunks as $chunk) {
+                $tracks = $this->client->getTracks($chunk);
+                if ($tracks && isset($tracks['tracks'])) {
+                    $allTracks = array_merge($allTracks, $tracks['tracks']);
+                }
+            }
+
+            return ['tracks' => $allTracks];
+
+        } catch (\Exception $e) {
+            Log::error('Spotify batch tracks error', [
+                'message' => $e->getMessage(),
+                'track_ids' => $trackIds
+            ]);
+            return ['tracks' => []];
+        }
+    }
+
+    /**
+     * Get track audio features (for BPM, key, etc.)
+     */
+    public function getTrackAudioFeatures(string $trackId): ?array
+    {
+        if (!static::enabled()) {
+            return null;
+        }
+
+        try {
+            return $this->client->getAudioFeatures($trackId);
+
+        } catch (\Exception $e) {
+            Log::error('Spotify audio features error', [
+                'message' => $e->getMessage(),
+                'track_id' => $trackId
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Get multiple track audio features
+     */
+    public function batchGetAudioFeatures(array $trackIds): array
+    {
+        if (!static::enabled() || empty($trackIds)) {
+            return ['audio_features' => []];
+        }
+
+        try {
+            // Split into chunks of 100 (Spotify's limit for audio features)
+            $chunks = array_chunk($trackIds, 100);
+            $allFeatures = [];
+
+            foreach ($chunks as $chunk) {
+                $features = $this->client->getAudioFeatures($chunk);
+                if ($features && isset($features['audio_features'])) {
+                    $allFeatures = array_merge($allFeatures, $features['audio_features']);
+                }
+            }
+
+            return ['audio_features' => $allFeatures];
+
+        } catch (\Exception $e) {
+            Log::error('Spotify batch audio features error', [
+                'message' => $e->getMessage(),
+                'track_ids' => $trackIds
+            ]);
+            return ['audio_features' => []];
+        }
     }
 }

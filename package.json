@@ -23,6 +23,7 @@
     "butterchurn": "^2.6.7",
     "butterchurn-presets": "^2.4.7",
     "compare-versions": "^3.5.1",
+    "date-fns": "^4.1.0",
     "dompurify": "^3.1.4",
     "events": "^3.3.0",
     "fuse.js": "^7.0.0",

@@ -24,6 +24,9 @@
     <GenreScreen v-show="screen === 'Genre'" />
     <PodcastListScreen v-show="screen === 'Podcasts'" />
     <MediaBrowser v-if="useMediaBrowser" v-show="screen === 'MediaBrowser'" />
+    
+    <!-- ADD THIS LINE FOR MUSIC DISCOVERY -->
+    <MusicDiscoveryScreen v-show="screen === 'MusicDiscovery'" />
 
     <GenreListScreen v-if="screen === 'Genres'" />
     <SearchSongResultsScreen v-if="screen === 'Search.Songs'" />
@@ -33,7 +36,7 @@
     <ProfileScreen v-if="screen === 'Profile'" />
     <PodcastScreen v-if="screen === 'Podcast'" />
     <EpisodeScreen v-if="screen === 'Episode'" />
-    <UserListScreen v-if="screen === 'Users'" />
+    <UserListScreen v="screen === 'Users'" />
     <YouTubeScreen v-if="useYouTube" v-show="screen === 'YouTube'" />
     <NotFoundScreen v-if="screen === '404'" />
   </section>
@@ -60,6 +63,7 @@ import RecentlyPlayedScreen from '@/components/screens/RecentlyPlayedScreen.vue'
 import UploadScreen from '@/components/screens/UploadScreen.vue'
 import SearchExcerptsScreen from '@/components/screens/search/SearchExcerptsScreen.vue'
 import PodcastListScreen from '@/components/screens/PodcastListScreen.vue'
+import MusicDiscoveryScreen from '@/components/screens/MusicDiscoveryScreen.vue'  // ADD THIS IMPORT
 import { commonStore } from '@/stores/commonStore'
 
 const UserListScreen = defineAsyncComponent(() => import('@/components/screens/UserListScreen.vue'))

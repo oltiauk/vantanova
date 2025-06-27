@@ -40,4 +40,15 @@ return [
         'redirect' => '/auth/google/callback',
         'hd' => env('SSO_GOOGLE_HOSTED_DOMAIN'),
     ],
+
+    'spotify' => [
+        
+        'client_id' => env('SPOTIFY_CLIENT_ID'),
+        'client_secret' => env('SPOTIFY_CLIENT_SECRET'),
+    ],
+
+    'soundstats' => [
+        'api_key' => env('SOUNDSTATS_API_KEY', 'ef5tgzWyAbRkl9faVfAKlVYrqr0T5HkGX8LwizjcpIs'),
+        'base_url' => env('SOUNDSTATS_BASE_URL', 'https://api.soundstats.com'),
+    ],
 ];
