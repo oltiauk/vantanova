@@ -49,6 +49,6 @@ return [
 
     'soundstats' => [
         'api_key' => env('SOUNDSTATS_API_KEY', 'ef5tgzWyAbRkl9faVfAKlVYrqr0T5HkGX8LwizjcpIs'),
-        'base_url' => env('SOUNDSTATS_BASE_URL', 'https://api.soundstats.com'),
+        'base_url' => env('SOUNDSTATS_BASE_URL', 'https://soundstat.info'),
     ],
 ];
