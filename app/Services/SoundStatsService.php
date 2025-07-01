@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 class SoundStatsService
 {
     private string $apiKey;
-    private string $baseUrl;
+    private string $baseUrl; 
 
     public function __construct()
     {
