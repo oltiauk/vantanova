@@ -10,13 +10,11 @@
     </template>
 
     <div class="music-discovery-screen">
-      <!-- Seed Track Selection Component -->
       <SeedTrackSelection
         v-model:selected-track="selectedSeedTrack"
         @track-selected="onTrackSelected"
       />
 
-      <!-- Parameter Controls Component -->
       <ParameterControls
         v-if="selectedSeedTrack"
         v-model:parameters="parameters"
@@ -26,7 +24,6 @@
         :is-discovering="isDiscovering"
       />
 
-      <!-- Recommendations List Component -->
       <RecommendationsList
         v-if="selectedSeedTrack"
         :recommendations="recommendations"
@@ -52,7 +49,6 @@ import SeedTrackSelection from '@/components/screens/music-discovery/SeedTrackSe
 import ParameterControls from '@/components/screens/music-discovery/ParameterControls.vue'
 import RecommendationsList from '@/components/screens/music-discovery/RecommendationsList.vue'
 
-// Types
 interface Track {
   id: string
   name: string
@@ -94,24 +90,24 @@ interface EnabledParameters {
   key_compatibility: boolean
 }
 
-// State - SIMPLIFIED
 const selectedSeedTrack = ref<Track | null>(null)
 const recommendations = ref<Track[]>([])
 const allRecommendations = ref<Track[]>([])
+const prefetchedRecommendations = ref<Track[]>([])
 const displayedCount = ref(0)
 const isDiscovering = ref(false)
 const isLoadingMore = ref(false)
+const isPrefetching = ref(false)
 const errorMessage = ref('')
-const hasMoreToLoad = ref(true) // Always allow loading more initially
+const hasMoreToLoad = ref(true)
 const currentOffset = ref(0)
 
 const INITIAL_LOAD = 10
 const LOAD_MORE_BATCH = 10
 
-// Parameters state
 const parameters = ref<Parameters>({
   bpm_min: 100,
-  bmp_min: 100, // Keep typo for compatibility
+  bmp_min: 100,
   bpm_max: 130,
   popularity: 50,
   danceability: 0.5,
@@ -139,54 +135,15 @@ const enabledParameters = ref<EnabledParameters>({
   key_compatibility: false,
 })
 
-// Computed
 const hasEnabledParameters = computed(() => {
   return Object.values(enabledParameters.value).some(enabled => enabled)
 })
 
-// Methods
-const onTrackSelected = (track: Track) => {
-  selectedSeedTrack.value = track
-  recommendations.value = []
-  allRecommendations.value = []
-  displayedCount.value = 0
-  hasMoreToLoad.value = true
-  currentOffset.value = 0
-  errorMessage.value = ''
-}
-
-const loadMoreRecommendations = async () => {
-  if (isLoadingMore.value) return
-  
-  isLoadingMore.value = true
-  
-  try {
-    // Fetch next batch immediately when user clicks
-    await fetchMoreRecommendations()
-    
-    // Now show all songs we have (previous + new)
-    recommendations.value = [...allRecommendations.value]
-    displayedCount.value = allRecommendations.value.length
-    
-  } catch (error) {
-    console.error('Load more error:', error)
-    errorMessage.value = 'Failed to load more recommendations.'
-  } finally {
-    isLoadingMore.value = false
-  }
-}
-
-// Remove all the background prefetching functions - we don't need them
-// const startBackgroundPrefetch = async () => { ... } - REMOVED
-
-const fetchMoreRecommendations = async () => {
-  if (!selectedSeedTrack.value) return
-
-  // Build request parameters (same logic as discoverMusic)
+const buildRequestParameters = () => {
   const requestParameters: any = {}
   
   if (enabledParameters.value.tempo) {
-    requestParameters.tempo = Math.round((parameters.value.bpm_min + parameters.value.bmp_max) / 2)
+    requestParameters.tempo = Math.round((parameters.value.bpm_min + parameters.value.bpm_max) / 2)
   }
   if (enabledParameters.value.popularity) {
     requestParameters.popularity = parameters.value.popularity
@@ -219,6 +176,111 @@ const fetchMoreRecommendations = async () => {
     requestParameters.key_compatibility = parameters.value.key_compatibility
   }
 
+  return requestParameters
+}
+
+const startBackgroundPrefetch = async () => {
+  if (!selectedSeedTrack.value || isPrefetching.value) {
+    return
+  }
+
+  isPrefetching.value = true
+  
+  try {
+    console.log('🔄 Starting background prefetch for next batch...')
+    
+    const requestParameters = buildRequestParameters()
+    
+    const response = await http.silently.post('music-discovery/discover', {
+      seed_track_id: selectedSeedTrack.value.id,
+      seed_track_name: selectedSeedTrack.value.name,
+      seed_track_artist: selectedSeedTrack.value.artist,
+      parameters: requestParameters,
+      limit: LOAD_MORE_BATCH,
+      offset: currentOffset.value
+    })
+
+    if (response.success) {
+      const recs = response.data.recommendations
+      const rawRecommendations = Array.isArray(recs) ? recs : Object.values(recs)
+      const mappedRecommendations = rawRecommendations.map(track => ({
+        ...track,
+        image: track.album_image || track.image
+      }))
+      
+      prefetchedRecommendations.value = mappedRecommendations
+      
+      console.log(`✅ Background prefetched ${mappedRecommendations.length} recommendations`)
+      
+      if (mappedRecommendations.length >= LOAD_MORE_BATCH) {
+        hasMoreToLoad.value = true
+      } else {
+        hasMoreToLoad.value = false
+      }
+    } else {
+      console.warn('❌ Background prefetch failed')
+      hasMoreToLoad.value = false
+    }
+  } catch (error) {
+    console.error('💥 Background prefetch error:', error)
+  } finally {
+    isPrefetching.value = false
+  }
+}
+
+const onTrackSelected = (track: Track) => {
+  selectedSeedTrack.value = track
+  recommendations.value = []
+  allRecommendations.value = []
+  prefetchedRecommendations.value = []
+  displayedCount.value = 0
+  hasMoreToLoad.value = true
+  currentOffset.value = 0
+  errorMessage.value = ''
+}
+
+const loadMoreRecommendations = async () => {
+  if (isLoadingMore.value) return
+  
+  isLoadingMore.value = true
+  
+  try {
+    if (prefetchedRecommendations.value.length > 0) {
+      console.log('⚡ Using prefetched recommendations for instant load!')
+      
+      allRecommendations.value.push(...prefetchedRecommendations.value)
+      
+      recommendations.value = [...allRecommendations.value]
+      displayedCount.value = allRecommendations.value.length
+      currentOffset.value += LOAD_MORE_BATCH
+      
+      const usedPrefetch = [...prefetchedRecommendations.value]
+      prefetchedRecommendations.value = []
+      
+      setTimeout(() => {
+        if (usedPrefetch.length >= LOAD_MORE_BATCH) {
+          startBackgroundPrefetch()
+        }
+      }, 100)
+      
+    } else {
+      console.log('🔄 No prefetched data, fetching normally...')
+      await fetchMoreRecommendations()
+    }
+    
+  } catch (error) {
+    console.error('Load more error:', error)
+    errorMessage.value = 'Failed to load more recommendations.'
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+const fetchMoreRecommendations = async () => {
+  if (!selectedSeedTrack.value) return
+
+  const requestParameters = buildRequestParameters()
+
   console.log(`🔄 Fetching more recommendations (offset: ${currentOffset.value})`)
 
   const response = await http.post('music-discovery/discover', {
@@ -237,15 +299,12 @@ const fetchMoreRecommendations = async () => {
       image: track.album_image || track.image
     }))
     
-    // Add to our cache
     allRecommendations.value.push(...newRecommendations)
     
-    // Update displayed
-    recommendations.value = allRecommendations.value.slice(0, displayedCount.value + LOAD_MORE_BATCH)
-    displayedCount.value = recommendations.value.length
+    recommendations.value = [...allRecommendations.value]
+    displayedCount.value = allRecommendations.value.length
     currentOffset.value += LOAD_MORE_BATCH
     
-    // Check if there might be more
     hasMoreToLoad.value = newRecommendations.length >= LOAD_MORE_BATCH
     
     console.log(`✅ Loaded ${newRecommendations.length} more recommendations`)
@@ -262,54 +321,10 @@ const discoverMusic = async () => {
 
   isDiscovering.value = true
   errorMessage.value = ''
+  prefetchedRecommendations.value = []
 
   try {
-    // Only include enabled parameters
-    const requestParameters: any = {}
-
-    if (enabledParameters.value.tempo) {
-      requestParameters.tempo = Math.round((parameters.value.bpm_min + parameters.value.bpm_max) / 2)
-    }
-
-    if (enabledParameters.value.popularity) {
-      requestParameters.popularity = parameters.value.popularity
-    }
-
-    if (enabledParameters.value.danceability) {
-      requestParameters.danceability = parameters.value.danceability
-    }
-
-    if (enabledParameters.value.energy) {
-      requestParameters.energy = parameters.value.energy
-    }
-
-    if (enabledParameters.value.valence) {
-      requestParameters.valence = parameters.value.valence
-    }
-
-    if (enabledParameters.value.acousticness) {
-      requestParameters.acousticness = parameters.value.acousticness
-    }
-
-    if (enabledParameters.value.instrumentalness) {
-      requestParameters.instrumentalness = parameters.value.instrumentalness
-    }
-
-    if (enabledParameters.value.liveness) {
-      requestParameters.liveness = parameters.value.liveness
-    }
-
-    if (enabledParameters.value.speechiness) {
-      requestParameters.speechiness = parameters.value.speechiness
-    }
-
-    if (enabledParameters.value.duration) {
-      requestParameters.duration_ms = parameters.value.duration_ms
-    }
-
-    if (enabledParameters.value.key_compatibility) {
-      requestParameters.key_compatibility = parameters.value.key_compatibility
-    }
+    const requestParameters = buildRequestParameters()
 
     console.log('🎵 Sending parameters to API:', requestParameters)
     console.log('🌐 Full request payload:', {
@@ -317,7 +332,7 @@ const discoverMusic = async () => {
       seed_track_name: selectedSeedTrack.value.name,
       seed_track_artist: selectedSeedTrack.value.artist,
       parameters: requestParameters,
-      limit: INITIAL_LOAD, // Only fetch 10 initially for speed!
+      limit: INITIAL_LOAD,
     })
 
     const response = await http.post('music-discovery/discover', {
@@ -325,27 +340,24 @@ const discoverMusic = async () => {
       seed_track_name: selectedSeedTrack.value.name,
       seed_track_artist: selectedSeedTrack.value.artist,
       parameters: requestParameters,
-      limit: INITIAL_LOAD, // Start with just 10 songs for instant results
+      limit: INITIAL_LOAD,
     })
 
     console.log('🎯 Discovery API response:', response)
 
     if (response.success) {
       const recs = response.data.recommendations
-      // Convert object to array if needed and map album_image to image
       const rawRecommendations = Array.isArray(recs) ? recs : Object.values(recs)
       const mappedRecommendations = rawRecommendations.map(track => ({
         ...track,
         image: track.album_image || track.image
       }))
       
-      // Store and display initial batch
       allRecommendations.value = mappedRecommendations
       recommendations.value = mappedRecommendations
       displayedCount.value = mappedRecommendations.length
       currentOffset.value = INITIAL_LOAD
       
-      // Set up for potential "Load More"
       hasMoreToLoad.value = mappedRecommendations.length >= INITIAL_LOAD
       
       console.log('✅ Final recommendations:', allRecommendations.value)
@@ -354,8 +366,11 @@ const discoverMusic = async () => {
       if (mappedRecommendations.length === 0) {
         errorMessage.value = 'No recommendations found with these parameters. Try adjusting your settings.'
         hasMoreToLoad.value = false
+      } else {
+        setTimeout(() => {
+          startBackgroundPrefetch()
+        }, 500)
       }
-      // NO AUTOMATIC BACKGROUND FETCHING
     } else {
       console.error('❌ Discovery API returned success: false', response)
       errorMessage.value = 'Failed to get recommendations. Please try again.'
