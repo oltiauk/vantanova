@@ -230,6 +230,8 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::post('search-seed', [MusicDiscoveryController::class, 'searchSeedTracks'])->name('search-seed');
             Route::post('discover', [MusicDiscoveryController::class, 'discoverMusic'])->name('discover');
             Route::get('track-features/{trackId}', [MusicDiscoveryController::class, 'getTrackFeatures'])->name('track-features');
+
+            Route::post('discover-reccobeats', [MusicDiscoveryController::class, 'discoverMusicReccoBeats'])->name('discover-reccobeats');
         });
     });
 
@@ -240,4 +242,26 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
     });
 
     Route::get('demo/credits', FetchDemoCreditsController::class);
+
+    Route::get('debug-reccobeats/{trackId}', function($trackId) {
+        try {
+            // Test ReccoBeats API directly
+            $response = \Illuminate\Support\Facades\Http::get('https://api.reccobeats.com/v1/track/recommendation', [
+                'seeds' => $trackId,
+                'size' => 3
+            ]);
+            
+            return response()->json([
+                'reccobeats_status' => $response->status(),
+                'reccobeats_data' => $response->json(),
+                'spotify_service_exists' => class_exists(\App\Services\SpotifyService::class),
+                'controller_exists' => method_exists(\App\Http\Controllers\API\MusicDiscoveryController::class, 'discoverMusicReccoBeats')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    });
 });

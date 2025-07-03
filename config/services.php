@@ -51,4 +51,7 @@ return [
         'api_key' => env('SOUNDSTATS_API_KEY', 'ef5tgzWyAbRkl9faVfAKlVYrqr0T5HkGX8LwizjcpIs'),
         'base_url' => env('SOUNDSTATS_BASE_URL', 'https://soundstat.info'),
     ],
+    'reccobeats' => [
+        'base_url' => env('RECCOBEATS_BASE_URL', 'https://reccobeats.com'),
+    ],
 ];

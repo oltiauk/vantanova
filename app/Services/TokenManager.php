@@ -12,7 +12,7 @@ class TokenManager
 {
     public function createToken(User $user, array $abilities = ['*']): NewAccessToken
     {
-        return $user->createToken(config('app.name'), $abilities);
+        return $user->createToken(name: config('app.name'), $abilities);
     }
 
     public function createCompositeToken(User $user): CompositeToken

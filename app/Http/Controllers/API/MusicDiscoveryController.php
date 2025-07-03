@@ -8,6 +8,7 @@ use App\Services\SoundStatsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http;
 
 class MusicDiscoveryController extends Controller
 {
@@ -41,7 +42,7 @@ class MusicDiscoveryController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $this->formatSpotifyTracks($results['tracks']['items'] ?? [])
+            'data' => $this->formatSpotifyTracksArray($results['tracks']['items'] ?? [])
         ]);
     }
 
@@ -86,16 +87,7 @@ class MusicDiscoveryController extends Controller
         if (empty($trackIds)) {
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'seed_track' => [
-                        'id' => $seedTrackId,
-                        'name' => $request->input('seed_track_name'),
-                        'artist' => $request->input('seed_track_artist'),
-                    ],
-                    'parameters' => $parameters,
-                    'recommendations' => [],
-                    'total' => 0
-                ]
+                'data' => []
             ]);
         }
 
@@ -108,17 +100,114 @@ class MusicDiscoveryController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'seed_track' => [
-                    'id' => $seedTrackId,
-                    'name' => $request->input('seed_track_name'),
-                    'artist' => $request->input('seed_track_artist'),
-                ],
-                'parameters' => $parameters,
-                'recommendations' => $this->formatSpotifyTracks($validTracks),
-                'total' => count($validTracks)
-            ]
+            'data' => $this->formatSpotifyTracksArray($validTracks)
         ]);
+    }
+
+    /**
+     * Get music recommendations using ReccoBeats
+     * POST /api/music-discovery/discover-reccobeats
+     */
+    public function discoverMusicReccoBeats(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'seed_track_id' => 'required|string',
+            'limit' => 'sometimes|integer|min:1|max:50',
+            'acousticness' => 'sometimes|numeric|min:0|max:1',
+            'danceability' => 'sometimes|numeric|min:0|max:1',
+            'energy' => 'sometimes|numeric|min:0|max:1',
+            'instrumentalness' => 'sometimes|numeric|min:0|max:1',
+            'key' => 'sometimes|integer|min:-1|max:11',
+            'liveness' => 'sometimes|numeric|min:0|max:1',
+            'loudness' => 'sometimes|numeric|min:-60|max:2',
+            'mode' => 'sometimes|integer|min:0|max:1',
+            'speechiness' => 'sometimes|numeric|min:0|max:1',
+            'tempo' => 'sometimes|numeric|min:0|max:250',
+            'valence' => 'sometimes|numeric|min:0|max:1',
+            'popularity' => 'sometimes|integer|min:0|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $seedTrackId = $request->input('seed_track_id');
+            $limit = $request->input('limit', 20);
+            
+            // Build query parameters
+            $queryParams = [
+                'seeds' => $seedTrackId,
+                'size' => $limit,
+            ];
+            
+            // Add audio feature parameters
+            $features = ['acousticness', 'danceability', 'energy', 'instrumentalness', 'key', 'liveness', 'loudness', 'mode', 'speechiness', 'tempo', 'valence', 'popularity'];
+            foreach ($features as $feature) {
+                if ($request->has($feature)) {
+                    $queryParams[$feature] = $request->input($feature);
+                }
+            }
+            
+            // Call ReccoBeats API
+            $response = Http::withHeaders(['Accept' => 'application/json'])
+                ->timeout(30)
+                ->get('https://api.reccobeats.com/v1/track/recommendation', $queryParams);
+            
+            if (!$response->successful()) {
+                throw new \Exception("ReccoBeats API error: HTTP {$response->status()} - " . $response->body());
+            }
+            
+            $data = $response->json();
+            $trackIds = [];
+            
+            // Extract Spotify IDs from href URLs
+            if (isset($data['content']) && is_array($data['content'])) {
+                foreach ($data['content'] as $track) {
+                    if (isset($track['href'])) {
+                        // Extract Spotify ID from URL: https://open.spotify.com/track/TRACK_ID
+                        if (preg_match('/\/track\/([a-zA-Z0-9]+)/', $track['href'], $matches)) {
+                            $trackIds[] = $matches[1];
+                        }
+                    }
+                }
+            }
+            
+            if (empty($trackIds)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'No recommendations found from ReccoBeats'
+                ]);
+            }
+            
+            // Get track details from Spotify
+            $tracks = [];
+            
+            foreach (array_slice($trackIds, 0, $limit) as $trackId) {
+                try {
+                    $track = $this->spotifyService->getTrackDetails($trackId);
+                    if ($track) {
+                        $tracks[] = $this->formatSingleSpotifyTrack($track);
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning("Failed to fetch track {$trackId}: " . $e->getMessage());
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $tracks,
+                'provider' => 'reccobeats',
+                'total_found' => count($trackIds)
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => "ReccoBeats discovery failed: " . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -151,9 +240,9 @@ class MusicDiscoveryController extends Controller
     }
 
     /**
-     * Format Spotify track data for frontend consumption
+     * Format array of Spotify tracks for frontend (ORIGINAL METHOD - RENAMED)
      */
-    private function formatSpotifyTracks(array $tracks): array
+    private function formatSpotifyTracksArray(array $tracks): array
     {
         return array_map(function ($track) {
             return [
@@ -163,6 +252,7 @@ class MusicDiscoveryController extends Controller
                 'artists' => array_map(fn($artist) => $artist['name'], $track['artists'] ?? []),
                 'album' => $track['album']['name'] ?? 'Unknown Album',
                 'album_image' => $track['album']['images'][0]['url'] ?? null,
+                'image' => $track['album']['images'][0]['url'] ?? null, // Add this for compatibility
                 'duration_ms' => $track['duration_ms'] ?? 0,
                 'duration' => $this->formatDuration($track['duration_ms'] ?? 0),
                 'preview_url' => $track['preview_url'],
@@ -171,6 +261,25 @@ class MusicDiscoveryController extends Controller
                 'release_date' => $track['album']['release_date'] ?? null,
             ];
         }, $tracks);
+    }
+    
+    /**
+     * Format single Spotify track for ReccoBeats (NEW METHOD)
+     */
+    private function formatSingleSpotifyTrack(array $track): array
+    {
+        return [
+            'id' => $track['id'],
+            'name' => $track['name'],
+            'artist' => $track['artists'][0]['name'] ?? 'Unknown Artist',
+            'artists' => array_map(fn($artist) => ['id' => $artist['id'], 'name' => $artist['name']], $track['artists'] ?? []),
+            'album' => $track['album']['name'] ?? 'Unknown Album',
+            'preview_url' => $track['preview_url'],
+            'external_urls' => $track['external_urls'],
+            'duration_ms' => $track['duration_ms'],
+            'popularity' => $track['popularity'] ?? 0,
+            'image' => $track['album']['images'][0]['url'] ?? null,
+        ];
     }
 
     /**
