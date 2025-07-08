@@ -128,6 +128,28 @@ class SpotifyService
         }
     }
 
+    public function getBatchAudioFeatures(array $trackIds): array
+{
+    // Spotify supports up to 100 tracks per request
+    $chunks = array_chunk($trackIds, 100);
+    $allFeatures = [];
+    
+    foreach ($chunks as $chunk) {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->getAccessToken(),
+        ])->get('https://api.spotify.com/v1/audio-features', [
+            'ids' => implode(',', $chunk)
+        ]);
+        
+        if ($response->successful()) {
+            $data = $response->json();
+            $allFeatures = array_merge($allFeatures, $data['audio_features'] ?? []);
+        }
+    }
+    
+    return $allFeatures;
+}
+
     /**
      * Get track audio features (for BPM, key, etc.)
      */

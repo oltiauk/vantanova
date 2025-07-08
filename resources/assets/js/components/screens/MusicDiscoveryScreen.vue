@@ -278,14 +278,30 @@ const getSeedTrackKey = async (trackId: string) => {
   }
 }
 
+// REPLACE THE EXISTING analyzeTrack function around line 318 in MusicDiscoveryScreen.vue
+
 const analyzeTrack = async (trackId: string) => {
   try {
-    const response: ApiResponse<{ key: number }> = await http.get(`music-discovery/track-features/${trackId}`)
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    
+    const response: ApiResponse<{ key: number }> = await http.get(
+      `music-discovery/track-features/${trackId}`,
+      { signal: controller.signal }
+    )
+    
+    clearTimeout(timeoutId)
+    
     if (response.success && response.data) {
       return response.data.key
     }
   } catch (error: any) {
-    console.log('Could not analyze track:', error)
+    if (error.name === 'AbortError') {
+      console.log('Track analysis timed out:', trackId)
+    } else {
+      console.log('Could not analyze track:', error)
+    }
   }
   return null
 }
@@ -345,6 +361,31 @@ const onTrackSelected = async (track: Track) => {
   await getSeedTrackKey(track.id)
 }
 
+const analyzeRecommendationKeysBatch = async (tracks: Track[]) => {
+  try {
+    const trackIds = tracks.map(track => track.id)
+    
+    const response: ApiResponse<Record<string, any>> = await http.post('music-discovery/batch-track-features', {
+      track_ids: trackIds
+    })
+    
+    if (response.success && response.data) {
+      keyAnalysisResults.value = Object.entries(response.data).map(([trackId, features]) => {
+        const track = tracks.find(t => t.id === trackId)
+        return {
+          id: trackId,
+          name: track?.name || 'Unknown',
+          key: features.key
+        }
+      }).filter(result => result.key !== null)
+      
+      console.log('🔍 Batch key analysis complete:', keyAnalysisResults.value)
+    }
+  } catch (error: any) {
+    console.log('Batch key analysis failed:', error)
+  }
+}
+
 // SoundStats discovery
 const discoverMusicSoundStats = async () => {
   if (!selectedSeedTrack.value || !hasEnabledParameters.value) {
@@ -357,8 +398,6 @@ const discoverMusicSoundStats = async () => {
     currentProvider.value = 'SoundStats'
 
     const requestParameters = buildRequestParameters()
-
-    console.log('🎵 Testing SoundStats with key_compatibility:', requestParameters.key_compatibility)
 
     const response: ApiResponse<Track[]> = await http.post('music-discovery/discover', {
       seed_track_id: selectedSeedTrack.value.id,
@@ -378,8 +417,12 @@ const discoverMusicSoundStats = async () => {
 
       console.log(`✅ SoundStats found ${tracks.length} recommendations`)
 
-      // Analyze keys of first 12 recommendations
-      await analyzeRecommendationKeys(tracks.slice(0, 12))
+      // IMPORTANT: Don't block the UI - analyze keys in background
+      // This will complete after the UI updates
+      setTimeout(() => {
+        analyzeRecommendationKeys(tracks.slice(0, 12))
+      }, 0)
+      
     } else {
       throw new Error('Invalid response from SoundStats')
     }
@@ -389,9 +432,12 @@ const discoverMusicSoundStats = async () => {
     recommendations.value = []
     allRecommendations.value = []
   } finally {
+    // Set this immediately after getting recommendations, not after key analysis
     isDiscovering.value = false
   }
 }
+
+
 
 // ReccoBeats discovery - SIMPLIFIED FOR TESTING
 const discoverMusicReccoBeats = async () => {
@@ -497,18 +543,22 @@ const discoverMusicReccoBeats = async () => {
 
 const analyzeRecommendationKeys = async (tracks: Track[]) => {
   keyAnalysisResults.value = []
-
-  for (const track of tracks) {
-    const key = await analyzeTrack(track.id)
-    if (key !== null) {
-      keyAnalysisResults.value.push({
-        id: track.id,
-        name: track.name,
-        key,
-      })
+  
+  // Run all API calls in parallel instead of sequential
+  const keyPromises = tracks.map(async (track) => {
+    try {
+      const key = await analyzeTrack(track.id)
+      return key !== null ? { id: track.id, name: track.name, key } : null
+    } catch (error) {
+      console.log(`Could not analyze track ${track.id}:`, error)
+      return null
     }
-  }
-
+  })
+  
+  // Wait for all requests to complete
+  const results = await Promise.all(keyPromises)
+  keyAnalysisResults.value = results.filter(result => result !== null)
+  
   console.log('🔍 Key analysis complete:', keyAnalysisResults.value)
 }
 

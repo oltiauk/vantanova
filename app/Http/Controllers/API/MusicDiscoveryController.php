@@ -104,6 +104,53 @@ class MusicDiscoveryController extends Controller
         ]);
     }
 
+    public function getBatchTrackFeatures(Request $request): JsonResponse
+{
+    $validator = Validator::make($request->all(), [
+        'track_ids' => 'required|array|min:1|max:50',
+        'track_ids.*' => 'required|string'
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $trackIds = $request->input('track_ids');
+    $features = [];
+
+    // Spotify allows batch requests for audio features
+    try {
+        $audioFeatures = $this->spotifyService->getBatchAudioFeatures($trackIds);
+        
+        foreach ($audioFeatures as $index => $feature) {
+            if ($feature) {
+                $features[$trackIds[$index]] = [
+                    'bpm' => round($feature['tempo'] ?? 0),
+                    'key' => $feature['key'] ?? null,
+                    'mode' => $feature['mode'] ?? null,
+                    'energy' => $feature['energy'] ?? null,
+                    'danceability' => $feature['danceability'] ?? null,
+                    'valence' => $feature['valence'] ?? null,
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $features
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Failed to fetch batch features: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
     /**
      * Get music recommendations using ReccoBeats
      * POST /api/music-discovery/discover-reccobeats
