@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Services\SpotifyService;
 use App\Services\SoundStatsService;
+use App\Services\RapidApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -14,11 +15,12 @@ class MusicDiscoveryController extends Controller
 {
     public function __construct(
         private SpotifyService $spotifyService,
-        private SoundStatsService $soundStatsService
+        private SoundStatsService $soundStatsService,
+        private RapidApiService $rapidApiService
     ) {}
 
     /**
-     * Search for seed tracks on Spotify
+     * Search for seed tracks using RapidAPI (replaces Spotify search)
      * POST /api/music-discovery/search-seed
      */
     public function searchSeedTracks(Request $request): JsonResponse
@@ -38,11 +40,18 @@ class MusicDiscoveryController extends Controller
         $query = $request->input('query');
         $limit = $request->input('limit', 20);
 
-        $results = $this->spotifyService->searchTracks($query, $limit);
+        $results = $this->rapidApiService->searchTracks($query, $limit);
+
+        if (!$results['success']) {
+            return response()->json([
+                'success' => false,
+                'error' => $results['error']
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
-            'data' => $this->formatSpotifyTracksArray($results['tracks']['items'] ?? [])
+            'data' => $this->formatRapidApiTracksArray($results['tracks'] ?? [])
         ]);
     }
 
@@ -258,18 +267,95 @@ class MusicDiscoveryController extends Controller
     }
 
     /**
+     * Get music recommendations using RapidAPI Radio Workflow
+     * POST /api/music-discovery/discover-rapidapi
+     */
+    public function discoverMusicRapidApi(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'seed_track_uri' => 'required|string',
+            'max_popularity' => 'sometimes|integer|min:0|max:100',
+            'limit' => 'sometimes|integer|min:1|max:50'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $seedTrackUri = $request->input('seed_track_uri');
+            $maxPopularity = $request->input('max_popularity', 70);
+            $limit = $request->input('limit', 20);
+
+            // Use the complete radio workflow
+            $result = $this->rapidApiService->getRadioRecommendations($seedTrackUri, $maxPopularity, $limit);
+
+            if (!$result['success']) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $this->formatRapidApiTracksArray($result['tracks'] ?? []),
+                'provider' => 'rapidapi',
+                'total_found' => $result['total_found'],
+                'after_filtering' => $result['after_filtering'],
+                'playlist_id' => $result['playlist_id']
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'RapidAPI discovery failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get track audio features (for displaying BPM, key, etc.)
      * GET /api/music-discovery/track-features/{trackId}
      */
     public function getTrackFeatures(string $trackId): JsonResponse
     {
+        // Check if Spotify is enabled
+        if (!$this->spotifyService::enabled()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'bpm' => 0,
+                    'key' => null,
+                    'mode' => null,
+                    'energy' => null,
+                    'danceability' => null,
+                    'valence' => null,
+                    'popularity' => null,
+                ],
+                'message' => 'Spotify not configured'
+            ]);
+        }
+
         $features = $this->spotifyService->getTrackAudioFeatures($trackId);
 
         if (!$features) {
             return response()->json([
-                'success' => false,
-                'message' => 'Track features not found'
-            ], 404);
+                'success' => true,
+                'data' => [
+                    'bpm' => 0,
+                    'key' => null,
+                    'mode' => null,
+                    'energy' => null,
+                    'danceability' => null,
+                    'valence' => null,
+                    'popularity' => null,
+                ],
+                'message' => 'Track features not available'
+            ]);
         }
 
         return response()->json([
@@ -284,6 +370,32 @@ class MusicDiscoveryController extends Controller
                 'popularity' => $features['popularity'] ?? null,
             ]
         ]);
+    }
+
+    /**
+     * Format array of RapidAPI tracks for frontend
+     */
+    private function formatRapidApiTracksArray(array $tracks): array
+    {
+        return array_map(function ($track) {
+            return [
+                'id' => $track['id'],
+                'uri' => $track['uri'] ?? null,
+                'name' => $track['name'],
+                'artist' => $track['artist'],
+                'artists' => [$track['artist']], // Convert to array for compatibility
+                'album' => $track['album'],
+                'album_image' => $track['image'],
+                'image' => $track['image'],
+                'duration_ms' => $track['duration_ms'] ?? 0,
+                'duration' => $this->formatDuration($track['duration_ms'] ?? 0),
+                'preview_url' => $track['preview_url'],
+                'external_url' => $track['external_url'],
+                'popularity' => $track['popularity'] ?? 0,
+                'release_date' => $track['release_date'] ?? null,
+                'explicit' => $track['explicit'] ?? false,
+            ];
+        }, $tracks);
     }
 
     /**

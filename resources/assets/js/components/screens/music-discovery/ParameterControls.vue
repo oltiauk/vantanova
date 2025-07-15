@@ -417,6 +417,22 @@
             🎧 Test ReccoBeats
           </span>
         </button>
+
+        <button
+          @click="$emit('discover-rapidapi')"
+          :disabled="isDiscovering"
+          class="flex-1 px-6 py-3 rounded-lg font-medium transition-colors"
+          :class="isDiscovering && currentProvider === 'RapidAPI'
+            ? 'bg-purple-600 text-white opacity-50 cursor-not-allowed'
+            : 'bg-purple-600 hover:bg-purple-700 text-white'"
+        >
+          <span v-if="isDiscovering && currentProvider === 'RapidAPI'">
+            🔄 Testing RapidAPI...
+          </span>
+          <span v-else>
+            🚀 Test RapidAPI Radio
+          </span>
+        </button>
       </div>
     </div>
   </div>
@@ -482,6 +498,7 @@ const emit = defineEmits<{
   'update:customKey': [key: number]
   'discover-soundstats': []
   'discover-reccobeats': []
+  'discover-rapidapi': []
 }>()
 
 // Local reactive copies for v-model

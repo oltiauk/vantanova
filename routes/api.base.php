@@ -232,6 +232,8 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::get('track-features/{trackId}', [MusicDiscoveryController::class, 'getTrackFeatures'])->name('track-features');
 
             Route::post('discover-reccobeats', [MusicDiscoveryController::class, 'discoverMusicReccoBeats'])->name('discover-reccobeats');
+            Route::post('discover-rapidapi', [MusicDiscoveryController::class, 'discoverMusicRapidApi'])->name('discover-rapidapi');
+            Route::post('batch-track-features', [MusicDiscoveryController::class, 'getBatchTrackFeatures'])->name('batch-track-features');
         });
     });
 

@@ -50,6 +50,7 @@
         :current-provider="currentProvider"
         @discover-soundstats="discoverMusicSoundStats"
         @discover-reccobeats="discoverMusicReccoBeats"
+        @discover-rapidapi="discoverMusicRapidApi"
       />
 
       <RecommendationsList
@@ -285,14 +286,14 @@ const analyzeTrack = async (trackId: string) => {
     // Add timeout to prevent hanging requests
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
-    
+
     const response: ApiResponse<{ key: number }> = await http.get(
       `music-discovery/track-features/${trackId}`,
-      { signal: controller.signal }
+      { signal: controller.signal },
     )
-    
+
     clearTimeout(timeoutId)
-    
+
     if (response.success && response.data) {
       return response.data.key
     }
@@ -364,21 +365,21 @@ const onTrackSelected = async (track: Track) => {
 const analyzeRecommendationKeysBatch = async (tracks: Track[]) => {
   try {
     const trackIds = tracks.map(track => track.id)
-    
+
     const response: ApiResponse<Record<string, any>> = await http.post('music-discovery/batch-track-features', {
-      track_ids: trackIds
+      track_ids: trackIds,
     })
-    
+
     if (response.success && response.data) {
       keyAnalysisResults.value = Object.entries(response.data).map(([trackId, features]) => {
         const track = tracks.find(t => t.id === trackId)
         return {
           id: trackId,
           name: track?.name || 'Unknown',
-          key: features.key
+          key: features.key,
         }
       }).filter(result => result.key !== null)
-      
+
       console.log('🔍 Batch key analysis complete:', keyAnalysisResults.value)
     }
   } catch (error: any) {
@@ -422,7 +423,6 @@ const discoverMusicSoundStats = async () => {
       setTimeout(() => {
         analyzeRecommendationKeys(tracks.slice(0, 12))
       }, 0)
-      
     } else {
       throw new Error('Invalid response from SoundStats')
     }
@@ -437,8 +437,6 @@ const discoverMusicSoundStats = async () => {
   }
 }
 
-
-
 // ReccoBeats discovery - SIMPLIFIED FOR TESTING
 const discoverMusicReccoBeats = async () => {
   if (!selectedSeedTrack.value) {
@@ -449,12 +447,12 @@ const discoverMusicReccoBeats = async () => {
     isDiscovering.value = true
     errorMessage.value = ''
     currentProvider.value = 'ReccoBeats'
-    
+
     console.log('Testing ReccoBeats with track:', selectedSeedTrack.value)
 
     const reccoBeatsParams: any = {
       seed_track_id: selectedSeedTrack.value.id,
-      limit: 20
+      limit: 20,
     }
 
     // Add enabled parameters in ReccoBeats format
@@ -518,14 +516,14 @@ const discoverMusicReccoBeats = async () => {
     // FIXED: Check for success property correctly
     if (response.success && Array.isArray(response.data)) {
       const tracks = response.data || []
-      
+
       allRecommendations.value = tracks
       recommendations.value = tracks.slice(0, INITIAL_LOAD)
       displayedCount.value = Math.min(INITIAL_LOAD, tracks.length)
       hasMoreToLoad.value = tracks.length > INITIAL_LOAD
-      
+
       console.log(`✅ ReccoBeats found ${tracks.length} recommendations`)
-      
+
       // Skip key analysis for now to avoid 404 errors
       // await analyzeRecommendationKeys(tracks.slice(0, 12))
     } else {
@@ -541,11 +539,62 @@ const discoverMusicReccoBeats = async () => {
   }
 }
 
+// RapidAPI discovery - NEW
+const discoverMusicRapidApi = async () => {
+  if (!selectedSeedTrack.value) {
+    return
+  }
+
+  try {
+    isDiscovering.value = true
+    errorMessage.value = ''
+    currentProvider.value = 'RapidAPI'
+
+    console.log('🚀 Testing RapidAPI with track:', selectedSeedTrack.value)
+
+    const response = await http.post('music-discovery/discover-rapidapi', {
+      seed_track_uri: selectedSeedTrack.value.uri || `spotify:track:${selectedSeedTrack.value.id}`,
+      max_popularity: parameters.value.popularity, // Use user's input from form
+      limit: 20
+    })
+
+    if (response.success && Array.isArray(response.data)) {
+      const tracks = response.data || []
+
+      allRecommendations.value = tracks
+      recommendations.value = tracks.slice(0, INITIAL_LOAD)
+      displayedCount.value = Math.min(INITIAL_LOAD, tracks.length)
+      hasMoreToLoad.value = tracks.length > INITIAL_LOAD
+
+      console.log(`✅ RapidAPI found ${tracks.length} recommendations`)
+      console.log('📊 RapidAPI stats:', {
+        total_found: response.total_found,
+        after_filtering: response.after_filtering,
+        playlist_id: response.playlist_id
+      })
+
+      // Analyze keys in background
+      setTimeout(() => {
+        analyzeRecommendationKeys(tracks.slice(0, 12))
+      }, 0)
+    } else {
+      throw new Error('Invalid response format from RapidAPI')
+    }
+  } catch (error) {
+    console.error('RapidAPI discovery failed:', error)
+    errorMessage.value = error.response?.data?.error || error.message || 'RapidAPI discovery failed'
+    recommendations.value = []
+    allRecommendations.value = []
+  } finally {
+    isDiscovering.value = false
+  }
+}
+
 const analyzeRecommendationKeys = async (tracks: Track[]) => {
   keyAnalysisResults.value = []
-  
+
   // Run all API calls in parallel instead of sequential
-  const keyPromises = tracks.map(async (track) => {
+  const keyPromises = tracks.map(async track => {
     try {
       const key = await analyzeTrack(track.id)
       return key !== null ? { id: track.id, name: track.name, key } : null
@@ -554,11 +603,11 @@ const analyzeRecommendationKeys = async (tracks: Track[]) => {
       return null
     }
   })
-  
+
   // Wait for all requests to complete
   const results = await Promise.all(keyPromises)
   keyAnalysisResults.value = results.filter(result => result !== null)
-  
+
   console.log('🔍 Key analysis complete:', keyAnalysisResults.value)
 }
 

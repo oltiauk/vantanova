@@ -54,4 +54,10 @@ return [
     'reccobeats' => [
         'base_url' => env('RECCOBEATS_BASE_URL', 'https://reccobeats.com'),
     ],
+    
+    'rapidapi' => [
+        'host' => env('RAPIDAPI_HOST', 'spotify23.p.rapidapi.com'),
+        'key' => env('RAPIDAPI_KEY'),
+        'base_url' => env('RAPIDAPI_BASE_URL', 'https://spotify23.p.rapidapi.com'),
+    ],
 ];
