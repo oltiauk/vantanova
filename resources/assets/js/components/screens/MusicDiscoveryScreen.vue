@@ -554,8 +554,10 @@ const discoverMusicRapidApi = async () => {
 
     const response = await http.post('music-discovery/discover-rapidapi', {
       seed_track_uri: selectedSeedTrack.value.uri || `spotify:track:${selectedSeedTrack.value.id}`,
-      max_popularity: parameters.value.popularity, // Use user's input from form
-      limit: 20
+      max_popularity: parameters.value.popularity,
+      apply_popularity_filter: enabledParameters.value.popularity, // Only filter if enabled
+      limit: 50,
+      _cache_bust: Date.now() // Prevent caching for dynamic results
     })
 
     if (response.success && Array.isArray(response.data)) {

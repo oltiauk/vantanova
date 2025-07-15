@@ -37,7 +37,9 @@ class RapidApiService
         
         $headers = [
             'X-RapidAPI-Key' => $this->key,
-            'X-RapidAPI-Host' => $this->host
+            'X-RapidAPI-Host' => $this->host,
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache'
         ];
 
         try {
@@ -45,6 +47,7 @@ class RapidApiService
             
             $response = Http::withHeaders($headers)
                 ->timeout(30)
+                ->withoutVerifying() // Disable SSL verification if needed
                 ->get($url, $params);
 
             // Rate limiting
@@ -136,7 +139,9 @@ class RapidApiService
     public function createRadioPlaylist(string $trackUri): array
     {
         $result = $this->makeRequest('/seed_to_playlist/', [
-            'uri' => $trackUri
+            'uri' => $trackUri,
+            '_t' => time(),
+            '_r' => rand(1000, 9999) // Add random number for uniqueness
         ]);
 
         if (!$result['success']) {

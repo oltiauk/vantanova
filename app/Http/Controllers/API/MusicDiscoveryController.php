@@ -275,7 +275,8 @@ class MusicDiscoveryController extends Controller
         $validator = Validator::make($request->all(), [
             'seed_track_uri' => 'required|string',
             'max_popularity' => 'sometimes|integer|min:0|max:100',
-            'limit' => 'sometimes|integer|min:1|max:50'
+            'apply_popularity_filter' => 'sometimes|boolean',
+            'limit' => 'sometimes|integer|min:1|max:100'
         ]);
 
         if ($validator->fails()) {
@@ -287,18 +288,56 @@ class MusicDiscoveryController extends Controller
 
         try {
             $seedTrackUri = $request->input('seed_track_uri');
-            $maxPopularity = $request->input('max_popularity', 70);
-            $limit = $request->input('limit', 20);
+            $maxPopularity = $request->input('max_popularity', 100);
+            $applyPopularityFilter = $request->input('apply_popularity_filter', false);
+            $limit = $request->input('limit', 50);
 
-            // Use the complete radio workflow
-            $result = $this->rapidApiService->getRadioRecommendations($seedTrackUri, $maxPopularity, $limit);
-
-            if (!$result['success']) {
+            // Get radio tracks without mandatory filtering
+            $radioResult = $this->rapidApiService->createRadioPlaylist($seedTrackUri);
+            if (!$radioResult['success']) {
                 return response()->json([
                     'success' => false,
-                    'error' => $result['error']
+                    'error' => $radioResult['error']
                 ], 500);
             }
+
+            $tracksResult = $this->rapidApiService->getPlaylistTracks($radioResult['playlist_id'], 100);
+            if (!$tracksResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $tracksResult['error']
+                ], 500);
+            }
+
+            $allTracks = $tracksResult['tracks'];
+            
+            // Apply popularity filter only if requested
+            $filteredTracks = $allTracks;
+            if ($applyPopularityFilter) {
+                $filteredTracks = $this->rapidApiService->filterTracksByPopularity($allTracks, $maxPopularity);
+            }
+
+            // Shuffle tracks for variety, then limit results
+            if (!empty($filteredTracks)) {
+                shuffle($filteredTracks);
+            }
+            $finalTracks = array_slice($filteredTracks, 0, $limit);
+
+            $result = [
+                'success' => true,
+                'tracks' => $finalTracks,
+                'total_found' => count($allTracks),
+                'after_filtering' => count($filteredTracks),
+                'playlist_id' => $radioResult['playlist_id']
+            ];
+
+            \Log::info('RapidAPI Final Result', [
+                'playlist_id' => $result['playlist_id'],
+                'total_found' => $result['total_found'],
+                'after_filtering' => $result['after_filtering'],
+                'first_track' => $result['tracks'][0]['name'] ?? 'No tracks',
+                'timestamp' => now()
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -310,6 +349,13 @@ class MusicDiscoveryController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('RapidAPI Discovery Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'error' => 'RapidAPI discovery failed: ' . $e->getMessage()
