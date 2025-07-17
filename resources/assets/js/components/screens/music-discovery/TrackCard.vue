@@ -35,38 +35,41 @@
   
         <!-- Actions -->
         <div class="shrink-0 flex items-center space-x-2">
-          <!-- Save Track Button -->
-          <Btn
-            size="sm"
-            class="!p-2"
-            title="Save Track (24 hours)"
-            green
-            @click="saveTrack"
-          >
-            <Icon :icon="faHeart" class="w-4 h-4" />
-          </Btn>
+          <!-- Preference Buttons (RESTORED) -->
+          <template v-if="!hidePref">
+            <!-- Save Track Button -->
+            <Btn
+              size="sm"
+              class="!p-2"
+              title="Save Track (24 hours)"
+              green
+              @click="saveTrack"
+            >
+              <Icon :icon="faHeart" class="w-4 h-4" />
+            </Btn>
 
-          <!-- Save Artist Button -->
-          <Btn
-            size="sm"
-            class="!p-2"
-            title="Save Artist"
-            blue
-            @click="saveArtist"
-          >
-            <Icon :icon="faUserPlus" class="w-4 h-4" />
-          </Btn>
+            <!-- Save Artist Button -->
+            <Btn
+              size="sm"
+              class="!p-2"
+              title="Save Artist"
+              blue
+              @click="saveArtist"
+            >
+              <Icon :icon="faUserPlus" class="w-4 h-4" />
+            </Btn>
 
-          <!-- Ban Artist Button -->
-          <Btn
-            size="sm"
-            class="!p-2"
-            title="Ban Artist"
-            red
-            @click="banArtist"
-          >
-            <Icon :icon="faUserMinus" class="w-4 h-4" />
-          </Btn>
+            <!-- Ban Artist Button -->
+            <Btn
+              size="sm"
+              class="!p-2"
+              title="Ban Artist"
+              red
+              @click="banArtist"
+            >
+              <Icon :icon="faUserMinus" class="w-4 h-4" />
+            </Btn>
+          </template>
           
           <!-- Preview Button -->
           <Btn
@@ -133,6 +136,7 @@
   // Props
   const props = defineProps<{
     track: Track
+    hidePref?: boolean
   }>()
   
   // State
@@ -170,13 +174,13 @@
       })
   
       audio.addEventListener('error', (error) => {
-        console.error('Preview playback failed:', error)
+        // console.error('Preview playback failed:', error)
         isPlaying.value = false
         currentAudio.value = null
       })
   
       audio.play().catch(error => {
-        console.error('Preview playback failed:', error)
+        // console.error('Preview playback failed:', error)
         isPlaying.value = false
         currentAudio.value = null
       })
@@ -202,7 +206,7 @@
   const saveTrack = async () => {
     const isrc = props.track.external_ids?.isrc
     if (!isrc) {
-      console.warn('⚠️ No ISRC available for track:', props.track.name)
+      // console.warn('⚠️ No ISRC available for track:', props.track.name)
       // Could show toast notification to user
       return
     }
@@ -216,15 +220,15 @@
       })
 
       if (response.success) {
-        console.log('✅ Track saved successfully:', props.track.name)
+        // console.log('✅ Track saved successfully:', props.track.name)
         // Could emit event to parent to show success message
       }
     } catch (error: any) {
       if (error.response?.status === 503 && error.response?.data?.code === 'TABLES_MISSING') {
-        console.warn('⚠️ Music preferences feature not set up yet')
+        // console.warn('⚠️ Music preferences feature not set up yet')
         // Could show setup message to user
       } else {
-        console.error('❌ Failed to save track:', error.response?.data?.error || error.message)
+        // console.error('❌ Failed to save track:', error.response?.data?.error || error.message)
       }
     }
   }
@@ -233,7 +237,7 @@
   const saveArtist = async () => {
     const primaryArtist = props.track.artists?.[0]
     if (!primaryArtist?.id) {
-      console.warn('⚠️ No primary artist ID available for:', props.track.artist)
+      // console.warn('⚠️ No primary artist ID available for:', props.track.artist)
       return
     }
 
@@ -244,13 +248,13 @@
       })
 
       if (response.success) {
-        console.log('✅ Artist saved successfully:', primaryArtist.name)
+        // console.log('✅ Artist saved successfully:', primaryArtist.name)
       }
     } catch (error: any) {
       if (error.response?.status === 503 && error.response?.data?.code === 'TABLES_MISSING') {
-        console.warn('⚠️ Music preferences feature not set up yet')
+        // console.warn('⚠️ Music preferences feature not set up yet')
       } else {
-        console.error('❌ Failed to save artist:', error.response?.data?.error || error.message)
+        // console.error('❌ Failed to save artist:', error.response?.data?.error || error.message)
       }
     }
   }
@@ -259,7 +263,7 @@
   const banArtist = async () => {
     const primaryArtist = props.track.artists?.[0]
     if (!primaryArtist?.id) {
-      console.warn('⚠️ No primary artist ID available for:', props.track.artist)
+      // console.warn('⚠️ No primary artist ID available for:', props.track.artist)
       return
     }
 
@@ -270,13 +274,13 @@
       })
 
       if (response.success) {
-        console.log('✅ Artist banned successfully:', primaryArtist.name)
+        // console.log('✅ Artist banned successfully:', primaryArtist.name)
       }
     } catch (error: any) {
       if (error.response?.status === 503 && error.response?.data?.code === 'TABLES_MISSING') {
-        console.warn('⚠️ Music preferences feature not set up yet')
+        // console.warn('⚠️ Music preferences feature not set up yet')
       } else {
-        console.error('❌ Failed to ban artist:', error.response?.data?.error || error.message)
+        // console.error('❌ Failed to ban artist:', error.response?.data?.error || error.message)
       }
     }
   }

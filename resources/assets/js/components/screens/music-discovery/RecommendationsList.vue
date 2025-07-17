@@ -8,7 +8,7 @@
           </h3>
           <div v-if="recommendations.length > 0" class="flex items-center gap-3">
             <!-- Blacklist Unsaved Tracks Button -->
-            <Btn
+            <!-- <Btn
               size="sm"
               red
               :disabled="isBlacklistingUnsaved"
@@ -16,7 +16,7 @@
               title="Add all currently displayed tracks that aren't saved to your blacklist"
             >
               {{ isBlacklistingUnsaved ? 'Blacklisting...' : 'Blacklist Unsaved Tracks' }}
-            </Btn>
+            </Btn> -->
             <span class="text-k-text-secondary text-sm">
               Showing {{ displayedCount }} tracks
             </span>

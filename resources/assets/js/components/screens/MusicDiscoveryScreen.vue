@@ -16,9 +16,9 @@
       />
 
       <!-- Seed Track Key Display -->
-      <div v-if="selectedSeedTrack && seedTrackKey !== null" class="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-        <h3 class="text-blue-300 font-medium mb-2">🎹 Seed Track Analysis</h3>
-        <div class="grid grid-cols-2 gap-4 text-sm">
+      <div v-if="selectedSeedTrack && seedTrackKey !== null" class="mb-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+        <h3 class="text-blue-300 font-medium mb-4">🎹 Seed Track Analysis</h3>
+        <div class="grid grid-cols-2 gap-6 text-sm">
           <div>
             <span class="text-k-text-secondary">Key:</span>
             <span class="text-k-text-primary ml-2 font-medium">
@@ -32,26 +32,28 @@
             </span>
           </div>
         </div>
-        <div class="mt-2 text-xs text-blue-200">
+        <div class="mt-4 text-xs text-blue-200">
           This is the musical key of your selected track. Watch how each provider handles key recommendations.
         </div>
       </div>
 
-      <ParameterControls
-        v-if="selectedSeedTrack"
-        v-model:parameters="parameters"
-        v-model:enabled-parameters="enabledParameters"
-        v-model:selected-key-mode="selectedKeyMode"
-        v-model:custom-key="customKey"
-        :has-enabled-parameters="hasEnabledParameters"
-        :seed-track-key="seedTrackKey"
-        :key-names="keyNames"
-        :is-discovering="isDiscovering"
-        :current-provider="currentProvider"
-        @discover-soundstats="discoverMusicSoundStats"
-        @discover-reccobeats="discoverMusicReccoBeats"
-        @discover-rapidapi="discoverMusicRapidApi"
-      />
+      <div class="mb-8">
+        <ParameterControls
+          v-if="selectedSeedTrack"
+          v-model:parameters="parameters"
+          v-model:enabled-parameters="enabledParameters"
+          v-model:selected-key-mode="selectedKeyMode"
+          v-model:custom-key="customKey"
+          :has-enabled-parameters="hasEnabledParameters"
+          :seed-track-key="seedTrackKey"
+          :key-names="keyNames"
+          :is-discovering="isDiscovering"
+          :current-provider="currentProvider"
+          @discover-soundstats="discoverMusicSoundStats"
+          @discover-reccobeats="discoverMusicReccoBeats"
+          @discover-rapidapi="discoverMusicRapidApi"
+        />
+      </div>
 
       <RecommendationsList
         v-if="selectedSeedTrack && recommendations.length > 0"
@@ -270,10 +272,8 @@ const getSeedTrackKey = async (trackId: string) => {
     if (response.success && response.data) {
       seedTrackKey.value = response.data.key
       seedTrackMode.value = response.data.mode
-      console.log('🎹 Seed track key analysis:', response.data)
     }
   } catch (error: any) {
-    console.log('Could not get track key:', error)
     seedTrackKey.value = null
     seedTrackMode.value = null
   }
@@ -299,9 +299,7 @@ const analyzeTrack = async (trackId: string) => {
     }
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      console.log('Track analysis timed out:', trackId)
     } else {
-      console.log('Could not analyze track:', error)
     }
   }
   return null
@@ -380,10 +378,8 @@ const analyzeRecommendationKeysBatch = async (tracks: Track[]) => {
         }
       }).filter(result => result.key !== null)
 
-      console.log('🔍 Batch key analysis complete:', keyAnalysisResults.value)
     }
   } catch (error: any) {
-    console.log('Batch key analysis failed:', error)
   }
 }
 
@@ -416,7 +412,6 @@ const discoverMusicSoundStats = async () => {
       displayedCount.value = Math.min(INITIAL_LOAD, tracks.length)
       hasMoreToLoad.value = tracks.length > INITIAL_LOAD
 
-      console.log(`✅ SoundStats found ${tracks.length} recommendations`)
 
       // IMPORTANT: Don't block the UI - analyze keys in background
       // This will complete after the UI updates
@@ -448,7 +443,6 @@ const discoverMusicReccoBeats = async () => {
     errorMessage.value = ''
     currentProvider.value = 'ReccoBeats'
 
-    console.log('Testing ReccoBeats with track:', selectedSeedTrack.value)
 
     const reccoBeatsParams: any = {
       seed_track_id: selectedSeedTrack.value.id,
@@ -490,26 +484,22 @@ const discoverMusicReccoBeats = async () => {
         case 'same':
           if (seedTrackKey.value !== null && seedTrackKey.value !== -1) {
             reccoBeatsParams.key = seedTrackKey.value
-            console.log('🎹 ReccoBeats: Using same key:', keyNames[seedTrackKey.value])
           }
           break
         case 'compatible':
           if (seedTrackKey.value !== null && seedTrackKey.value !== -1) {
             const compatibleKeys = getCompatibleKeys(seedTrackKey.value)
             reccoBeatsParams.key = compatibleKeys[1] // Perfect 5th
-            console.log('🎹 ReccoBeats: Using compatible key:', keyNames[compatibleKeys[1]])
           }
           break
         case 'custom':
           if (customKey.value !== -1) {
             reccoBeatsParams.key = customKey.value
-            console.log('🎹 ReccoBeats: Using custom key:', keyNames[customKey.value])
           }
           break
       }
     }
 
-    console.log('🎵 Testing ReccoBeats with params:', reccoBeatsParams)
 
     const response = await http.post('music-discovery/discover-reccobeats', reccoBeatsParams)
 
@@ -522,7 +512,6 @@ const discoverMusicReccoBeats = async () => {
       displayedCount.value = Math.min(INITIAL_LOAD, tracks.length)
       hasMoreToLoad.value = tracks.length > INITIAL_LOAD
 
-      console.log(`✅ ReccoBeats found ${tracks.length} recommendations`)
 
       // Skip key analysis for now to avoid 404 errors
       // await analyzeRecommendationKeys(tracks.slice(0, 12))
@@ -550,7 +539,6 @@ const discoverMusicRapidApi = async () => {
     errorMessage.value = ''
     currentProvider.value = 'RapidAPI'
 
-    console.log('🚀 Testing RapidAPI with track:', selectedSeedTrack.value)
 
     const response = await http.post('music-discovery/discover-rapidapi', {
       seed_track_uri: selectedSeedTrack.value.uri || `spotify:track:${selectedSeedTrack.value.id}`,
@@ -569,12 +557,6 @@ const discoverMusicRapidApi = async () => {
       displayedCount.value = Math.min(INITIAL_LOAD, tracks.length)
       hasMoreToLoad.value = tracks.length > INITIAL_LOAD
 
-      console.log(`✅ RapidAPI found ${tracks.length} recommendations`)
-      console.log('📊 RapidAPI stats:', {
-        total_found: response.total_found,
-        after_filtering: response.after_filtering,
-        playlist_id: response.playlist_id
-      })
 
       // Analyze keys in background
       setTimeout(() => {
@@ -597,21 +579,20 @@ const analyzeRecommendationKeys = async (tracks: Track[]) => {
   keyAnalysisResults.value = []
 
   // Run all API calls in parallel instead of sequential
-  const keyPromises = tracks.map(async track => {
+  // Run key analysis in background without blocking UI
+  keyAnalysisResults.value = [] // Reset results
+  
+  tracks.forEach(async track => {
     try {
       const key = await analyzeTrack(track.id)
-      return key !== null ? { id: track.id, name: track.name, key } : null
+      if (key !== null) {
+        // Add result as it comes in (non-blocking)
+        keyAnalysisResults.value.push({ id: track.id, name: track.name, key })
+      }
     } catch (error) {
-      console.log(`Could not analyze track ${track.id}:`, error)
-      return null
     }
   })
 
-  // Wait for all requests to complete
-  const results = await Promise.all(keyPromises)
-  keyAnalysisResults.value = results.filter(result => result !== null)
-
-  console.log('🔍 Key analysis complete:', keyAnalysisResults.value)
 }
 
 const loadMoreRecommendations = async () => {
@@ -626,18 +607,14 @@ const loadMoreRecommendations = async () => {
 
   // Check if we've shown all current tracks
   if (startIndex >= allRecommendations.value.length) {
-    // For RapidAPI, get fresh radio playlist
-    if (currentProvider.value === 'RapidAPI') {
-      await loadMoreRapidApiRecommendations()
-    } else {
-      hasMoreToLoad.value = false
-    }
+    // No more tracks available
+    hasMoreToLoad.value = false
   } else {
     // Show more tracks from current batch
     const newTracks = allRecommendations.value.slice(startIndex, endIndex)
     recommendations.value.push(...newTracks)
     displayedCount.value = endIndex
-    hasMoreToLoad.value = endIndex < allRecommendations.value.length || currentProvider.value === 'RapidAPI'
+    hasMoreToLoad.value = endIndex < allRecommendations.value.length
   }
 
   isLoadingMore.value = false
@@ -649,7 +626,6 @@ const loadMoreRapidApiRecommendations = async () => {
   }
 
   try {
-    console.log('🔄 Getting fresh RapidAPI radio playlist...')
     
     const response = await http.post('music-discovery/discover-rapidapi', {
       seed_track_uri: selectedSeedTrack.value.uri || `spotify:track:${selectedSeedTrack.value.id}`,
@@ -664,18 +640,24 @@ const loadMoreRapidApiRecommendations = async () => {
       const newTracks = response.data || []
       
       if (newTracks.length > 0) {
-        // Add new tracks to the pool
-        allRecommendations.value.push(...newTracks)
+        // Filter out duplicates based on track ID
+        const existingIds = new Set(allRecommendations.value.map(track => track.id))
+        const uniqueNewTracks = newTracks.filter(track => !existingIds.has(track.id))
         
-        // Show first batch from new tracks
-        const tracksToShow = newTracks.slice(0, LOAD_MORE_BATCH)
-        recommendations.value.push(...tracksToShow)
-        displayedCount.value += tracksToShow.length
-        
-        console.log(`✅ RapidAPI loaded ${newTracks.length} fresh recommendations`)
+        if (uniqueNewTracks.length > 0) {
+          // Add new unique tracks to the pool
+          allRecommendations.value.push(...uniqueNewTracks)
+          
+          // Show first batch from new unique tracks
+          const tracksToShow = uniqueNewTracks.slice(0, LOAD_MORE_BATCH)
+          recommendations.value.push(...tracksToShow)
+          displayedCount.value += tracksToShow.length
+          
+        } else {
+          hasMoreToLoad.value = false
+        }
       } else {
         hasMoreToLoad.value = false
-        console.log('📭 No more RapidAPI tracks available')
       }
     }
   } catch (error) {
@@ -687,14 +669,14 @@ const loadMoreRapidApiRecommendations = async () => {
 
 <style scoped>
 .music-discovery-screen {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
+  width: 100%;
+  margin: 0;
+  padding: 0 2rem;
 }
 
 @media (max-width: 768px) {
   .music-discovery-screen {
-    padding: 0 0.5rem;
+    padding: 0 1rem;
   }
 }
 </style>

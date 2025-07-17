@@ -3,35 +3,36 @@
     <div class="bg-k-bg-secondary border border-k-border rounded-lg p-6 mb-6">
       <div class="flex items-center justify-between mb-6">
         <div class="flex items-center gap-3">
-          <h3 class="text-k-text-primary text-lg font-medium">Discovery Parameters</h3>
+          <!-- <h3 class="text-k-text-primary text-lg font-medium">Discovery Parameters</h3>
           <span class="text-k-text-tertiary text-sm bg-k-bg-tertiary px-2 py-1 rounded">
             {{ enabledCount }}/{{ totalParameters }} enabled
-          </span>
+          </span> -->
         </div>
       </div>
 
       <!-- Provider Comparison Info -->
-      <div class="mb-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+      <!-- <div class="mb-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
         <h4 class="text-purple-300 font-medium mb-2">🧪 Provider Comparison Test</h4>
         <div class="text-sm text-purple-200 space-y-1">
           <p><strong>SoundStats:</strong> Uses "key_compatibility" boolean - automatically finds compatible keys</p>
           <p><strong>ReccoBeats:</strong> Uses "key" integer (0-11) - you specify exact key to find</p>
           <p class="text-purple-100 mt-2">💡 Enable parameters below and test both providers to compare key handling</p>
         </div>
-      </div>
+      </div> -->
 
       <!-- Warning when no parameters enabled -->
-      <div v-if="!hasEnabledParameters" class="mb-6 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+      <!-- <div v-if="!hasEnabledParameters" class="mb-6 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
         <div class="flex items-center gap-2 text-yellow-300">
           <Icon :icon="faExclamationTriangle" class="w-4 h-4" />
           <span class="text-sm font-medium">Enable at least one parameter to test the providers</span>
         </div>
-      </div>
+      </div> -->
 
       <!-- Parameters Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- COMMENTED OUT FOR TESTING -->
+      <!-- <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Tempo -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.tempo" />
@@ -65,10 +66,10 @@
               >
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Popularity -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.popularity" />
@@ -92,10 +93,10 @@
               <span>Mainstream</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Danceability -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.danceability" />
@@ -120,10 +121,10 @@
               <span>More danceable</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Energy -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.energy" />
@@ -148,10 +149,10 @@
               <span>Energetic</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Valence -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.valence" />
@@ -176,10 +177,10 @@
               <span>Happy/Uplifting</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Acousticness -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.acousticness" />
@@ -204,10 +205,10 @@
               <span>Acoustic</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Instrumentalness -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.instrumentalness" />
@@ -232,10 +233,10 @@
               <span>Instrumental</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Liveness -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.liveness" />
@@ -260,10 +261,10 @@
               <span>Live</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Speechiness -->
-        <div class="parameter-item">
+        <!-- <div class="parameter-item">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <CheckBox v-model="localEnabledParameters.speechiness" />
@@ -288,10 +289,10 @@
               <span>Speech/Rap</span>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- SoundStats Key Compatibility -->
-        <div class="parameter-item border-2 border-blue-500/30 rounded p-3">
+        <!-- <div class="parameter-item border-2 border-blue-500/30 rounded p-3">
           <div class="flex items-center gap-2 mb-2">
             <span class="text-blue-400 text-xs font-medium">SOUNDSTATS</span>
           </div>
@@ -312,10 +313,10 @@
               Toggle to enable automatic key compatibility matching
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- ReccoBeats Key Selection -->
-        <div class="parameter-item border-2 border-orange-500/30 rounded p-3">
+        <!-- <div class="parameter-item border-2 border-orange-500/30 rounded p-3">
           <div class="flex items-center gap-2 mb-2">
             <span class="text-orange-400 text-xs font-medium">RECCOBEATS</span>
           </div>
@@ -344,7 +345,7 @@
             </div>
             
             <!-- Key explanation -->
-            <div class="text-xs text-orange-200">
+            <!-- <div class="text-xs text-orange-200">
               <div v-if="selectedKeyMode === 'any'">
                 🎵 Any key - no key restriction
               </div>
@@ -360,10 +361,10 @@
               <div v-else-if="selectedKeyMode === 'custom'">
                 🎛️ Custom key selection
               </div>
-            </div>
+            </div> -->
 
             <!-- Custom key selector -->
-            <div v-if="selectedKeyMode === 'custom'" class="mt-3">
+            <!-- <div v-if="selectedKeyMode === 'custom'" class="mt-3">
               <label class="text-k-text-secondary text-sm mb-2 block">Select Key:</label>
               <select
                 :value="customKey"
@@ -378,11 +379,12 @@
             </div>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <!-- Discovery Buttons -->
       <div class="flex gap-4 mt-6">
-        <button
+        <!-- COMMENTED OUT FOR TESTING -->
+        <!-- <button
           @click="$emit('discover-soundstats')"
           :disabled="!hasEnabledParameters || isDiscovering"
           class="flex-1 px-6 py-3 rounded-lg font-medium transition-colors"
@@ -416,21 +418,21 @@
           <span v-else>
             🎧 Test ReccoBeats
           </span>
-        </button>
+        </button> -->
 
         <button
           @click="$emit('discover-rapidapi')"
           :disabled="isDiscovering"
-          class="flex-1 px-6 py-3 rounded-lg font-medium transition-colors"
+          class="w-full px-6 py-3 rounded-lg font-medium transition-colors"
           :class="isDiscovering && currentProvider === 'RapidAPI'
             ? 'bg-purple-600 text-white opacity-50 cursor-not-allowed'
             : 'bg-purple-600 hover:bg-purple-700 text-white'"
         >
           <span v-if="isDiscovering && currentProvider === 'RapidAPI'">
-            🔄 Testing RapidAPI...
+            🔄 Finding Similar Tracks...
           </span>
           <span v-else>
-            🚀 Test RapidAPI Radio
+            🎯 Find Similar Tracks
           </span>
         </button>
       </div>

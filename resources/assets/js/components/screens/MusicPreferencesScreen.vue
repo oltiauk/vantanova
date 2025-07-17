@@ -238,7 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { faMusic, faHeart, faUserPlus, faUserMinus, faTrash } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
 
@@ -404,6 +404,14 @@ const getTimeRemaining = (expiresAt: string): string => {
 // Lifecycle
 onMounted(() => {
   loadData()
+  
+  // Refresh data every 5 seconds to show new additions
+  const interval = setInterval(loadData, 5000)
+  
+  // Clean up interval on unmount
+  onUnmounted(() => {
+    clearInterval(interval)
+  })
 })
 </script>
 

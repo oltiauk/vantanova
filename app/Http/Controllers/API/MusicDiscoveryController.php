@@ -281,7 +281,8 @@ class MusicDiscoveryController extends Controller
             'max_popularity' => 'sometimes|integer|min:0|max:100',
             'apply_popularity_filter' => 'sometimes|boolean',
             'limit' => 'sometimes|integer|min:1|max:100',
-            'offset' => 'sometimes|integer|min:0'
+            'offset' => 'sometimes|integer|min:0',
+            'exclude_track_ids' => 'sometimes|array'
         ]);
 
         if ($validator->fails()) {
@@ -297,6 +298,7 @@ class MusicDiscoveryController extends Controller
             $applyPopularityFilter = $request->input('apply_popularity_filter', false);
             $limit = $request->input('limit', 50);
             $offset = $request->input('offset', 0);
+            $excludeTrackIds = $request->input('exclude_track_ids', []);
 
             // Get radio tracks without mandatory filtering
             $radioResult = $this->rapidApiService->createRadioPlaylist($seedTrackUri);
@@ -307,8 +309,8 @@ class MusicDiscoveryController extends Controller
                 ], 500);
             }
 
-            // Get more tracks with pagination support
-            $tracksResult = $this->rapidApiService->getPlaylistTracks($radioResult['playlist_id'], $offset + $limit + 50);
+            // Get extra tracks to allow for deduplication and filtering
+            $tracksResult = $this->rapidApiService->getPlaylistTracks($radioResult['playlist_id'], $limit + 50);
             if (!$tracksResult['success']) {
                 return response()->json([
                     'success' => false,
@@ -318,10 +320,29 @@ class MusicDiscoveryController extends Controller
 
             $allTracks = $tracksResult['tracks'];
             
+            // Remove duplicate tracks (by track ID and name combination)
+            $uniqueTracks = [];
+            $seenTracks = [];
+            
+            foreach ($allTracks as $track) {
+                $trackKey = $track['id'] . '|' . strtolower($track['name'] ?? '');
+                if (!in_array($trackKey, $seenTracks)) {
+                    $seenTracks[] = $trackKey;
+                    $uniqueTracks[] = $track;
+                }
+            }
+            
+            // Remove tracks that were already shown (for second+ calls)
+            if (!empty($excludeTrackIds)) {
+                $uniqueTracks = array_filter($uniqueTracks, function($track) use ($excludeTrackIds) {
+                    return !in_array($track['id'], $excludeTrackIds);
+                });
+            }
+            
             // Apply popularity filter only if requested
-            $filteredTracks = $allTracks;
+            $filteredTracks = $uniqueTracks;
             if ($applyPopularityFilter) {
-                $filteredTracks = $this->rapidApiService->filterTracksByPopularity($allTracks, $maxPopularity);
+                $filteredTracks = $this->rapidApiService->filterTracksByPopularity($uniqueTracks, $maxPopularity);
             }
 
             // Apply blacklist/saved filtering
@@ -330,7 +351,7 @@ class MusicDiscoveryController extends Controller
                 $filteredTracks = $this->filterByUserPreferences($filteredTracks, $userId);
             }
 
-            // Apply pagination without shuffle for consistency
+            // Apply pagination after all filtering and deduplication
             $finalTracks = array_slice($filteredTracks, $offset, $limit);
             
             // Shuffle only if it's the first request (offset = 0)

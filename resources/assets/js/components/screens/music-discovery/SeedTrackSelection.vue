@@ -33,7 +33,7 @@
             Clear
           </Btn>
         </div>
-        <TrackCard :track="selectedTrack" />
+        <TrackCard :track="selectedTrack" :hidePref="true" />
       </div>
   
       <!-- Search Results -->
@@ -46,7 +46,7 @@
             class="cursor-pointer"
             @click="selectSeedTrack(track)"
           >
-            <TrackCard :track="track" />
+            <TrackCard :track="track" :hidePref="true" />
           </div>
         </div>
       </div>
@@ -175,7 +175,7 @@
         limit: 20
       })
   
-      console.log('🔍 Search API response:', response)
+      // console.log('🔍 Search API response:', response)
   
       if (response.success) {
         // Map album_image to image for compatibility with TrackCard
@@ -188,7 +188,7 @@
           searchError.value = 'No tracks found. Try a different search term.'
         }
       } else {
-        console.error('❌ Search API returned success: false', response)
+        // console.error('❌ Search API returned success: false', response)
         searchError.value = 'Search failed. Please try again.'
       }
     } catch (error) {
