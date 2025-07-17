@@ -408,6 +408,7 @@ declare type ScreenName =
   | 'Invitation.Accept'
   | 'Password.Reset'
   | 'MusicDiscovery' 
+  | 'MusicPreferences'
   | '404'
 
 declare type ArtistAlbumCardLayout = 'full' | 'compact'

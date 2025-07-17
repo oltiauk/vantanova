@@ -34,6 +34,13 @@
             </template>
             Discover Music
           </SidebarItem>
+          
+          <SidebarItem :href="url('music-preferences')" screen="MusicPreferences">
+            <template #icon>
+              <Icon :icon="faSliders" fixed-width />
+            </template>
+            Music Preferences
+          </SidebarItem>
         </ul>
       </SidebarSection>
   
@@ -54,7 +61,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faTimes, faSearch } from '@fortawesome/free-solid-svg-icons'
+import { faTimes, faSearch, faSliders } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { eventBus } from '@/utils/eventBus'
 import { useAuthorization } from '@/composables/useAuthorization'

@@ -240,6 +240,7 @@ class RapidApiService
                     'explicit' => $track['explicit'] ?? false,
                     'preview_url' => $track['preview_url'] ?? null,
                     'external_url' => $track['external_urls']['spotify'] ?? '',
+                    'external_ids' => $track['external_ids'] ?? [], // Include ISRC and other IDs
                     'artists' => $artists
                 ];
             }

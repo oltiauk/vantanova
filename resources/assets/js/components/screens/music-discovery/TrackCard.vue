@@ -35,6 +35,39 @@
   
         <!-- Actions -->
         <div class="shrink-0 flex items-center space-x-2">
+          <!-- Save Track Button -->
+          <Btn
+            size="sm"
+            class="!p-2"
+            title="Save Track (24 hours)"
+            green
+            @click="saveTrack"
+          >
+            <Icon :icon="faHeart" class="w-4 h-4" />
+          </Btn>
+
+          <!-- Save Artist Button -->
+          <Btn
+            size="sm"
+            class="!p-2"
+            title="Save Artist"
+            blue
+            @click="saveArtist"
+          >
+            <Icon :icon="faUserPlus" class="w-4 h-4" />
+          </Btn>
+
+          <!-- Ban Artist Button -->
+          <Btn
+            size="sm"
+            class="!p-2"
+            title="Ban Artist"
+            red
+            @click="banArtist"
+          >
+            <Icon :icon="faUserMinus" class="w-4 h-4" />
+          </Btn>
+          
           <!-- Preview Button -->
           <Btn
             v-if="track.preview_url"
@@ -61,7 +94,7 @@
           <Btn
             v-else-if="!track.preview_url && track.external_url"
             size="sm"
-            green
+            gray
             @click="openExternal"
           >
             Listen
@@ -73,7 +106,8 @@
   
   <script setup lang="ts">
   import { ref, onUnmounted } from 'vue'
-  import { faMusic, faPlay, faStop, faExternalLinkAlt } from '@fortawesome/free-solid-svg-icons'
+  import { faMusic, faPlay, faStop, faExternalLinkAlt, faHeart, faUserPlus, faUserMinus } from '@fortawesome/free-solid-svg-icons'
+  import { http } from '@/services/http'
   
   import Btn from '@/components/ui/form/Btn.vue'
   
@@ -87,6 +121,13 @@
     external_url?: string
     image?: string
     duration_ms?: number
+    external_ids?: {
+      isrc?: string
+    }
+    artists?: Array<{
+      id: string
+      name: string
+    }>
   }
   
   // Props
@@ -157,6 +198,89 @@
     }
   }
   
+  // Save track to favorites (24-hour expiration)
+  const saveTrack = async () => {
+    const isrc = props.track.external_ids?.isrc
+    if (!isrc) {
+      console.warn('⚠️ No ISRC available for track:', props.track.name)
+      // Could show toast notification to user
+      return
+    }
+
+    try {
+      const response = await http.post('music-preferences/save-track', {
+        isrc,
+        track_name: props.track.name,
+        artist_name: props.track.artist,
+        spotify_id: props.track.id
+      })
+
+      if (response.success) {
+        console.log('✅ Track saved successfully:', props.track.name)
+        // Could emit event to parent to show success message
+      }
+    } catch (error: any) {
+      if (error.response?.status === 503 && error.response?.data?.code === 'TABLES_MISSING') {
+        console.warn('⚠️ Music preferences feature not set up yet')
+        // Could show setup message to user
+      } else {
+        console.error('❌ Failed to save track:', error.response?.data?.error || error.message)
+      }
+    }
+  }
+
+  // Save artist to favorites
+  const saveArtist = async () => {
+    const primaryArtist = props.track.artists?.[0]
+    if (!primaryArtist?.id) {
+      console.warn('⚠️ No primary artist ID available for:', props.track.artist)
+      return
+    }
+
+    try {
+      const response = await http.post('music-preferences/save-artist', {
+        spotify_artist_id: primaryArtist.id,
+        artist_name: primaryArtist.name
+      })
+
+      if (response.success) {
+        console.log('✅ Artist saved successfully:', primaryArtist.name)
+      }
+    } catch (error: any) {
+      if (error.response?.status === 503 && error.response?.data?.code === 'TABLES_MISSING') {
+        console.warn('⚠️ Music preferences feature not set up yet')
+      } else {
+        console.error('❌ Failed to save artist:', error.response?.data?.error || error.message)
+      }
+    }
+  }
+
+  // Ban artist from recommendations
+  const banArtist = async () => {
+    const primaryArtist = props.track.artists?.[0]
+    if (!primaryArtist?.id) {
+      console.warn('⚠️ No primary artist ID available for:', props.track.artist)
+      return
+    }
+
+    try {
+      const response = await http.post('music-preferences/blacklist-artist', {
+        spotify_artist_id: primaryArtist.id,
+        artist_name: primaryArtist.name
+      })
+
+      if (response.success) {
+        console.log('✅ Artist banned successfully:', primaryArtist.name)
+      }
+    } catch (error: any) {
+      if (error.response?.status === 503 && error.response?.data?.code === 'TABLES_MISSING') {
+        console.warn('⚠️ Music preferences feature not set up yet')
+      } else {
+        console.error('❌ Failed to ban artist:', error.response?.data?.error || error.message)
+      }
+    }
+  }
+
   // Cleanup on component unmount
   onUnmounted(() => {
     if (currentAudio.value) {

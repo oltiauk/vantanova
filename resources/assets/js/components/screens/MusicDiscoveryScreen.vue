@@ -557,6 +557,7 @@ const discoverMusicRapidApi = async () => {
       max_popularity: parameters.value.popularity,
       apply_popularity_filter: enabledParameters.value.popularity, // Only filter if enabled
       limit: 50,
+      offset: 0, // Always start fresh
       _cache_bust: Date.now() // Prevent caching for dynamic results
     })
 
@@ -613,7 +614,7 @@ const analyzeRecommendationKeys = async (tracks: Track[]) => {
   console.log('🔍 Key analysis complete:', keyAnalysisResults.value)
 }
 
-const loadMoreRecommendations = () => {
+const loadMoreRecommendations = async () => {
   if (!hasMoreToLoad.value || isLoadingMore.value) {
     return
   }
@@ -623,12 +624,64 @@ const loadMoreRecommendations = () => {
   const startIndex = displayedCount.value
   const endIndex = Math.min(startIndex + LOAD_MORE_BATCH, allRecommendations.value.length)
 
-  const newTracks = allRecommendations.value.slice(startIndex, endIndex)
-  recommendations.value.push(...newTracks)
-  displayedCount.value = endIndex
-  hasMoreToLoad.value = endIndex < allRecommendations.value.length
+  // Check if we've shown all current tracks
+  if (startIndex >= allRecommendations.value.length) {
+    // For RapidAPI, get fresh radio playlist
+    if (currentProvider.value === 'RapidAPI') {
+      await loadMoreRapidApiRecommendations()
+    } else {
+      hasMoreToLoad.value = false
+    }
+  } else {
+    // Show more tracks from current batch
+    const newTracks = allRecommendations.value.slice(startIndex, endIndex)
+    recommendations.value.push(...newTracks)
+    displayedCount.value = endIndex
+    hasMoreToLoad.value = endIndex < allRecommendations.value.length || currentProvider.value === 'RapidAPI'
+  }
 
   isLoadingMore.value = false
+}
+
+const loadMoreRapidApiRecommendations = async () => {
+  if (!selectedSeedTrack.value) {
+    return
+  }
+
+  try {
+    console.log('🔄 Getting fresh RapidAPI radio playlist...')
+    
+    const response = await http.post('music-discovery/discover-rapidapi', {
+      seed_track_uri: selectedSeedTrack.value.uri || `spotify:track:${selectedSeedTrack.value.id}`,
+      max_popularity: parameters.value.popularity,
+      apply_popularity_filter: enabledParameters.value.popularity,
+      limit: 50,
+      offset: 0, // Fresh start
+      _cache_bust: Date.now()
+    })
+
+    if (response.success && Array.isArray(response.data)) {
+      const newTracks = response.data || []
+      
+      if (newTracks.length > 0) {
+        // Add new tracks to the pool
+        allRecommendations.value.push(...newTracks)
+        
+        // Show first batch from new tracks
+        const tracksToShow = newTracks.slice(0, LOAD_MORE_BATCH)
+        recommendations.value.push(...tracksToShow)
+        displayedCount.value += tracksToShow.length
+        
+        console.log(`✅ RapidAPI loaded ${newTracks.length} fresh recommendations`)
+      } else {
+        hasMoreToLoad.value = false
+        console.log('📭 No more RapidAPI tracks available')
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load more RapidAPI recommendations:', error)
+    hasMoreToLoad.value = false
+  }
 }
 </script>
 

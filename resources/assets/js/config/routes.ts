@@ -210,4 +210,9 @@ export const routes: Route[] = [
     path: '/discover',
     screen: 'MusicDiscovery'
   },
+  {
+    name: 'music-preferences',
+    path: '/preferences',
+    screen: 'MusicPreferences'
+  },
 ]

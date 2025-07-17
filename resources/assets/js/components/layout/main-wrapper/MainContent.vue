@@ -25,8 +25,9 @@
     <PodcastListScreen v-show="screen === 'Podcasts'" />
     <MediaBrowser v-if="useMediaBrowser" v-show="screen === 'MediaBrowser'" />
     
-    <!-- ADD THIS LINE FOR MUSIC DISCOVERY -->
+    <!-- Music Discovery and Preferences -->
     <MusicDiscoveryScreen v-show="screen === 'MusicDiscovery'" />
+    <MusicPreferencesScreen v-show="screen === 'MusicPreferences'" />
 
     <GenreListScreen v-if="screen === 'Genres'" />
     <SearchSongResultsScreen v-if="screen === 'Search.Songs'" />
@@ -63,7 +64,8 @@ import RecentlyPlayedScreen from '@/components/screens/RecentlyPlayedScreen.vue'
 import UploadScreen from '@/components/screens/UploadScreen.vue'
 import SearchExcerptsScreen from '@/components/screens/search/SearchExcerptsScreen.vue'
 import PodcastListScreen from '@/components/screens/PodcastListScreen.vue'
-import MusicDiscoveryScreen from '@/components/screens/MusicDiscoveryScreen.vue'  // ADD THIS IMPORT
+import MusicDiscoveryScreen from '@/components/screens/MusicDiscoveryScreen.vue'
+import MusicPreferencesScreen from '@/components/screens/MusicPreferencesScreen.vue'
 import { commonStore } from '@/stores/commonStore'
 
 const UserListScreen = defineAsyncComponent(() => import('@/components/screens/UserListScreen.vue'))

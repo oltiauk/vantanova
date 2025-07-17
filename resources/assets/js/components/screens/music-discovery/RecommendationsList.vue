@@ -7,6 +7,16 @@
             {{ isDiscovering ? 'Discovering Music...' : 'Recommendations' }}
           </h3>
           <div v-if="recommendations.length > 0" class="flex items-center gap-3">
+            <!-- Blacklist Unsaved Tracks Button -->
+            <Btn
+              size="sm"
+              red
+              :disabled="isBlacklistingUnsaved"
+              @click="blacklistUnsavedTracks"
+              title="Add all currently displayed tracks that aren't saved to your blacklist"
+            >
+              {{ isBlacklistingUnsaved ? 'Blacklisting...' : 'Blacklist Unsaved Tracks' }}
+            </Btn>
             <span class="text-k-text-secondary text-sm">
               Showing {{ displayedCount }} tracks
             </span>
@@ -132,7 +142,9 @@
   </template>
   
   <script setup lang="ts">
+  import { ref } from 'vue'
   import { faMusic, faSearch, faExclamationTriangle, faExclamationCircle, faTimes } from '@fortawesome/free-solid-svg-icons'
+  import { http } from '@/services/http'
   
   import Btn from '@/components/ui/form/Btn.vue'
   import TrackCard from '@/components/screens/music-discovery/TrackCard.vue'
@@ -147,6 +159,9 @@
     external_url?: string
     image?: string
     duration_ms?: number
+    external_ids?: {
+      isrc?: string
+    }
   }
   
   // Props - SIMPLIFIED
@@ -159,13 +174,53 @@
     errorMessage: string
   }
   
-  defineProps<Props>()
+  const props = defineProps<Props>()
   
   // Emits
   defineEmits<{
     'clearError': []
     'loadMore': []
   }>()
+
+  // State
+  const isBlacklistingUnsaved = ref(false)
+
+  // Methods
+  const blacklistUnsavedTracks = async () => {
+    if (isBlacklistingUnsaved.value || props.recommendations.length === 0) return
+
+    isBlacklistingUnsaved.value = true
+
+    try {
+      // Extract track data for blacklisting
+      const tracksToBlacklist = props.recommendations
+        .map(track => ({
+          isrc: track.external_ids?.isrc,
+          track_name: track.name,
+          artist_name: track.artist,
+          spotify_id: track.id
+        }))
+        .filter(track => track.isrc) // Only include tracks with ISRC
+
+      if (tracksToBlacklist.length === 0) {
+        console.warn('No tracks with ISRC found to blacklist')
+        return
+      }
+
+      const response = await http.post('music-preferences/blacklist-unsaved-tracks', {
+        tracks: tracksToBlacklist
+      })
+
+      if (response.success) {
+        console.log(`✅ Successfully blacklisted ${response.blacklisted_count} unsaved tracks`)
+        // Could emit event to parent to show success message or refresh recommendations
+      }
+    } catch (error) {
+      console.error('Failed to blacklist unsaved tracks:', error)
+    } finally {
+      isBlacklistingUnsaved.value = false
+    }
+  }
   </script>
   
   <style scoped>

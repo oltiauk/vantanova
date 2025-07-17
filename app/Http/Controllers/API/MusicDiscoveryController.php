@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Services\SpotifyService;
 use App\Services\SoundStatsService;
 use App\Services\RapidApiService;
+use App\Models\BlacklistedTrack;
+use App\Models\SavedTrack;
+use App\Models\BlacklistedArtist;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 
 class MusicDiscoveryController extends Controller
 {
@@ -276,7 +280,8 @@ class MusicDiscoveryController extends Controller
             'seed_track_uri' => 'required|string',
             'max_popularity' => 'sometimes|integer|min:0|max:100',
             'apply_popularity_filter' => 'sometimes|boolean',
-            'limit' => 'sometimes|integer|min:1|max:100'
+            'limit' => 'sometimes|integer|min:1|max:100',
+            'offset' => 'sometimes|integer|min:0'
         ]);
 
         if ($validator->fails()) {
@@ -291,6 +296,7 @@ class MusicDiscoveryController extends Controller
             $maxPopularity = $request->input('max_popularity', 100);
             $applyPopularityFilter = $request->input('apply_popularity_filter', false);
             $limit = $request->input('limit', 50);
+            $offset = $request->input('offset', 0);
 
             // Get radio tracks without mandatory filtering
             $radioResult = $this->rapidApiService->createRadioPlaylist($seedTrackUri);
@@ -301,7 +307,8 @@ class MusicDiscoveryController extends Controller
                 ], 500);
             }
 
-            $tracksResult = $this->rapidApiService->getPlaylistTracks($radioResult['playlist_id'], 100);
+            // Get more tracks with pagination support
+            $tracksResult = $this->rapidApiService->getPlaylistTracks($radioResult['playlist_id'], $offset + $limit + 50);
             if (!$tracksResult['success']) {
                 return response()->json([
                     'success' => false,
@@ -317,11 +324,19 @@ class MusicDiscoveryController extends Controller
                 $filteredTracks = $this->rapidApiService->filterTracksByPopularity($allTracks, $maxPopularity);
             }
 
-            // Shuffle tracks for variety, then limit results
-            if (!empty($filteredTracks)) {
-                shuffle($filteredTracks);
+            // Apply blacklist/saved filtering
+            $userId = auth()->id();
+            if ($userId) {
+                $filteredTracks = $this->filterByUserPreferences($filteredTracks, $userId);
             }
-            $finalTracks = array_slice($filteredTracks, 0, $limit);
+
+            // Apply pagination without shuffle for consistency
+            $finalTracks = array_slice($filteredTracks, $offset, $limit);
+            
+            // Shuffle only if it's the first request (offset = 0)
+            if ($offset === 0 && !empty($finalTracks)) {
+                shuffle($finalTracks);
+            }
 
             $result = [
                 'success' => true,
@@ -419,17 +434,108 @@ class MusicDiscoveryController extends Controller
     }
 
     /**
+     * Filter tracks by user preferences (blacklist/saved)
+     */
+    private function filterByUserPreferences(array $tracks, int $userId): array
+    {
+        try {
+            // Check if blacklist tables exist - if not, return original tracks
+            if (!Schema::hasTable('blacklisted_tracks') || 
+                !Schema::hasTable('saved_tracks') || 
+                !Schema::hasTable('blacklisted_artists')) {
+                \Log::info('Blacklist tables not found, skipping filtering', [
+                    'user_id' => $userId,
+                    'track_count' => count($tracks)
+                ]);
+                return $tracks;
+            }
+
+            // Get user's blacklisted ISRCs and artist IDs
+            $blacklistedIsrcs = BlacklistedTrack::getBlacklistedIsrcs($userId);
+            $savedIsrcs = SavedTrack::getSavedIsrcs($userId);
+            $blacklistedArtistIds = BlacklistedArtist::getBlacklistedArtistIds($userId);
+
+            return array_filter($tracks, function($track) use ($blacklistedIsrcs, $savedIsrcs, $blacklistedArtistIds) {
+            // Extract ISRC from track (may be nested in external_ids)
+            $isrc = null;
+            if (isset($track['external_ids']['isrc'])) {
+                $isrc = $track['external_ids']['isrc'];
+            } elseif (isset($track['isrc'])) {
+                $isrc = $track['isrc'];
+            }
+
+            // Skip if no ISRC available
+            if (!$isrc) {
+                return true; // Keep track if we can't identify it
+            }
+
+            // Filter out blacklisted tracks by ISRC
+            if (in_array($isrc, $blacklistedIsrcs)) {
+                return false;
+            }
+
+            // Filter out saved tracks by ISRC (Spotify rule - no saved tracks in recommendations)
+            if (in_array($isrc, $savedIsrcs)) {
+                return false;
+            }
+
+            // Filter out tracks by blacklisted artists (primary artist = artists[0])
+            $primaryArtistId = null;
+            if (isset($track['artists'][0]['id'])) {
+                $primaryArtistId = $track['artists'][0]['id'];
+            } elseif (isset($track['artist_id'])) {
+                $primaryArtistId = $track['artist_id'];
+            }
+
+            if ($primaryArtistId && in_array($primaryArtistId, $blacklistedArtistIds)) {
+                return false;
+            }
+
+                return true; // Keep track if it passes all filters
+            });
+        } catch (\Exception $e) {
+            \Log::error('User preferences filtering error', [
+                'message' => $e->getMessage(),
+                'user_id' => $userId,
+                'track_count' => count($tracks)
+            ]);
+            
+            // Return original tracks if filtering fails
+            return $tracks;
+        }
+    }
+
+    /**
      * Format array of RapidAPI tracks for frontend
      */
     private function formatRapidApiTracksArray(array $tracks): array
     {
         return array_map(function ($track) {
+            // Properly format artists array with IDs
+            $artists = [];
+            if (isset($track['artists']) && is_array($track['artists'])) {
+                $artists = array_map(function($artist) {
+                    return [
+                        'id' => $artist['id'] ?? '',
+                        'name' => $artist['name'] ?? 'Unknown Artist'
+                    ];
+                }, $track['artists']);
+            } else {
+                // Fallback if no proper artists array
+                $artists = [
+                    [
+                        'id' => $track['artist_id'] ?? '',
+                        'name' => $track['artist'] ?? 'Unknown Artist'
+                    ]
+                ];
+            }
+
             return [
                 'id' => $track['id'],
                 'uri' => $track['uri'] ?? null,
                 'name' => $track['name'],
                 'artist' => $track['artist'],
-                'artists' => [$track['artist']], // Convert to array for compatibility
+                'artists' => $artists, // Proper artists array with IDs
                 'album' => $track['album'],
                 'album_image' => $track['image'],
                 'image' => $track['image'],
@@ -440,6 +546,7 @@ class MusicDiscoveryController extends Controller
                 'popularity' => $track['popularity'] ?? 0,
                 'release_date' => $track['release_date'] ?? null,
                 'explicit' => $track['explicit'] ?? false,
+                'external_ids' => $track['external_ids'] ?? [], // Pass through external_ids (includes ISRC)
             ];
         }, $tracks);
     }

@@ -67,6 +67,7 @@ use App\Http\Controllers\API\UploadController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\UserInvitationController;
 use App\Http\Controllers\API\MusicDiscoveryController;
+use App\Http\Controllers\API\MusicPreferencesController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Pusher\Pusher;
@@ -234,6 +235,23 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::post('discover-reccobeats', [MusicDiscoveryController::class, 'discoverMusicReccoBeats'])->name('discover-reccobeats');
             Route::post('discover-rapidapi', [MusicDiscoveryController::class, 'discoverMusicRapidApi'])->name('discover-rapidapi');
             Route::post('batch-track-features', [MusicDiscoveryController::class, 'getBatchTrackFeatures'])->name('batch-track-features');
+        });
+
+        // Music Preferences routes (blacklist/save)
+        Route::prefix('music-preferences')->name('music-preferences.')->group(static function (): void {
+            Route::post('blacklist-track', [MusicPreferencesController::class, 'blacklistTrack'])->name('blacklist-track');
+            Route::post('save-track', [MusicPreferencesController::class, 'saveTrack'])->name('save-track');
+            Route::post('blacklist-artist', [MusicPreferencesController::class, 'blacklistArtist'])->name('blacklist-artist');
+            Route::post('save-artist', [MusicPreferencesController::class, 'saveArtist'])->name('save-artist');
+            Route::post('blacklist-unsaved-tracks', [MusicPreferencesController::class, 'blacklistUnsavedTracks'])->name('blacklist-unsaved-tracks');
+            
+            Route::get('blacklisted-tracks', [MusicPreferencesController::class, 'getBlacklistedTracks'])->name('blacklisted-tracks');
+            Route::get('saved-tracks', [MusicPreferencesController::class, 'getSavedTracks'])->name('saved-tracks');
+            Route::get('blacklisted-artists', [MusicPreferencesController::class, 'getBlacklistedArtists'])->name('blacklisted-artists');
+            Route::get('saved-artists', [MusicPreferencesController::class, 'getSavedArtists'])->name('saved-artists');
+            
+            Route::delete('blacklist-track', [MusicPreferencesController::class, 'removeFromBlacklist'])->name('remove-blacklist-track');
+            Route::delete('blacklist-artist', [MusicPreferencesController::class, 'removeArtistFromBlacklist'])->name('remove-blacklist-artist');
         });
     });
 
