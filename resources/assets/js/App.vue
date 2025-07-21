@@ -142,7 +142,15 @@ const onDragOver = (e: DragEvent) => {
   showDropZone.value = Boolean(e.dataTransfer?.types.includes('Files')) && !isCurrentScreen('Upload')
 }
 
-watch(() => queueStore.current, song => (currentSong.value = song))
+watch(() => queueStore.current, (song, oldSong) => {
+  console.log('🎵 App - queueStore.current changed:', {
+    newSong: song?.id,
+    oldSong: oldSong?.id,
+    hasNew: !!song,
+    hasOld: !!oldSong
+  })
+  currentSong.value = song
+})
 
 const onDragEnd = () => (showDropZone.value = false)
 

@@ -71,15 +71,14 @@
             </Btn>
           </template>
           
-          <!-- Preview Button -->
+          <!-- Play Button -->
           <Btn
-            v-if="track.preview_url"
             size="sm"
             class="!p-2"
-            :title="isPlaying ? 'Stop Preview' : 'Play Preview'"
-            @click="togglePreview"
+            :title="isPlaying ? 'Pause' : 'Play on YouTube'"
+            @click="togglePlay"
           >
-            <Icon :icon="isPlaying ? faStop : faPlay" class="w-4 h-4" />
+            <Icon :icon="isPlaying ? faPause : faPlay" class="w-4 h-4" />
           </Btn>
   
           <!-- External Link -->
@@ -108,9 +107,14 @@
   </template>
   
   <script setup lang="ts">
-  import { ref, onUnmounted } from 'vue'
-  import { faMusic, faPlay, faStop, faExternalLinkAlt, faHeart, faUserPlus, faUserMinus } from '@fortawesome/free-solid-svg-icons'
+  import { ref, onUnmounted, computed } from 'vue'
+  import { faMusic, faPlay, faPause, faExternalLinkAlt, faHeart, faUserPlus, faUserMinus } from '@fortawesome/free-solid-svg-icons'
   import { http } from '@/services/http'
+  import { youTubeService } from '@/services/youTubeService'
+  import { playbackService } from '@/services/playbackService'
+  import { queueStore } from '@/stores/queueStore'
+  import { requireInjection } from '@/utils/helpers'
+  import { CurrentPlayableKey } from '@/symbols'
   
   import Btn from '@/components/ui/form/Btn.vue'
   
@@ -140,8 +144,16 @@
   }>()
   
   // State
-  const isPlaying = ref(false)
-  const currentAudio = ref<HTMLAudioElement | null>(null)
+  const currentPlayable = requireInjection(CurrentPlayableKey, ref())
+  
+  // Computed properties
+  const isCurrentTrack = computed(() => {
+    return currentPlayable.value?.id === `discovery-${props.track.id}`
+  })
+  
+  const isPlaying = computed(() => {
+    return isCurrentTrack.value && currentPlayable.value?.playback_state === 'Playing'
+  })
   
   // Methods
   const formatDuration = (ms: number): string => {
@@ -150,49 +162,84 @@
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
   
-  const togglePreview = () => {
-    if (!props.track.preview_url) return
-  
-    if (isPlaying.value && currentAudio.value) {
-      // Stop current preview
-      currentAudio.value.pause()
-      currentAudio.value = null
-      isPlaying.value = false
-    } else {
-      // Start new preview
-      const audio = new Audio(props.track.preview_url)
-      audio.volume = 0.5
-      
-      audio.addEventListener('loadstart', () => {
-        isPlaying.value = true
-        currentAudio.value = audio
-      })
-  
-      audio.addEventListener('ended', () => {
-        isPlaying.value = false
-        currentAudio.value = null
-      })
-  
-      audio.addEventListener('error', (error) => {
-        // console.error('Preview playback failed:', error)
-        isPlaying.value = false
-        currentAudio.value = null
-      })
-  
-      audio.play().catch(error => {
-        // console.error('Preview playback failed:', error)
-        isPlaying.value = false
-        currentAudio.value = null
-      })
-  
-      // Auto-stop after 30 seconds (Spotify preview length)
-      setTimeout(() => {
-        if (currentAudio.value === audio && isPlaying.value) {
-          audio.pause()
-          isPlaying.value = false
-          currentAudio.value = null
+  const playTrack = async () => {
+    console.log('🎵 TrackCard - playTrack called for:', props.track.name)
+    
+    // Create a playable object from the discovered track
+    const playable: Song = {
+      type: 'songs',
+      id: `discovery-${props.track.id}`, // Use discovery prefix to avoid conflicts
+      title: props.track.name,
+      artist_name: props.track.artist,
+      artist_id: 'unknown',
+      album_name: props.track.album || 'Unknown Album',
+      album_id: 'unknown',
+      album_cover: props.track.image || null,
+      length: props.track.duration_ms ? Math.floor(props.track.duration_ms / 1000) : 0,
+      track: null,
+      disc: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_public: true,
+      liked: false,
+      play_count: 0,
+      play_count_registered: false,
+      preloaded: false,
+      playback_state: 'Stopped',
+      deleted: false,
+      genre: null,
+      year: null,
+      lyrics: null,
+      owner_id: null,
+      owner_name: null,
+      collaborative: false,
+      is_episode: false,
+      is_podcast: false,
+      podcast_id: null,
+      episode_description: null,
+      episode_link: null,
+      episode_image: null,
+      episode_metadata: null,
+      created_by: null,
+      visibility: 'public',
+      storage: {
+        type: 'youtube',
+        metadata: {
+          track_name: props.track.name,
+          artist_name: props.track.artist,
+          spotify_id: props.track.id
         }
-      }, 30000)
+      }
+    }
+    
+    console.log('🎵 TrackCard - created playable object:', playable)
+    
+    // Add to queue and play using the playback service
+    try {
+      await playbackService.queueAndPlay([playable])
+      console.log('🎵 TrackCard - successfully queued and playing track')
+    } catch (error) {
+      console.error('🎵 TrackCard - failed to queue and play track:', error)
+      // Fallback to direct YouTube play
+      youTubeService.playTrack({
+        name: props.track.name,
+        artist: props.track.artist
+      })
+    }
+  }
+
+  const togglePlay = async () => {
+    console.log('🎵 TrackCard - togglePlay called:', {
+      isCurrentTrack: isCurrentTrack.value,
+      isPlaying: isPlaying.value
+    })
+    
+    if (isCurrentTrack.value) {
+      // This track is currently playing, toggle play/pause
+      await playbackService.toggle()
+    } else {
+      // This track is not current, play it
+      await playTrack()
     }
   }
   
@@ -287,10 +334,7 @@
 
   // Cleanup on component unmount
   onUnmounted(() => {
-    if (currentAudio.value) {
-      currentAudio.value.pause()
-      currentAudio.value = null
-    }
+    // No cleanup needed for YouTube player
   })
   </script>
   

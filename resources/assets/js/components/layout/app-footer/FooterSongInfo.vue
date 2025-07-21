@@ -2,7 +2,7 @@
   <div
     :class="{ playing: song?.playback_state === 'Playing' }"
     :draggable="draggable"
-    class="song-info px-6 py-0 flex items-center content-start w-[84px] md:w-[420px] gap-5"
+    class="song-info px-6 py-0 flex items-center content-start w-[84px] md:w-[250px] gap-5"
     @dragstart="onDragStart"
   >
     <span class="album-thumb block h-[55%] md:h-3/4 aspect-square rounded-full bg-cover" />

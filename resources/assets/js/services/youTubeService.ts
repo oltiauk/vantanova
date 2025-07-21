@@ -17,10 +17,26 @@ export const youTubeService = {
     )
   },
 
+  searchVideosByQuery: async (query: string, nextPageToken: string = '') => {
+    return await cache.remember<YouTubeSearchResult>(
+      ['youtube.search.query', query, nextPageToken],
+      async () => await http.get<YouTubeSearchResult>(
+        `youtube/search?q=${encodeURIComponent(query)}&pageToken=${nextPageToken}`,
+      ),
+    )
+  },
+
   play: (video: YouTubeVideo): void => {
     eventBus.emit('PLAY_YOUTUBE_VIDEO', {
       id: video.id.videoId,
       title: video.snippet.title,
+    })
+  },
+
+  playTrack: (track: { name: string, artist: string }): void => {
+    eventBus.emit('PLAY_YOUTUBE_TRACK', {
+      title: track.name,
+      artist: track.artist,
     })
   },
 }

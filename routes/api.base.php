@@ -179,6 +179,9 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
         if (YouTube::enabled()) {
             Route::get('youtube/search/song/{song}', SearchYouTubeController::class);
         }
+        
+        // General YouTube search route (always available, uses scraping if no API key)
+        Route::get('youtube/search', [SearchYouTubeController::class, 'searchByQuery']);
 
         // Media information routes
         Route::get('albums/{album}/information', FetchAlbumInformationController::class);

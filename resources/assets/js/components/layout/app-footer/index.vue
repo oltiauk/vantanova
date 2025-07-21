@@ -5,12 +5,17 @@
     @mousemove="showControls"
     @contextmenu.prevent="requestContextMenu"
   >
-    <AudioPlayer v-show="playable" />
-
+    <YouTubeProgressBar v-if="playable && youtubePlayer" :youtube-player="youtubePlayer" />
+    
+    <!-- YouTube Player positioned above footer -->
+    <YouTubePlayer ref="youtubePlayer" class="youtube-player-floating" />
+    
     <div class="fullscreen-backdrop hidden" />
 
     <div class="wrapper relative flex flex-1">
-      <SongInfo />
+      <div class="flex flex-1 items-center">
+        <SongInfo />
+      </div>
       <PlaybackControls />
       <ExtraControls />
     </div>
@@ -31,7 +36,8 @@ import { preferenceStore } from '@/stores/preferenceStore'
 import { audioService } from '@/services/audioService'
 import { playbackService } from '@/services/playbackService'
 
-import AudioPlayer from '@/components/layout/app-footer/AudioPlayer.vue'
+import YouTubePlayer from '@/components/layout/app-footer/YouTubePlayer.vue'
+import YouTubeProgressBar from '@/components/layout/app-footer/YouTubeProgressBar.vue'
 import SongInfo from '@/components/layout/app-footer/FooterSongInfo.vue'
 import ExtraControls from '@/components/layout/app-footer/FooterExtraControls.vue'
 import PlaybackControls from '@/components/layout/app-footer/FooterPlaybackControls.vue'
@@ -41,6 +47,7 @@ let hideControlsTimeout: number
 
 const root = ref<HTMLElement>()
 const artist = ref<Artist>()
+const youtubePlayer = ref<InstanceType<typeof YouTubePlayer>>()
 
 const requestContextMenu = (event: MouseEvent) => {
   if (document.fullscreenElement) {
@@ -69,16 +76,13 @@ const appBackgroundImage = computed(() => {
 })
 
 const initPlaybackRelatedServices = async () => {
-  const plyrWrapper = document.querySelector<HTMLElement>('.plyr')
-
-  if (!plyrWrapper) {
+  if (!youtubePlayer.value) {
     await nextTick()
     await initPlaybackRelatedServices()
     return
   }
 
-  playbackService.init(plyrWrapper)
-  isAudioContextSupported && audioService.init(playbackService.player.media)
+  playbackService.initWithYouTube(youtubePlayer.value)
 }
 
 watch(preferenceStore.initialized, async initialized => {
@@ -163,6 +167,22 @@ footer {
     .fullscreen-backdrop {
       @apply saturate-[0.2] block absolute top-0 left-0 w-full h-full z-0 bg-cover bg-no-repeat bg-top;
     }
+  }
+}
+
+.youtube-player-floating {
+  position: fixed;
+  bottom: calc(var(--footer-height) + 45px); /* Position completely above the footer with some margin */
+  left: 0;
+  z-index: 30;
+  width: var(--sidebar-width);
+  
+  :fullscreen & {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    margin-bottom: 0;
+    width: auto;
   }
 }
 </style>
