@@ -60,4 +60,9 @@ return [
         'key' => env('RAPIDAPI_KEY'),
         'base_url' => env('RAPIDAPI_BASE_URL', 'https://spotify23.p.rapidapi.com'),
     ],
+    
+    'soundcloud' => [
+        'client_id' => env('SOUNDCLOUD_CLIENT_ID'),
+        'client_secret' => env('SOUNDCLOUD_CLIENT_SECRET'),
+    ],
 ];

@@ -80,24 +80,24 @@ const createPlayer = async () => {
       }
     })
   } catch (error) {
-    console.error('Failed to create YouTube player:', error)
+    // console.error('Failed to create YouTube player:', error)
   }
 }
 
 const onPlayerReady = () => {
   isPlayerReady = true
-  console.log('YouTube player ready')
+  // console.log('YouTube player ready')
 }
 
 const onPlayerStateChange = (event: any) => {
   const state = event.data
-  console.log('🎵 YouTubePlayer - state changed:', {
-    state,
-    stateName: getStateName(state),
-    currentSong: queueStore.current?.id,
-    currentPlaybackState: queueStore.current?.playback_state,
-    playableValue: playable.value?.id
-  })
+  // console.log('🎵 YouTubePlayer - state changed:', {
+  //   state,
+  //   stateName: getStateName(state),
+  //   currentSong: queueStore.current?.id,
+  //   currentPlaybackState: queueStore.current?.playback_state,
+  //   playableValue: playable.value?.id
+  // })
   
   // Emit events for synchronization with app controls
   switch (state) {
@@ -106,12 +106,12 @@ const onPlayerStateChange = (event: any) => {
       // Update playback state for footer controls - try both queueStore.current and playable.value
       if (queueStore.current) {
         queueStore.current.playback_state = 'Playing'
-        console.log('🎵 YouTubePlayer - state change: set queueStore.current playback_state to Playing')
+        // console.log('🎵 YouTubePlayer - state change: set queueStore.current playback_state to Playing')
       } else if (playable.value) {
         playable.value.playback_state = 'Playing'
-        console.log('🎵 YouTubePlayer - state change: set playable.value playback_state to Playing')
+        // console.log('🎵 YouTubePlayer - state change: set playable.value playback_state to Playing')
       } else {
-        console.warn('🎵 YouTubePlayer - no current song to update state for')
+        // console.warn('🎵 YouTubePlayer - no current song to update state for')
       }
       eventBus.emit('YOUTUBE_PLAYER_PLAYING')
       break
@@ -120,12 +120,12 @@ const onPlayerStateChange = (event: any) => {
       // Update playback state for footer controls - try both queueStore.current and playable.value
       if (queueStore.current) {
         queueStore.current.playback_state = 'Paused'
-        console.log('🎵 YouTubePlayer - state change: set queueStore.current playback_state to Paused')
+        // console.log('🎵 YouTubePlayer - state change: set queueStore.current playback_state to Paused')
       } else if (playable.value) {
         playable.value.playback_state = 'Paused'
-        console.log('🎵 YouTubePlayer - state change: set playable.value playback_state to Paused')
+        // console.log('🎵 YouTubePlayer - state change: set playable.value playback_state to Paused')
       } else {
-        console.warn('🎵 YouTubePlayer - no current song to update state for')
+        // console.warn('🎵 YouTubePlayer - no current song to update state for')
       }
       eventBus.emit('YOUTUBE_PLAYER_PAUSED')
       break
@@ -134,21 +134,21 @@ const onPlayerStateChange = (event: any) => {
       // Update playback state for footer controls - try both queueStore.current and playable.value
       if (queueStore.current) {
         queueStore.current.playback_state = 'Stopped'
-        console.log('🎵 YouTubePlayer - state change: set queueStore.current playback_state to Stopped')
+        // console.log('🎵 YouTubePlayer - state change: set queueStore.current playback_state to Stopped')
       } else if (playable.value) {
         playable.value.playback_state = 'Stopped'
-        console.log('🎵 YouTubePlayer - state change: set playable.value playback_state to Stopped')
+        // console.log('🎵 YouTubePlayer - state change: set playable.value playback_state to Stopped')
       } else {
-        console.warn('🎵 YouTubePlayer - no current song to update state for')
+        // console.warn('🎵 YouTubePlayer - no current song to update state for')
       }
       eventBus.emit('YOUTUBE_PLAYER_ENDED')
       break
     case window.YT.PlayerState.BUFFERING:
-      console.log('🎵 YouTubePlayer - state change: buffering')
+      // console.log('🎵 YouTubePlayer - state change: buffering')
       // Keep loading state while buffering
       break
     default:
-      console.log('🎵 YouTubePlayer - unknown state:', state)
+      // console.log('🎵 YouTubePlayer - unknown state:', state)
   }
 }
 
@@ -167,7 +167,7 @@ const getStateName = (state: number): string => {
 }
 
 const onPlayerError = (error: any) => {
-  console.error('YouTube player error:', error)
+  // console.error('YouTube player error:', error)
   
   // Handle different YouTube error codes
   const errorCode = error.data
@@ -193,7 +193,7 @@ const onPlayerError = (error: any) => {
       errorMessage = `Error code: ${errorCode}`
   }
   
-  console.warn('YouTube player error:', errorMessage)
+  // console.warn('YouTube player error:', errorMessage)
   isLoading.value = false
 }
 
@@ -208,14 +208,14 @@ const tryNextVideo = async () => {
     
     if (videoId && videoId !== currentVideoId) {
       currentVideoId = videoId
-      console.log('Trying next video:', nextVideo.snippet.title)
+      // console.log('Trying next video:', nextVideo.snippet.title)
       youtubePlayer.loadVideoById(videoId)
     } else {
-      console.warn('No more videos to try')
+      // console.warn('No more videos to try')
       isLoading.value = false
     }
   } else {
-    console.warn('No more videos to try')
+    // console.warn('No more videos to try')
     isLoading.value = false
   }
 }
@@ -223,7 +223,7 @@ const tryNextVideo = async () => {
 const searchAndPlayVideo = async (song: Song) => {
   if (!isPlayerReady) return
   
-  console.log('🎵 YouTubePlayer - searchAndPlayVideo called for:', song.title, 'ID:', song.id)
+  // console.log('🎵 YouTubePlayer - searchAndPlayVideo called for:', song.title, 'ID:', song.id)
   isLoading.value = true
   
   try {
@@ -231,11 +231,11 @@ const searchAndPlayVideo = async (song: Song) => {
     
     // Check if this is a discovered track (starts with "discovery-")
     if (song.id.startsWith('discovery-')) {
-      console.log('🎵 YouTubePlayer - detected discovered track, using query search')
+      // console.log('🎵 YouTubePlayer - detected discovered track, using query search')
       const query = `${song.title} ${song.artist_name}`
       result = await youTubeService.searchVideosByQuery(query)
     } else {
-      console.log('🎵 YouTubePlayer - regular song, using song search')
+      // console.log('🎵 YouTubePlayer - regular song, using song search')
       result = await youTubeService.searchVideosBySong(song, '')
     }
     
@@ -250,31 +250,31 @@ const searchAndPlayVideo = async (song: Song) => {
       if (videoId && videoId !== currentVideoId) {
         currentVideoId = videoId
         isVisible.value = true
-        console.log('🎵 YouTubePlayer - loading video:', firstVideo.snippet.title, 'for song:', song.title)
-        console.log('🎵 YouTubePlayer - before loadVideoById - queueStore.current:', queueStore.current?.id)
+        // console.log('🎵 YouTubePlayer - loading video:', firstVideo.snippet.title, 'for song:', song.title)
+        // console.log('🎵 YouTubePlayer - before loadVideoById - queueStore.current:', queueStore.current?.id)
         youtubePlayer.loadVideoById(videoId)
-        console.log('🎵 YouTubePlayer - after loadVideoById - queueStore.current:', queueStore.current?.id)
+        // console.log('🎵 YouTubePlayer - after loadVideoById - queueStore.current:', queueStore.current?.id)
       } else {
-        console.warn('🎵 YouTubePlayer - no valid video ID found for song:', song.title)
+        // console.warn('🎵 YouTubePlayer - no valid video ID found for song:', song.title)
         isLoading.value = false
       }
     } else {
-      console.warn('🎵 YouTubePlayer - no YouTube videos found for song:', song.title)
+      // console.warn('🎵 YouTubePlayer - no YouTube videos found for song:', song.title)
       isLoading.value = false
     }
   } catch (error) {
-    console.error('🎵 YouTubePlayer - failed to search YouTube videos:', error)
+    // console.error('🎵 YouTubePlayer - failed to search YouTube videos:', error)
     isLoading.value = false
   }
 }
 
 // Watch for song changes
 watch(playable, async (newPlayable, oldPlayable) => {
-  console.log('🎵 YouTubePlayer - playable changed:', {
-    newPlayable: newPlayable?.id,
-    oldPlayable: oldPlayable?.id,
-    queueCurrent: queueStore.current?.id
-  })
+  // console.log('🎵 YouTubePlayer - playable changed:', {
+  //   newPlayable: newPlayable?.id,
+  //   oldPlayable: oldPlayable?.id,
+  //   queueCurrent: queueStore.current?.id
+  // })
   
   if (newPlayable && isSong(newPlayable)) {
     await searchAndPlayVideo(newPlayable)
@@ -285,14 +285,14 @@ watch(playable, async (newPlayable, oldPlayable) => {
 
 // Listen for direct track play events
 eventBus.on('PLAY_YOUTUBE_TRACK', async (trackData: { title: string, artist: string }) => {
-  console.log('🎵 YouTubePlayer - PLAY_YOUTUBE_TRACK event received:', {
-    trackData,
-    isPlayerReady,
-    hasYoutubePlayer: !!youtubePlayer
-  })
+  // console.log('🎵 YouTubePlayer - PLAY_YOUTUBE_TRACK event received:', {
+  //   trackData,
+  //   isPlayerReady,
+  //   hasYoutubePlayer: !!youtubePlayer
+  // })
   
   if (!isPlayerReady) {
-    console.log('🎵 YouTubePlayer - player not ready, ignoring event')
+    // console.log('🎵 YouTubePlayer - player not ready, ignoring event')
     return
   }
   
@@ -300,7 +300,7 @@ eventBus.on('PLAY_YOUTUBE_TRACK', async (trackData: { title: string, artist: str
   
   try {
     const query = `${trackData.title} ${trackData.artist}`
-    console.log('🎵 YouTubePlayer - searching YouTube for:', query)
+    // console.log('🎵 YouTubePlayer - searching YouTube for:', query)
     
     const result = await youTubeService.searchVideosByQuery(query)
     
@@ -316,91 +316,91 @@ eventBus.on('PLAY_YOUTUBE_TRACK', async (trackData: { title: string, artist: str
         currentVideoId = videoId
         isVisible.value = true
         youtubePlayer.loadVideoById(videoId)
-        console.log('🎵 YouTubePlayer - loading video:', firstVideo.snippet.title)
+        // console.log('🎵 YouTubePlayer - loading video:', firstVideo.snippet.title)
       } else {
-        console.warn('🎵 YouTubePlayer - no valid video ID found for track:', trackData.title)
+        // console.warn('🎵 YouTubePlayer - no valid video ID found for track:', trackData.title)
         isLoading.value = false
       }
     } else {
-      console.warn('🎵 YouTubePlayer - no YouTube videos found for track:', trackData.title)
+      // console.warn('🎵 YouTubePlayer - no YouTube videos found for track:', trackData.title)
       isLoading.value = false
     }
   } catch (error) {
-    console.error('🎵 YouTubePlayer - failed to search YouTube videos for track:', error)
+    // console.error('🎵 YouTubePlayer - failed to search YouTube videos for track:', error)
     isLoading.value = false
   }
 })
 
 // Control methods for integration with app controls
 const play = () => {
-  console.log('🎵 YouTubePlayer - play called:', {
-    isPlayerReady,
-    hasYoutubePlayer: !!youtubePlayer,
-    currentSong: queueStore.current?.id,
-    currentState: queueStore.current?.playback_state
-  })
+  // console.log('🎵 YouTubePlayer - play called:', {
+  //   isPlayerReady,
+  //   hasYoutubePlayer: !!youtubePlayer,
+  //   currentSong: queueStore.current?.id,
+  //   currentState: queueStore.current?.playback_state
+  // })
   
   try {
     if (isPlayerReady && youtubePlayer) {
-      console.log('🎵 YouTubePlayer - calling youtubePlayer.playVideo()')
+      // console.log('🎵 YouTubePlayer - calling youtubePlayer.playVideo()')
       youtubePlayer.playVideo()
       // Update playback state immediately for responsive UI
       if (queueStore.current) {
         queueStore.current.playback_state = 'Playing'
-        console.log('🎵 YouTubePlayer - set playback_state to Playing')
+        // console.log('🎵 YouTubePlayer - set playback_state to Playing')
       }
     } else {
-      console.log('🎵 YouTubePlayer - cannot play: player not ready or not available')
+      // console.log('🎵 YouTubePlayer - cannot play: player not ready or not available')
     }
   } catch (error) {
-    console.error('🎵 YouTubePlayer - error in play():', error)
+    // console.error('🎵 YouTubePlayer - error in play():', error)
   }
 }
 
 const pause = () => {
-  console.log('🎵 YouTubePlayer - pause called:', {
-    isPlayerReady,
-    hasYoutubePlayer: !!youtubePlayer,
-    currentSong: queueStore.current?.id,
-    currentState: queueStore.current?.playback_state
-  })
+  // console.log('🎵 YouTubePlayer - pause called:', {
+  //   isPlayerReady,
+  //   hasYoutubePlayer: !!youtubePlayer,
+  //   currentSong: queueStore.current?.id,
+  //   currentState: queueStore.current?.playback_state
+  // })
   
   try {
     if (isPlayerReady && youtubePlayer) {
-      console.log('🎵 YouTubePlayer - calling youtubePlayer.pauseVideo()')
+      // console.log('🎵 YouTubePlayer - calling youtubePlayer.pauseVideo()')
       youtubePlayer.pauseVideo()
       // Update playback state immediately for responsive UI
       if (queueStore.current) {
         queueStore.current.playback_state = 'Paused'
-        console.log('🎵 YouTubePlayer - set playback_state to Paused')
+        // console.log('🎵 YouTubePlayer - set playback_state to Paused')
       }
     } else {
-      console.log('🎵 YouTubePlayer - cannot pause: player not ready or not available')
+      // console.log('🎵 YouTubePlayer - cannot pause: player not ready or not available')
     }
   } catch (error) {
-    console.error('🎵 YouTubePlayer - error in pause():', error)
+    // console.error('🎵 YouTubePlayer - error in pause():', error)
   }
 }
 
 const setVolume = (volume: number) => {
-  console.log('🎵 YouTubePlayer - setVolume called:', {
-    volume,
-    isPlayerReady,
-    hasYoutubePlayer: !!youtubePlayer
-  })
+  // console.log('🎵 YouTubePlayer - setVolume called:', {
+  //   volume,
+  //   isPlayerReady,
+  //   hasYoutubePlayer: !!youtubePlayer
+  // })
   
   try {
     if (isPlayerReady && youtubePlayer) {
       // Volume manager seems to use a 0-10 range, but YouTube expects 0-100
       // Let's normalize it properly
       const volumePercent = Math.min(100, Math.max(0, volume * 10))
-      console.log('🎵 YouTubePlayer - setting volume to:', volumePercent, 'from input:', volume)
+      // console.log('🎵 YouTubePlayer - setting volume to:', volumePercent, 'from input:', volume)
       youtubePlayer.setVolume(volumePercent)
     } else {
-      console.log('🎵 YouTubePlayer - cannot set volume: player not ready or not available')
+      // console.log('🎵 YouTubePlayer - cannot set volume: player not ready or not available')
     }
   } catch (error) {
-    console.error('🎵 YouTubePlayer - error in setVolume():', error)
+    // console.error('🎵 YouTubePlayer - error in setVolume():', error)
   }
 }
 
@@ -419,17 +419,17 @@ const getDuration = (): number => {
 }
 
 const seekTo = (seconds: number) => {
-  console.log('🎵 YouTubePlayer - seekTo called:', {
-    seconds,
-    isPlayerReady,
-    hasYoutubePlayer: !!youtubePlayer
-  })
+  // console.log('🎵 YouTubePlayer - seekTo called:', {
+  //   seconds,
+  //   isPlayerReady,
+  //   hasYoutubePlayer: !!youtubePlayer
+  // })
   
   if (isPlayerReady && youtubePlayer) {
-    console.log('🎵 YouTubePlayer - seeking to:', seconds)
+    // console.log('🎵 YouTubePlayer - seeking to:', seconds)
     youtubePlayer.seekTo(seconds)
   } else {
-    console.log('🎵 YouTubePlayer - cannot seek: player not ready or not available')
+    // console.log('🎵 YouTubePlayer - cannot seek: player not ready or not available')
   }
 }
 

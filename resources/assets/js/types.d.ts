@@ -391,6 +391,7 @@ declare type ScreenName =
   | 'Settings'
   | 'Users'
   | 'YouTube'
+  | 'SoundCloud'
   | 'Visualizer'
   | 'Profile'
   | 'Album'

@@ -88,10 +88,10 @@ class PlaybackService {
     this.setMediaSessionActionHandlers()
 
     watch(volumeManager.volume, volume => {
-      console.log('🎵 PlaybackService - volume changed:', {
-        volume,
-        hasYouTubePlayer: !!this.youtubePlayer
-      })
+      // console.log('🎵 PlaybackService - volume changed:', {
+      //   volume,
+      //   hasYouTubePlayer: !!this.youtubePlayer
+      // })
       if (this.youtubePlayer) {
         this.youtubePlayer.setVolume(volume)
       }
@@ -316,46 +316,46 @@ class PlaybackService {
   }
 
   public pause () {
-    console.log('🎵 PlaybackService - pause called:', {
-      hasYouTubePlayer: !!this.youtubePlayer,
-      currentSong: queueStore.current?.id
-    })
+    // console.log('🎵 PlaybackService - pause called:', {
+    //   hasYouTubePlayer: !!this.youtubePlayer,
+    //   currentSong: queueStore.current?.id
+    // })
     
     try {
       if (this.youtubePlayer) {
-        console.log('🎵 PlaybackService - calling youtubePlayer.pause()')
+        // console.log('🎵 PlaybackService - calling youtubePlayer.pause()')
         this.youtubePlayer.pause()
       } else {
-        console.log('🎵 PlaybackService - calling player.pause()')
+        // console.log('🎵 PlaybackService - calling player.pause()')
         this.player.pause()
       }
 
       queueStore.current!.playback_state = 'Paused'
-      console.log('🎵 PlaybackService - set playback_state to Paused')
+      // console.log('🎵 PlaybackService - set playback_state to Paused')
       navigator.mediaSession && (navigator.mediaSession.playbackState = 'paused')
 
       socketService.broadcast('SOCKET_SONG', queueStore.current)
     } catch (error) {
-      console.error('🎵 PlaybackService - error in pause():', error)
+      // console.error('🎵 PlaybackService - error in pause():', error)
     }
   }
 
   public async resume () {
     const playable = queueStore.current!
-    console.log('🎵 PlaybackService - resume called:', {
-      hasYouTubePlayer: !!this.youtubePlayer,
-      playableId: playable.id,
-      currentPlaybackState: playable.playback_state
-    })
+    // console.log('🎵 PlaybackService - resume called:', {
+    //   hasYouTubePlayer: !!this.youtubePlayer,
+    //   playableId: playable.id,
+    //   currentPlaybackState: playable.playback_state
+    // })
 
     try {
       if (this.youtubePlayer) {
-        console.log('🎵 PlaybackService - calling youtubePlayer.play()')
+        // console.log('🎵 PlaybackService - calling youtubePlayer.play()')
         this.youtubePlayer.play()
       } else {
-        console.log('🎵 PlaybackService - using regular player')
+        // console.log('🎵 PlaybackService - using regular player')
         if (!this.player.media.src) {
-          console.log('🎵 PlaybackService - no media src, setting up player')
+          // console.log('🎵 PlaybackService - no media src, setting up player')
           // on first load when the queue is loaded from saved state, the player's src is empty
           // we need to properly set it as well as any kind of playback metadata
           this.player.media.src = songStore.getSourceUrl(playable)
@@ -373,61 +373,61 @@ class PlaybackService {
       }
 
       queueStore.current!.playback_state = 'Playing'
-      console.log('🎵 PlaybackService - set playback_state to Playing')
+      // console.log('🎵 PlaybackService - set playback_state to Playing')
       navigator.mediaSession && (navigator.mediaSession.playbackState = 'playing')
 
       this.broadcast(playable)
     } catch (error) {
-      console.error('🎵 PlaybackService - error in resume():', error)
+      // console.error('🎵 PlaybackService - error in resume():', error)
     }
   }
 
   public async toggle () {
-    console.log('🎵 PlaybackService - toggle called:', {
-      hasCurrent: !!queueStore.current,
-      currentPlaybackState: queueStore.current?.playback_state,
-      hasYouTubePlayer: !!this.youtubePlayer
-    })
+    // console.log('🎵 PlaybackService - toggle called:', {
+    //   hasCurrent: !!queueStore.current,
+    //   currentPlaybackState: queueStore.current?.playback_state,
+    //   hasYouTubePlayer: !!this.youtubePlayer
+    // })
     
     if (!queueStore.current) {
-      console.log('🎵 PlaybackService - no current song, calling playFirstInQueue')
+      // console.log('🎵 PlaybackService - no current song, calling playFirstInQueue')
       await this.playFirstInQueue()
       return
     }
 
     if (queueStore.current.playback_state !== 'Playing') {
-      console.log('🎵 PlaybackService - not playing, calling resume')
+      // console.log('🎵 PlaybackService - not playing, calling resume')
       await this.resume()
       return
     }
 
-    console.log('🎵 PlaybackService - currently playing, calling pause')
+    // console.log('🎵 PlaybackService - currently playing, calling pause')
     this.pause()
   }
 
   public seekBy (seconds: number) {
-    console.log('🎵 PlaybackService - seekBy called:', {
-      seconds,
-      hasYouTubePlayer: !!this.youtubePlayer
-    })
+    // console.log('🎵 PlaybackService - seekBy called:', {
+    //   seconds,
+    //   hasYouTubePlayer: !!this.youtubePlayer
+    // })
     
     if (this.youtubePlayer) {
       const currentTime = this.youtubePlayer.getCurrentTime()
       const newTime = currentTime + seconds
-      console.log('🎵 PlaybackService - YouTube seek:', {
-        currentTime,
-        newTime,
-        seconds
-      })
+      // console.log('🎵 PlaybackService - YouTube seek:', {
+      //   currentTime,
+      //   newTime,
+      //   seconds
+      // })
       this.youtubePlayer.seekTo(newTime)
     } else if (this.player.media.duration) {
-      console.log('🎵 PlaybackService - regular player seek:', {
-        currentTime: this.player.media.currentTime,
-        seconds
-      })
+      // console.log('🎵 PlaybackService - regular player seek:', {
+      //   currentTime: this.player.media.currentTime,
+      //   seconds
+      // })
       this.player.media.currentTime += seconds
     } else {
-      console.log('🎵 PlaybackService - no player available for seek')
+      // console.log('🎵 PlaybackService - no player available for seek')
     }
   }
 
@@ -441,19 +441,19 @@ class PlaybackService {
       playables = shuffle(playables)
     }
 
-    console.log('🎵 PlaybackService - queueAndPlay called:', {
-      playablesCount: playables.length,
-      hasCurrentSong: !!queueStore.current,
-      isYouTubePlayer: !!this.youtubePlayer
-    })
+    // console.log('🎵 PlaybackService - queueAndPlay called:', {
+    //   playablesCount: playables.length,
+    //   hasCurrentSong: !!queueStore.current,
+    //   isYouTubePlayer: !!this.youtubePlayer
+    // })
 
     // For YouTube player, we can switch directly without stopping
     if (this.youtubePlayer && queueStore.current) {
-      console.log('🎵 PlaybackService - direct queue switch for YouTube player')
+      // console.log('🎵 PlaybackService - direct queue switch for YouTube player')
       queueStore.replaceQueueWith(playables)
       await this.play(queueStore.first)
     } else {
-      console.log('🎵 PlaybackService - traditional stop/queue/play')
+      // console.log('🎵 PlaybackService - traditional stop/queue/play')
       await this.stop()
       queueStore.replaceQueueWith(playables)
       await this.play(queueStore.first)

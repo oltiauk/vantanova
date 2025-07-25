@@ -59,17 +59,18 @@ class Http {
     return this
   }
 
-  public request<T> (method: Method, url: string, data: Record<string, any> = {}, onUploadProgress?: any) {
+  public request<T> (method: Method, url: string, data: Record<string, any> = {}, onUploadProgress?: any, config: any = {}) {
     return this.client.request({
       url,
       data,
       method,
       onUploadProgress,
+      ...config,
     }) as Promise<{ data: T }>
   }
 
-  public async get<T> (url: string) {
-    return (await this.request<T>('get', url)).data
+  public async get<T> (url: string, config: any = {}) {
+    return (await this.request<T>('get', url, {}, undefined, config)).data
   }
 
   public async post<T> (url: string, data: Record<string, any> = {}, onUploadProgress?: any) {

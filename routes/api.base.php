@@ -52,6 +52,7 @@ use App\Http\Controllers\API\QueueStateController;
 use App\Http\Controllers\API\RegisterPlayController;
 use App\Http\Controllers\API\ResetPasswordController;
 use App\Http\Controllers\API\ScrobbleController;
+use App\Http\Controllers\API\SearchSoundCloudController;
 use App\Http\Controllers\API\SearchYouTubeController;
 use App\Http\Controllers\API\SetLastfmSessionKeyController;
 use App\Http\Controllers\API\SettingController;
@@ -182,6 +183,10 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
         
         // General YouTube search route (always available, uses scraping if no API key)
         Route::get('youtube/search', [SearchYouTubeController::class, 'searchByQuery']);
+
+        // SoundCloud-related routes
+        Route::get('soundcloud/search', [SearchSoundCloudController::class, 'searchTracks']);
+        Route::post('soundcloud/embed', [SearchSoundCloudController::class, 'generateEmbedUrl']);
 
         // Media information routes
         Route::get('albums/{album}/information', FetchAlbumInformationController::class);

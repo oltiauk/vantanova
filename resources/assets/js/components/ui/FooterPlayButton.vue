@@ -31,18 +31,18 @@ const song = requireInjection(CurrentPlayableKey, ref())
 const libraryEmpty = computed(() => commonStore.state.song_count === 0)
 const playing = computed(() => {
   const isPlaying = song.value?.playback_state === 'Playing'
-  console.log('🎵 FooterPlayButton - playing computed:', {
-    isPlaying,
-    song: song.value,
-    playback_state: song.value?.playback_state
-  })
+  // console.log('🎵 FooterPlayButton - playing computed:', {
+  //   isPlaying,
+  //   song: song.value,
+  //   playback_state: song.value?.playback_state
+  // })
   return isPlaying
 })
 
 const initiatePlayback = async () => {
-  console.log('🎵 FooterPlayButton - initiatePlayback called')
+  // console.log('🎵 FooterPlayButton - initiatePlayback called')
   if (libraryEmpty.value) {
-    console.log('🎵 FooterPlayButton - library is empty, returning')
+    // console.log('🎵 FooterPlayButton - library is empty, returning')
     return
   }
 
@@ -74,22 +74,22 @@ const initiatePlayback = async () => {
 }
 
 const toggle = async () => {
-  console.log('🎵 FooterPlayButton - toggle clicked:', {
-    hasSong: !!song.value,
-    songId: song.value?.id,
-    playbackState: song.value?.playback_state
-  })
+  // console.log('🎵 FooterPlayButton - toggle clicked:', {
+  //   hasSong: !!song.value,
+  //   songId: song.value?.id,
+  //   playbackState: song.value?.playback_state
+  // })
   
   try {
     if (song.value) {
-      console.log('🎵 FooterPlayButton - calling playbackService.toggle()')
+      // console.log('🎵 FooterPlayButton - calling playbackService.toggle()')
       await playbackService.toggle()
     } else {
-      console.log('🎵 FooterPlayButton - no song, calling initiatePlayback()')
+      // console.log('🎵 FooterPlayButton - no song, calling initiatePlayback()')
       await initiatePlayback()
     }
   } catch (error) {
-    console.error('🎵 FooterPlayButton - error in toggle():', error)
+    // console.error('🎵 FooterPlayButton - error in toggle():', error)
   }
 }
 </script>

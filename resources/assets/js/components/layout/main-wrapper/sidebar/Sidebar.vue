@@ -41,6 +41,10 @@
             </template>
             Music Preferences
           </SidebarItem>
+          
+          <SoundCloudSidebarItem>
+            SoundCloud
+          </SoundCloudSidebarItem>
         </ul>
       </SidebarSection>
   
@@ -81,6 +85,7 @@ import SidebarYourMusicSection from './SidebarYourLibrarySection.vue'
 import SidebarSection from '@/components/layout/main-wrapper/sidebar/SidebarSection.vue'
 import SidebarSectionHeader from '@/components/layout/main-wrapper/sidebar/SidebarSectionHeader.vue'
 import SidebarItem from '@/components/layout/main-wrapper/sidebar/SidebarItem.vue'
+import SoundCloudSidebarItem from './SoundCloudSidebarItem.vue'
 
 const { onRouteChanged, url } = useRouter()
 const { isAdmin } = useAuthorization()
