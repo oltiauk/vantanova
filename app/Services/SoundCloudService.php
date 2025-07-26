@@ -338,6 +338,82 @@ class SoundCloudService
     }
 
     /**
+     * Get SoundCloud user details using the /users/{user_id} endpoint
+     * 
+     * @param int $userId SoundCloud user ID
+     * @return object|null User details object or null on failure
+     */
+    public function getUserDetails(int $userId): ?object
+    {
+        \Log::info('🎵 Fetching SoundCloud user details', [
+            'user_id' => $userId,
+            'timestamp' => now()->toISOString()
+        ]);
+
+        if (!self::enabled()) {
+            \Log::warning('❌ SoundCloud integration not enabled - missing credentials');
+            return null;
+        }
+
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            \Log::error('❌ Failed to obtain SoundCloud access token');
+            return null;
+        }
+
+        try {
+            \Log::info('🌐 Making HTTP request to SoundCloud users API', [
+                'method' => 'GET',
+                'url' => self::API_BASE_URL . "/users/{$userId}",
+                'user_id' => $userId,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Accept' => 'application/json',
+                'User-Agent' => 'Koel/' . config('app.version', '1.0.0') . ' (Music Streaming Application)'
+            ])->timeout(30)->get(self::API_BASE_URL . "/users/{$userId}");
+
+            \Log::info('📊 SoundCloud Users API HTTP Response', [
+                'status_code' => $response->status(),
+                'response_size_bytes' => strlen($response->body()),
+                'content_type' => $response->header('Content-Type'),
+                'rate_limit_remaining' => $response->header('X-RateLimit-Remaining')
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->object();
+                
+                \Log::info('✅ SoundCloud user details fetched successfully', [
+                    'user_id' => $userId,
+                    'username' => $data->username ?? 'Unknown',
+                    'followers_count' => $data->followers_count ?? 0,
+                    'followings_count' => $data->followings_count ?? 0,
+                    'track_count' => $data->track_count ?? 0
+                ]);
+                
+                return $data;
+            }
+
+            \Log::error('❌ SoundCloud Users API HTTP Error', [
+                'status_code' => $response->status(),
+                'error_body' => $response->body(),
+                'headers' => $response->headers()
+            ]);
+
+            return null;
+        } catch (Throwable $e) {
+            \Log::error('❌ SoundCloud user details request exception', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Apply smart filtering to improve SoundCloud result accuracy
      * 
      * SoundCloud's genre tagging is notoriously inaccurate. This method applies

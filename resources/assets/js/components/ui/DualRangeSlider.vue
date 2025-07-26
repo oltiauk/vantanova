@@ -171,12 +171,16 @@ watch(() => [props.from, props.to], () => {
 }
 
 .slider-container {
-  @apply relative h-8 mb-2;
-  min-height: 32px;
+  @apply relative mb-2;
+  height: 24px;
+  min-height: 24px;
 }
 
 .range-input {
-  @apply absolute w-full h-2 appearance-none bg-transparent;
+  @apply absolute w-full appearance-none bg-transparent;
+  height: 24px;
+  top: 50%;
+  transform: translateY(-50%);
   pointer-events: none;
   z-index: 10;
 }
@@ -195,6 +199,7 @@ watch(() => [props.from, props.to], () => {
   border: 2px solid rgba(255, 255, 255, 0.9);
   pointer-events: all;
   transition: all 0.2s ease-in-out;
+  margin-top: -8px; /* Center the thumb properly */
 }
 
 .range-input::-moz-range-thumb {
@@ -202,6 +207,7 @@ watch(() => [props.from, props.to], () => {
   background: var(--color-highlight);
   border: 2px solid rgba(255, 255, 255, 0.9);
   pointer-events: all;
+  margin-top: -8px; /* Center the thumb properly */
 }
 
 .range-input::-webkit-slider-thumb:hover {
@@ -214,8 +220,9 @@ watch(() => [props.from, props.to], () => {
 }
 
 .slider-track {
-  @apply relative w-full h-2 rounded-full;
+  @apply absolute w-full h-2 rounded-full;
   top: 50%;
+  left: 0;
   transform: translateY(-50%);
 }
 

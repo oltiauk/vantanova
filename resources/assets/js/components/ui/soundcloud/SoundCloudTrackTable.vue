@@ -11,7 +11,7 @@
             <th class="text-left p-3 font-medium">BPM</th>
             <th class="text-left p-3 font-medium">Plays</th>
             <th class="text-left p-3 font-medium">Likes</th>
-            <th class="text-left p-3 font-medium">Followers</th>
+            <th class="text-left p-3 font-medium">Track Count</th>
             <th class="text-left p-3 font-medium">Release Date</th>
             <th class="text-left p-3 font-medium">Duration</th>
             <th class="text-left p-3 font-medium">Actions</th>
@@ -28,12 +28,22 @@
             
             <!-- Artist -->
             <td class="p-3">
-              <div class="font-medium">{{ track.user.username }}</div>
+              <div class="flex items-center gap-3">
+                <div class="font-medium">{{ track.user?.username || 'Unknown' }}</div>
+                <button
+                  @click="$emit('view-artist', track.user)"
+                  class="px-3 py-1.5 bg-k-accent/20 hover:bg-k-accent/40 text-k-accent rounded-md text-xs font-medium transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md flex items-center gap-1"
+                  title="View artist details & real follower count"
+                >
+                  <Icon :icon="faUser" class="text-xs" />
+                  Details
+                </button>
+              </div>
             </td>
             
             <!-- Title -->
             <td class="p-3">
-              <div class="font-medium text-white">{{ track.title }}</div>
+              <div class="font-medium text-white">{{ track.title || 'Untitled' }}</div>
             </td>
             
             <!-- Genre -->
@@ -55,27 +65,27 @@
             
             <!-- Playback Count -->
             <td class="p-3">
-              <span class="text-white/80">{{ formatCount(track.playback_count) }}</span>
+              <span class="text-white/80">{{ formatCount(track.playback_count || 0) }}</span>
             </td>
             
             <!-- Likes (Favoritings) -->
             <td class="p-3">
-              <span class="text-white/80">{{ formatCount(track.favoritings_count) }}</span>
+              <span class="text-white/80">{{ formatCount(track.favoritings_count || 0) }}</span>
             </td>
             
-            <!-- Followers -->
+            <!-- Track Count -->
             <td class="p-3">
-              <span class="text-white/80">{{ formatCount(track.user.followers_count) }}</span>
+              <span class="text-white/80">{{ formatCount(track.user?.track_count || 0) }}</span>
             </td>
             
             <!-- Release Date -->
             <td class="p-3">
-              <span class="text-white/80">{{ formatDate(track.created_at) }}</span>
+              <span class="text-white/80">{{ formatDate(track.created_at || '') }}</span>
             </td>
             
             <!-- Duration -->
             <td class="p-3">
-              <span class="text-white/80">{{ formatDuration(track.duration) }}</span>
+              <span class="text-white/80">{{ formatDuration(track.duration || 0) }}</span>
             </td>
             
             <!-- Actions -->
@@ -96,7 +106,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faPlay } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faUser } from '@fortawesome/free-solid-svg-icons'
 
 interface SoundCloudTrack {
   id: number
@@ -120,12 +130,16 @@ interface Props {
 
 interface Emits {
   (e: 'play', track: SoundCloudTrack): void
+  (e: 'view-artist', user: any): void
 }
 
 defineProps<Props>()
 defineEmits<Emits>()
 
-const formatCount = (count: number): string => {
+const formatCount = (count: number | undefined | null): string => {
+  if (!count || count === 0) {
+    return '0'
+  }
   if (count >= 1000000) {
     return (count / 1000000).toFixed(1) + 'M'
   } else if (count >= 1000) {
@@ -137,11 +151,10 @@ const formatCount = (count: number): string => {
 const formatDate = (dateString: string): string => {
   try {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
   } catch {
     return 'Unknown'
   }

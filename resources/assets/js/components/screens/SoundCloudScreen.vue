@@ -33,18 +33,47 @@
           </button>
         </div>
 
+        <!-- Search Query Row -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2 text-white/80">Search Keywords</label>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="w-full p-3 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-lg"
+            placeholder="Search for artists, tracks, albums..."
+            @keyup.enter="search"
+          />
+          <div class="mt-1 text-xs text-white/50">
+            Press Enter to search or use the search button below
+          </div>
+        </div>
+
         <!-- Top Row: Genres and Tags -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <!-- Genres Dropdown -->
-          <div>
+          <!-- Genres Input/Dropdown -->
+          <div class="relative">
             <label class="block text-sm font-medium mb-2 text-white/80">Genre</label>
-            <select
+            <input
               v-model="selectedGenre"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+              type="text"
+              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+              placeholder="Type genre or select from suggestions..."
+              @focus="showGenreDropdown = true"
+              @blur="hideGenreDropdown"
+            />
+            <div 
+              v-if="showGenreDropdown && filteredGenres.length > 0"
+              class="absolute z-10 w-full mt-1 bg-gray-800 border border-white/20 rounded max-h-48 overflow-y-auto"
             >
-              <option value="" class="bg-gray-800">All Genres</option>
-              <option v-for="genre in genres" :key="genre" :value="genre" class="bg-gray-800">{{ genre }}</option>
-            </select>
+              <button
+                v-for="genre in filteredGenres"
+                :key="genre"
+                @mousedown.prevent="selectGenre(genre)"
+                class="w-full px-3 py-2 text-left text-white hover:bg-k-accent/20 transition"
+              >
+                {{ genre }}
+              </button>
+            </div>
           </div>
 
           <!-- Tags Input -->
@@ -104,7 +133,8 @@
               />
               <div class="grid grid-cols-2 gap-2">
                 <input
-                  v-model.number="bpmFrom"
+                  v-model="bpmFromInput"
+                  @input="handleBpmFromInput"
                   type="number"
                   min="60"
                   max="200"
@@ -112,7 +142,8 @@
                   class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-sm"
                 />
                 <input
-                  v-model.number="bpmTo"
+                  v-model="bpmToInput"
+                  @input="handleBpmToInput"
                   type="number"
                   min="60"
                   max="200"
@@ -140,22 +171,40 @@
 
         <!-- Advanced Filters -->
         <div v-if="showAdvancedFilters" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 p-4 bg-white/5 rounded-lg">
-          <!-- Duration Range -->
+          <!-- Track vs Mix Selection -->
           <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Duration (seconds)</label>
-            <div class="grid grid-cols-2 gap-2">
-              <input
-                v-model.number="durationFrom"
-                type="number"
-                placeholder="Min"
-                class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-sm"
-              />
-              <input
-                v-model.number="durationTo"
-                type="number"
-                placeholder="Max"
-                class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-sm"
-              />
+            <label class="block text-sm font-medium mb-3 text-white/80">Content Type</label>
+            <div class="flex gap-3">
+              <label class="flex-1 cursor-pointer">
+                <input
+                  v-model="contentType"
+                  type="radio"
+                  value="tracks"
+                  class="sr-only"
+                />
+                <div class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
+                     :class="contentType === 'tracks' 
+                       ? 'border-k-accent bg-k-accent/20 text-white' 
+                       : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
+                >
+                  Tracks
+                </div>
+              </label>
+              <label class="flex-1 cursor-pointer">
+                <input
+                  v-model="contentType"
+                  type="radio"
+                  value="mixes"
+                  class="sr-only"
+                />
+                <div class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
+                     :class="contentType === 'mixes' 
+                       ? 'border-k-accent bg-k-accent/20 text-white' 
+                       : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
+                >
+                  Mixes
+                </div>
+              </label>
             </div>
           </div>
 
@@ -163,20 +212,22 @@
           <div>
             <label class="block text-sm font-medium mb-2 text-white/80">Minimum Plays</label>
             <input
-              v-model.number="minPlays"
-              type="number"
-              placeholder="e.g. 10000"
+              v-model="minPlaysFormatted"
+              type="text"
+              placeholder="e.g. 10,000"
+              @input="handleMinPlaysInput"
               class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
             />
           </div>
 
-          <!-- Minimum Likes -->
+          <!-- Maximum Plays -->
           <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Minimum Likes</label>
+            <label class="block text-sm font-medium mb-2 text-white/80">Maximum Plays</label>
             <input
-              v-model.number="minLikes"
-              type="number"
-              placeholder="e.g. 1000"
+              v-model="maxPlaysFormatted"
+              type="text"
+              placeholder="e.g. 1,000,000"
+              @input="handleMaxPlaysInput"
               class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
             />
           </div>
@@ -208,6 +259,9 @@
           <div class="inline-flex items-center gap-2 text-sm text-white/60">
             <Icon :icon="faFilter" />
             Filters: 
+            <span v-if="searchQuery" class="bg-k-accent/20 text-k-accent px-2 py-1 rounded text-xs">
+              "{{ searchQuery.length > 20 ? searchQuery.substring(0, 20) + '...' : searchQuery }}"
+            </span>
             <span v-if="selectedGenre" class="bg-k-accent/20 text-k-accent px-2 py-1 rounded text-xs">
               {{ selectedGenre }}
             </span>
@@ -229,7 +283,21 @@
         <SoundCloudTrackTable 
           :tracks="tracks"
           @play="playTrack"
+          @view-artist="viewArtist"
         />
+        
+        <!-- Load More Button -->
+        <div v-if="hasMoreResults" class="text-center mt-6">
+          <button
+            @click="loadMore"
+            :disabled="loadingMore"
+            class="px-6 py-3 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition flex items-center gap-2 mx-auto"
+          >
+            <Icon v-if="loadingMore" :icon="faSpinner" spin />
+            <Icon v-else :icon="faPlus" />
+            {{ loadingMore ? 'Loading...' : 'Load More' }}
+          </button>
+        </div>
       </div>
 
       <!-- Empty State -->
@@ -287,6 +355,83 @@
       </div>
     </div>
 
+    <!-- Artist Details Modal -->
+    <teleport to="body">
+      <div
+        v-if="showArtistModal"
+        class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+        @click="closeArtistModal"
+      >
+        <div
+          class="bg-k-bg-secondary rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-auto"
+          @click.stop
+        >
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h3 class="text-xl font-semibold text-white">{{ currentArtist?.username }}</h3>
+              <p class="text-white/60">Artist Details</p>
+            </div>
+            <button
+              @click="closeArtistModal"
+              class="p-2 hover:bg-white/10 rounded-lg transition"
+            >
+              <Icon :icon="faTimes" class="text-white" />
+            </button>
+          </div>
+          
+          <div v-if="loadingArtist" class="text-center py-8">
+            <Icon :icon="faSpinner" spin class="text-2xl text-k-accent mb-2" />
+            <p class="text-white/60">Loading artist details...</p>
+          </div>
+          
+          <div v-else-if="artistDetails" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-white/5 p-4 rounded">
+                <div class="text-k-accent font-semibold">Followers</div>
+                <div class="text-2xl text-white">{{ formatCount(artistDetails.followers_count || 0) }}</div>
+              </div>
+              <div class="bg-white/5 p-4 rounded">
+                <div class="text-k-accent font-semibold">Following</div>
+                <div class="text-2xl text-white">{{ formatCount(artistDetails.followings_count || 0) }}</div>
+              </div>
+              <div class="bg-white/5 p-4 rounded">
+                <div class="text-k-accent font-semibold">Tracks</div>
+                <div class="text-2xl text-white">{{ formatCount(artistDetails.track_count || 0) }}</div>
+              </div>
+              <div class="bg-white/5 p-4 rounded">
+                <div class="text-k-accent font-semibold">Playlists</div>
+                <div class="text-2xl text-white">{{ formatCount(artistDetails.playlist_count || 0) }}</div>
+              </div>
+            </div>
+            
+            <div v-if="artistDetails.description" class="bg-white/5 p-4 rounded">
+              <div class="text-k-accent font-semibold mb-2">About</div>
+              <div class="text-white/80 whitespace-pre-wrap">{{ artistDetails.description }}</div>
+            </div>
+            
+            <div class="flex gap-2">
+              <a
+                v-if="artistDetails.permalink_url"
+                :href="artistDetails.permalink_url"
+                target="_blank"
+                class="px-4 py-2 bg-k-accent hover:bg-k-accent/80 rounded text-white font-medium transition"
+              >
+                View on SoundCloud
+              </a>
+              <a
+                v-if="artistDetails.website"
+                :href="artistDetails.website"
+                target="_blank"
+                class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white font-medium transition"
+              >
+                {{ artistDetails.website_title || 'Website' }}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
     <!-- SoundCloud Player Modal -->
     <teleport to="body">
       <div
@@ -332,9 +477,9 @@
 </template>
 
 <script lang="ts" setup>
-import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle, faPlus } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { soundcloudService, type SoundCloudTrack, type SoundCloudFilters } from '@/services/soundcloudService'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
@@ -350,49 +495,80 @@ interface SearchStats {
 }
 
 // Search form state
+const searchQuery = ref('')
 const selectedGenre = ref('')
 const searchTags = ref('')
 const bpmFrom = ref<number>(95)
 const bpmTo = ref<number>(172)
+// Temporary input states to prevent slider jumping while typing
+const bpmFromInput = ref<string>('95')
+const bpmToInput = ref<string>('172')
 const timePeriod = ref('')
 const minPlays = ref<number>()
-const minLikes = ref<number>()
-const durationFrom = ref<number>()
-const durationTo = ref<number>()
+const maxPlays = ref<number>()
+const minPlaysFormatted = ref('')
+const maxPlaysFormatted = ref('')
+const contentType = ref('tracks') // Default to tracks
 
 // Results state
 const tracks = ref<SoundCloudTrack[]>([])
+const allFetchedTracks = ref<SoundCloudTrack[]>([]) // Store all 100 tracks from API
+const displayedTrackCount = ref(20) // How many tracks we're currently showing
 const loading = ref(false)
 const searched = ref(false)
 const error = ref('')
 const searchStats = ref<SearchStats | null>(null)
+
+// Pagination state
+const loadingMore = ref(false)
+const hasMoreResults = ref(false)
+const currentOffset = ref(0)
+const lastSearchFilters = ref<SoundCloudFilters | null>(null)
 
 // Player state
 const showPlayer = ref(false)
 const currentTrack = ref<SoundCloudTrack | null>(null)
 const embedUrl = ref('')
 
+// Artist modal state
+const showArtistModal = ref(false)
+const currentArtist = ref<any>(null)
+const artistDetails = ref<any>(null)
+const loadingArtist = ref(false)
+
 // Advanced filters toggle
 const showAdvancedFilters = ref(false)
 
+// Genre dropdown state
+const showGenreDropdown = ref(false)
+
 // Computed properties
 const hasValidFilters = computed(() => {
+  const hasQuery = searchQuery.value?.trim()
   const hasGenre = selectedGenre.value && selectedGenre.value !== 'All Genres' && selectedGenre.value !== ''
   const hasTags = searchTags.value?.trim()
   const hasBPM = (bpmFrom.value !== 95 || bpmTo.value !== 172)
-  const hasAdvanced = minPlays.value || minLikes.value || durationFrom.value || durationTo.value
+  const hasAdvanced = minPlays.value || maxPlays.value || (contentType.value !== 'tracks')
+  const hasTimePeriod = timePeriod.value && timePeriod.value !== ''
   
-  // Removed debug log to prevent infinite loop
-  
-  return hasGenre || hasTags || hasBPM || hasAdvanced
+  return hasQuery || hasGenre || hasTags || hasBPM || hasAdvanced || hasTimePeriod
 })
 
 const searchButtonText = computed(() => {
   if (loading.value) return 'Searching...'
   if (searchStats.value) {
-    return `Search (${searchStats.value.apiCalls} API calls)`
+    return `Search`
   }
-  return 'Enhanced Search'
+  return 'Search'
+})
+
+const filteredGenres = computed(() => {
+  if (!selectedGenre.value) {
+    return genres
+  }
+  return genres.filter(genre => 
+    genre.toLowerCase().includes(selectedGenre.value.toLowerCase())
+  )
 })
 
 // Available genres
@@ -409,6 +585,17 @@ const genres = [
 const popularTags = [
   'vocal', 'remix', 'instrumental', 'chill', 'upbeat', 'melodic', 'experimental', 'vintage', 'modern', 'dark'
 ]
+
+const selectGenre = (genre: string) => {
+  selectedGenre.value = genre
+  showGenreDropdown.value = false
+}
+
+const hideGenreDropdown = () => {
+  setTimeout(() => {
+    showGenreDropdown.value = false
+  }, 150) // Small delay to allow click events to register
+}
 
 const addTag = (tag: string) => {
   if (searchTags.value) {
@@ -431,13 +618,144 @@ const formatCount = (count: number): string => {
   return count.toString()
 }
 
+// Number formatting helpers for plays inputs
+const formatNumberWithCommas = (num: number): string => {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+const parseNumberFromFormatted = (str: string): number | undefined => {
+  const cleaned = str.replace(/[,\s]/g, '')
+  const num = parseInt(cleaned, 10)
+  return isNaN(num) ? undefined : num
+}
+
+const handleMinPlaysInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  const cursorPosition = target.selectionStart || 0
+  
+  // Remove all non-digits first
+  const digitsOnly = value.replace(/[^0-9]/g, '')
+  
+  if (digitsOnly === '') {
+    minPlaysFormatted.value = ''
+    minPlays.value = undefined
+    return
+  }
+  
+  // Parse and format with commas
+  const num = parseInt(digitsOnly, 10)
+  const formatted = formatNumberWithCommas(num)
+  
+  minPlaysFormatted.value = formatted
+  minPlays.value = num
+  
+  // Restore cursor position (adjust for added commas)
+  setTimeout(() => {
+    const commasBeforeCursor = (formatted.substring(0, cursorPosition).match(/,/g) || []).length
+    const newPosition = Math.min(cursorPosition + commasBeforeCursor, formatted.length)
+    target.setSelectionRange(newPosition, newPosition)
+  }, 0)
+}
+
+const handleMaxPlaysInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  const cursorPosition = target.selectionStart || 0
+  
+  // Remove all non-digits first
+  const digitsOnly = value.replace(/[^0-9]/g, '')
+  
+  if (digitsOnly === '') {
+    maxPlaysFormatted.value = ''
+    maxPlays.value = undefined
+    return
+  }
+  
+  // Parse and format with commas
+  const num = parseInt(digitsOnly, 10)
+  const formatted = formatNumberWithCommas(num)
+  
+  maxPlaysFormatted.value = formatted
+  maxPlays.value = num
+  
+  // Restore cursor position (adjust for added commas)
+  setTimeout(() => {
+    const commasBeforeCursor = (formatted.substring(0, cursorPosition).match(/,/g) || []).length
+    const newPosition = Math.min(cursorPosition + commasBeforeCursor, formatted.length)
+    target.setSelectionRange(newPosition, newPosition)
+  }, 0)
+}
+
+// BPM input handlers with debouncing to prevent slider jumping
+let bpmFromTimeout: NodeJS.Timeout | null = null
+let bpmToTimeout: NodeJS.Timeout | null = null
+
+const handleBpmFromInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  
+  // Update the input display immediately - DON'T interfere with user typing
+  bpmFromInput.value = value
+  
+  // Clear existing timeout
+  if (bpmFromTimeout) {
+    clearTimeout(bpmFromTimeout)
+  }
+  
+  // Debounce the actual BPM update to prevent slider jumping
+  bpmFromTimeout = setTimeout(() => {
+    const numValue = parseInt(value, 10)
+    if (!isNaN(numValue) && numValue >= 60 && numValue <= 200) {
+      // Ensure min doesn't exceed max with some gap
+      bpmFrom.value = Math.min(numValue, bpmTo.value - 5)
+    }
+    // Don't reset to default when empty - let user type freely
+  }, 500) // 500ms debounce
+}
+
+const handleBpmToInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  
+  // Update the input display immediately - DON'T interfere with user typing
+  bpmToInput.value = value
+  
+  // Clear existing timeout
+  if (bpmToTimeout) {
+    clearTimeout(bpmToTimeout)
+  }
+  
+  // Debounce the actual BPM update to prevent slider jumping
+  bpmToTimeout = setTimeout(() => {
+    const numValue = parseInt(value, 10)
+    if (!isNaN(numValue) && numValue >= 60 && numValue <= 200) {
+      // Ensure max doesn't go below min with some gap
+      bpmTo.value = Math.max(numValue, bpmFrom.value + 5)
+    }
+    // Don't reset to default when empty - let user type freely
+  }, 500) // 500ms debounce
+}
+
+// Watch for slider changes to update input fields (only when not actively typing)
+watch([bpmFrom, bpmTo], ([newFrom, newTo]) => {
+  // Only update input fields if they don't already contain the same value
+  // This prevents interference while user is typing
+  if (bpmFromInput.value !== newFrom.toString()) {
+    bpmFromInput.value = newFrom.toString()
+  }
+  if (bpmToInput.value !== newTo.toString()) {
+    bpmToInput.value = newTo.toString()
+  }
+})
+
 const search = async () => {
-  console.log('🎵 DEBUG: search() function called')
-  console.log('🎵 DEBUG: hasValidFilters.value:', hasValidFilters.value)
-  console.log('🎵 DEBUG: selectedGenre.value:', selectedGenre.value)
+  // console.log('🎵 DEBUG: search() function called')
+  // console.log('🎵 DEBUG: hasValidFilters.value:', hasValidFilters.value)
+  // console.log('🎵 DEBUG: selectedGenre.value:', selectedGenre.value)
   
   if (!hasValidFilters.value) {
-    console.log('🎵 DEBUG: Blocking search - no valid filters')
+    // console.log('🎵 DEBUG: Blocking search - no valid filters')
     error.value = 'Please select at least one filter to search with enhanced features.'
     return
   }
@@ -446,58 +764,147 @@ const search = async () => {
   error.value = ''
   tracks.value = []
   searchStats.value = null
+  hasMoreResults.value = false
+  currentOffset.value = 0
 
   const startTime = performance.now()
   
   try {
+    // Convert contentType to duration filters
+    let durationFromFilter: number | undefined
+    let durationToFilter: number | undefined
+    
+    if (contentType.value === 'tracks') {
+      // Tracks: max 1000 seconds (16 minutes 40 seconds)
+      durationToFilter = 1000
+    } else if (contentType.value === 'mixes') {
+      // Mixes: min 1000 seconds 
+      durationFromFilter = 1000
+    }
+
     const filters: SoundCloudFilters = {
+      searchQuery: searchQuery.value?.trim() || undefined,
       searchTags: searchTags.value?.trim() || undefined,
       genre: selectedGenre.value || undefined,
       bpmFrom: bpmFrom.value !== 95 ? bpmFrom.value : undefined,
       bpmTo: bpmTo.value !== 172 ? bpmTo.value : undefined,
-      durationFrom: durationFrom.value || undefined,
-      durationTo: durationTo.value || undefined,
+      durationFrom: durationFromFilter,
+      durationTo: durationToFilter,
       minPlays: minPlays.value || undefined,
-      minLikes: minLikes.value || undefined,
+      maxPlays: maxPlays.value || undefined,
       timePeriod: timePeriod.value || undefined,
       limit: 20
     }
 
-    console.log('🎵 Enhanced SoundCloud Search - Filters:', filters)
+    // console.log('🎵 Enhanced SoundCloud Search - Filters:', filters)
 
-    const results = await soundcloudService.search(filters)
+    // Store filters for pagination
+    lastSearchFilters.value = filters
+
+    const response = await soundcloudService.searchWithPagination(filters)
     const endTime = performance.now()
     
-    // Calculate search statistics
-    let apiCallCount = 0
-    if (filters.searchTags) apiCallCount++
-    if (filters.genre) apiCallCount++
-    if (filters.bpmFrom || filters.bpmTo) apiCallCount++
-    if (filters.durationFrom || filters.durationTo) apiCallCount++
+    // Store all tracks from single API call
+    allFetchedTracks.value = response.tracks
     
+    // Display only first 20 tracks  
+    displayedTrackCount.value = 20
+    tracks.value = allFetchedTracks.value.slice(0, displayedTrackCount.value)
+    
+    // Check if we have more tracks OR if SoundCloud has more via next_href
+    hasMoreResults.value = allFetchedTracks.value.length > displayedTrackCount.value || response.hasMore
+    
+    console.log('🎵 DEBUG Load More button:', {
+      allFetchedCount: allFetchedTracks.value.length,
+      displayedCount: displayedTrackCount.value,
+      hasMoreResults: hasMoreResults.value
+    })
+    
+    // Calculate search statistics - now using single API call
     const resultQuality: SearchStats['resultQuality'] = 
-      results.length > 15 ? 'high' : 
-      results.length > 5 ? 'medium' : 'low'
+      allFetchedTracks.value.length > 15 ? 'high' : 
+      allFetchedTracks.value.length > 5 ? 'medium' : 'low'
     
     searchStats.value = {
-      apiCalls: apiCallCount,
+      apiCalls: response.apiCalls || 1, // Use actual API call count
       totalTime: Math.round(endTime - startTime),
       cacheHits: 0, // TODO: implement cache hit tracking
       resultQuality
     }
 
-    tracks.value = results
+    console.log(`🎵 Search complete: ${allFetchedTracks.value.length} tracks fetched, showing first ${tracks.value.length}`)
+    currentOffset.value = tracks.value.length
     searched.value = true
 
     if (tracks.value.length === 0) {
       error.value = 'No tracks found with your criteria. The enhanced search uses intersection of results for higher quality - try broadening your filters.'
     }
   } catch (err: any) {
-    console.error('🎵 Enhanced SoundCloud Search - Error:', err)
+    // console.error('🎵 Enhanced SoundCloud Search - Error:', err)
     error.value = err.message || 'Failed to search SoundCloud. Please try again.'
     tracks.value = []
   } finally {
     loading.value = false
+  }
+}
+
+const loadMore = async () => {
+  if (!lastSearchFilters.value) return
+  
+  loadingMore.value = true
+  error.value = ''
+
+  try {
+    // First, check if we have more cached tracks to show
+    if (displayedTrackCount.value < allFetchedTracks.value.length) {
+      console.log('🎵 Load More: Showing cached tracks')
+      
+      // Show 20 more tracks from cache
+      displayedTrackCount.value = Math.min(displayedTrackCount.value + 20, allFetchedTracks.value.length)
+      tracks.value = allFetchedTracks.value.slice(0, displayedTrackCount.value)
+      
+      // Still more cached tracks or can fetch more from API?
+      hasMoreResults.value = displayedTrackCount.value < allFetchedTracks.value.length || 
+                             (lastSearchFilters.value && currentOffset.value < 100)
+      
+      console.log(`🎵 Load More: Now showing ${tracks.value.length} of ${allFetchedTracks.value.length} cached tracks`)
+      
+    } else {
+      // Need to fetch more tracks from API
+      console.log('🎵 Load More: Fetching more tracks from API')
+      
+      const filters = {
+        ...lastSearchFilters.value,
+        offset: allFetchedTracks.value.length // Use current total as offset
+      }
+
+      const response = await soundcloudService.searchWithPagination(filters)
+      
+      if (response.tracks && response.tracks.length > 0) {
+        // Add new tracks to our cache
+        allFetchedTracks.value.push(...response.tracks)
+        
+        // Show next 20 tracks (which includes the new ones)
+        displayedTrackCount.value = Math.min(displayedTrackCount.value + 20, allFetchedTracks.value.length)
+        tracks.value = allFetchedTracks.value.slice(0, displayedTrackCount.value)
+        
+        // Check if more tracks are available
+        hasMoreResults.value = response.hasMore
+        
+        console.log(`🎵 Load More: Fetched ${response.tracks.length} new tracks, now showing ${tracks.value.length} total`)
+      } else {
+        hasMoreResults.value = false
+        console.log('🎵 Load More: No more tracks available')
+      }
+    }
+    
+    currentOffset.value = tracks.value.length
+
+  } catch (err: any) {
+    console.error('🎵 Load More Error:', err)
+    error.value = 'Failed to load more results. Please try again.'
+  } finally {
+    loadingMore.value = false
   }
 }
 
@@ -520,20 +927,53 @@ const playTrack = async (track: SoundCloudTrack) => {
 }
 
 const resetFilters = () => {
+  searchQuery.value = ''
   selectedGenre.value = ''
   searchTags.value = ''
   bpmFrom.value = 95
   bpmTo.value = 172
+  bpmFromInput.value = '95'
+  bpmToInput.value = '172'
   timePeriod.value = ''
   minPlays.value = undefined
-  minLikes.value = undefined
-  durationFrom.value = undefined
-  durationTo.value = undefined
+  maxPlays.value = undefined
+  minPlaysFormatted.value = ''
+  maxPlaysFormatted.value = ''
+  contentType.value = 'tracks'
   tracks.value = []
+  allFetchedTracks.value = []
+  displayedTrackCount.value = 20
   searched.value = false
   error.value = ''
   searchStats.value = null
   showAdvancedFilters.value = false
+  hasMoreResults.value = false
+  currentOffset.value = 0
+  lastSearchFilters.value = null
+}
+
+const viewArtist = async (user: any) => {
+  currentArtist.value = user
+  showArtistModal.value = true
+  loadingArtist.value = true
+  artistDetails.value = null
+
+  try {
+    const details = await soundcloudService.getUserDetails(user.id)
+    artistDetails.value = details
+  } catch (err) {
+    // console.error('Failed to load artist details:', err)
+    // Fall back to basic user data
+    artistDetails.value = user
+  } finally {
+    loadingArtist.value = false
+  }
+}
+
+const closeArtistModal = () => {
+  showArtistModal.value = false
+  currentArtist.value = null
+  artistDetails.value = null
 }
 
 const closePlayer = () => {

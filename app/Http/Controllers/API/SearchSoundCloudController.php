@@ -248,4 +248,57 @@ class SearchSoundCloudController extends Controller
             return response()->json(['error' => 'Failed to generate embed URL'], 500);
         }
     }
+
+    /**
+     * Get SoundCloud user details including real follower count
+     * 
+     * @param Request $request HTTP request with user_id parameter
+     * @return JsonResponse JSON response with user details or error
+     */
+    public function getUserDetails(Request $request): JsonResponse
+    {
+        \Log::info('📥 SoundCloud user details request received', [
+            'method' => 'GET',
+            'endpoint' => '/api/soundcloud/user',
+            'parameters' => $request->all(),
+            'timestamp' => now()->toISOString()
+        ]);
+
+        $userId = $request->input('user_id');
+        
+        if (!$userId) {
+            \Log::warning('❌ User details request rejected - missing user_id parameter');
+            return response()->json(['error' => 'user_id parameter is required'], 400);
+        }
+
+        if (!SoundCloudService::enabled()) {
+            \Log::warning('❌ SoundCloud user details rejected - service not enabled');
+            return response()->json(['error' => 'SoundCloud integration is not enabled'], 501);
+        }
+
+        try {
+            $userDetails = $this->soundCloudService->getUserDetails($userId);
+
+            if ($userDetails === null) {
+                \Log::error('❌ SoundCloud user details failed - service returned null');
+                return response()->json(['error' => 'Failed to fetch user details'], 503);
+            }
+
+            \Log::info('✅ SoundCloud user details completed successfully', [
+                'user_id' => $userId,
+                'username' => $userDetails->username ?? 'Unknown',
+                'followers_count' => $userDetails->followers_count ?? 0
+            ]);
+
+            return response()->json($userDetails);
+        } catch (\Exception $e) {
+            \Log::error('❌ SoundCloud user details failed', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json(['error' => 'Failed to fetch user details'], 500);
+        }
+    }
 }
