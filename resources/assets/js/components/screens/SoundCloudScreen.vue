@@ -242,30 +242,30 @@
 
       <!-- Enhanced Results Table -->
       <div v-if="tracks.length > 0">
-        <!-- Filter by Likes Ratio Dropdown -->
+        <!-- Sort by Dropdown -->
         <div class="flex justify-end mb-4 relative">
           <button
             @click="toggleLikesRatioDropdown"
             @blur="hideLikesRatioDropdown"
-            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2"
-            :class="likesRatioFilter !== 'none'
-              ? 'bg-k-accent text-white hover:bg-k-accent/80' 
-              : 'bg-white/10 text-white/80 hover:bg-white/20'"
+            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
+            style="background-color: rgba(47, 47, 47, 255) !important;"
           >
-            <Icon :icon="getLikesRatioIcon()" />
-            {{ getLikesRatioText() }}
+            <Icon :icon="getSortIcon()" />
+            {{ getSortText() }}
             <Icon :icon="faChevronDown" class="text-xs" />
           </button>
           
           <!-- Dropdown Menu -->
           <div 
             v-if="showLikesRatioDropdown"
-            class="absolute right-0 mt-12 w-48 bg-gray-800 border border-white/20 rounded-lg shadow-lg z-10"
+            class="absolute right-0 mt-12 w-52 border border-white/20 rounded-lg shadow-lg z-10"
+            style="background-color: rgb(67,67,67,255);"
           >
             <button
               @mousedown.prevent="setLikesRatioFilter('none')"
               class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-t-lg"
-              :class="likesRatioFilter === 'none' ? 'bg-k-accent/20' : ''"
+              :class="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
+              :style="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
             >
               <Icon :icon="faFilter" />
               Default (by Plays)
@@ -273,18 +273,29 @@
             <button
               @mousedown.prevent="setLikesRatioFilter('highest')"
               class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-              :class="likesRatioFilter === 'highest' ? 'bg-k-accent/20' : ''"
+              :class="likesRatioFilter === 'highest' ? 'background-color: rgb(67,67,67,255)' : ''"
+              :style="likesRatioFilter === 'highest' ? 'background-color: rgb(67,67,67,255)' : ''"
             >
               <Icon :icon="faArrowUp" />
               Highest Likes Ratio
             </button>
             <button
               @mousedown.prevent="setLikesRatioFilter('lowest')"
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-b-lg"
-              :class="likesRatioFilter === 'lowest' ? 'bg-k-accent/20' : ''"
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+              :class="likesRatioFilter === 'lowest' ? 'background-color: rgb(67,67,67,255)' : ''"
+              :style="likesRatioFilter === 'lowest' ? 'background-color: rgb(67,67,67,255)' : ''"
             >
               <Icon :icon="faArrowDown" />
               Lowest Likes Ratio
+            </button>
+            <button
+              @mousedown.prevent="setLikesRatioFilter('newest')"
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-b-lg"
+              :class="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
+              :style="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
+            >
+              <Icon :icon="faClock" />
+              Newest Releases
             </button>
           </div>
         </div>
@@ -441,7 +452,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle, faPlus, faArrowUp, faArrowDown, faChevronDown } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle, faPlus, faArrowUp, faArrowDown, faChevronDown, faClock } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { soundcloudService, type SoundCloudTrack, type SoundCloudFilters } from '@/services/soundcloudService'
@@ -473,7 +484,7 @@ const maxPlays = ref<number>()
 const minPlaysFormatted = ref('')
 const maxPlaysFormatted = ref('')
 const contentType = ref('tracks') // Default to tracks
-const likesRatioFilter = ref<'none' | 'highest' | 'lowest'>('none') // Likes ratio filter state
+const likesRatioFilter = ref<'none' | 'highest' | 'lowest' | 'newest'>('none') // Sort filter state
 const showLikesRatioDropdown = ref(false) // Dropdown visibility
 
 // Results state
@@ -581,25 +592,27 @@ const hideLikesRatioDropdown = () => {
   }, 150) // Small delay to allow click events to register
 }
 
-const setLikesRatioFilter = (type: 'none' | 'highest' | 'lowest') => {
+const setLikesRatioFilter = (type: 'none' | 'highest' | 'lowest' | 'newest') => {
   likesRatioFilter.value = type
   showLikesRatioDropdown.value = false
   applyFiltering()
 }
 
-const getLikesRatioIcon = () => {
+const getSortIcon = () => {
   switch (likesRatioFilter.value) {
     case 'highest': return faArrowUp
     case 'lowest': return faArrowDown
+    case 'newest': return faClock
     default: return faFilter
   }
 }
 
-const getLikesRatioText = () => {
+const getSortText = () => {
   switch (likesRatioFilter.value) {
     case 'highest': return 'Highest Likes Ratio'
     case 'lowest': return 'Lowest Likes Ratio'
-    default: return 'Filter by: Likes Ratio'
+    case 'newest': return 'Newest Releases'
+    default: return 'Sort by: Plays'
   }
 }
 
@@ -619,6 +632,13 @@ const applyFiltering = () => {
       const ratioA = (a.playback_count || 0) > 0 ? (a.favoritings_count || 0) / (a.playback_count || 0) : 0
       const ratioB = (b.playback_count || 0) > 0 ? (b.favoritings_count || 0) / (b.playback_count || 0) : 0
       return ratioA - ratioB
+    })
+  } else if (likesRatioFilter.value === 'newest') {
+    // Sort by creation date newest to oldest
+    filteredTracks.sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime()
+      const dateB = new Date(b.created_at || 0).getTime()
+      return dateB - dateA
     })
   } else {
     // Default sort by plays (highest to lowest)

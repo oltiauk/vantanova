@@ -40,7 +40,7 @@
             <td class="p-3">
               <span
                 v-if="track.genre"
-                class="px-2 py-1 bg-k-accent/20 text-k-accent rounded text-sm"
+                class="px-2 py-1 bg-white/10 text-white rounded text-sm"
               >
                 {{ track.genre }}
               </span>
@@ -69,8 +69,8 @@
             </td>
             
             <!-- Release Date -->
-            <td class="p-3">
-              <span class="text-white/80">{{ formatDate(track.created_at || '') }}</span>
+            <td class="p-3 whitespace-nowrap">
+              <span class="text-white/80 whitespace-nowrap inline-block">{{ formatDate(track.created_at || '') }}</span>
             </td>
             
             <!-- Duration -->
