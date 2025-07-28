@@ -199,7 +199,7 @@ watch(() => [props.from, props.to], () => {
   border: 2px solid rgba(255, 255, 255, 0.9);
   pointer-events: all;
   transition: all 0.2s ease-in-out;
-  margin-top: -8px; /* Center the thumb properly */
+  margin-top: -6px; /* Center the thumb properly */
 }
 
 .range-input::-moz-range-thumb {
@@ -207,7 +207,7 @@ watch(() => [props.from, props.to], () => {
   background: var(--color-highlight);
   border: 2px solid rgba(255, 255, 255, 0.9);
   pointer-events: all;
-  margin-top: -8px; /* Center the thumb properly */
+  margin-top: -6px; /* Center the thumb properly */
 }
 
 .range-input::-webkit-slider-thumb:hover {

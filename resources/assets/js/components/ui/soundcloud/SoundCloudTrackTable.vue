@@ -11,7 +11,7 @@
             <th class="text-left p-3 font-medium">BPM</th>
             <th class="text-left p-3 font-medium">Plays</th>
             <th class="text-left p-3 font-medium">Likes</th>
-            <th class="text-left p-3 font-medium">Track Count</th>
+            <th class="text-left p-3 font-medium">Likes Ratio</th>
             <th class="text-left p-3 font-medium">Release Date</th>
             <th class="text-left p-3 font-medium">Duration</th>
             <th class="text-left p-3 font-medium">Actions</th>
@@ -28,17 +28,7 @@
             
             <!-- Artist -->
             <td class="p-3">
-              <div class="flex items-center gap-3">
-                <div class="font-medium">{{ track.user?.username || 'Unknown' }}</div>
-                <button
-                  @click="$emit('view-artist', track.user)"
-                  class="px-3 py-1.5 bg-k-accent/20 hover:bg-k-accent/40 text-k-accent rounded-md text-xs font-medium transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md flex items-center gap-1"
-                  title="View artist details & real follower count"
-                >
-                  <Icon :icon="faUser" class="text-xs" />
-                  Details
-                </button>
-              </div>
+              <div class="font-medium">{{ track.user?.username || 'Unknown' }}</div>
             </td>
             
             <!-- Title -->
@@ -73,9 +63,9 @@
               <span class="text-white/80">{{ formatCount(track.favoritings_count || 0) }}</span>
             </td>
             
-            <!-- Track Count -->
+            <!-- Likes Ratio -->
             <td class="p-3">
-              <span class="text-white/80">{{ formatCount(track.user?.track_count || 0) }}</span>
+              <span class="text-white/80">{{ formatLikesRatio(track.favoritings_count || 0, track.playback_count || 0) }}</span>
             </td>
             
             <!-- Release Date -->
@@ -106,7 +96,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faPlay, faUser } from '@fortawesome/free-solid-svg-icons'
+import { faPlay } from '@fortawesome/free-solid-svg-icons'
 
 interface SoundCloudTrack {
   id: number
@@ -130,7 +120,6 @@ interface Props {
 
 interface Emits {
   (e: 'play', track: SoundCloudTrack): void
-  (e: 'view-artist', user: any): void
 }
 
 defineProps<Props>()
@@ -165,5 +154,13 @@ const formatDuration = (milliseconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+const formatLikesRatio = (likes: number, plays: number): string => {
+  if (!plays || plays === 0) {
+    return '0.00%'
+  }
+  const ratio = (likes / plays) * 100
+  return ratio.toFixed(2) + '%'
 }
 </script>

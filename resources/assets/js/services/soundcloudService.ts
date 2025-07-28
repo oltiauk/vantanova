@@ -63,11 +63,8 @@ class SoundCloudService {
   private getCachedOrFetch = async (cacheKey: string, fetchFn: () => Promise<SoundCloudTrack[]>): Promise<SoundCloudTrack[]> => {
     const cached = queryCache.get(cacheKey)
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      // console.log('🎵 Cache HIT:', cacheKey.substring(0, 50) + '...', `(${cached.data.length} tracks)`)
       return cached.data
     }
-    
-    // console.log('🎵 Cache MISS:', cacheKey.substring(0, 50) + '...', 'fetching fresh data')
     const data = await fetchFn()
     queryCache.set(cacheKey, { data, timestamp: Date.now() })
     return data
@@ -77,52 +74,18 @@ class SoundCloudService {
     const startTime = Date.now()
     
     try {
-      // console.log('🌐 Making HTTP request to Koel SoundCloud API', {
-      //   method: 'GET',
-      //   endpoint: SoundCloudService.API_ENDPOINT,
-      //   params: config,
-      //   retries_remaining: retries,
-      //   timestamp: new Date().toISOString()
-      // })
-
-      // console.log('🎵 DEBUG: HTTP request config.params:', config)
-      // console.log('🎵 DEBUG: Expected URL would be:', `${SoundCloudService.API_ENDPOINT}?${new URLSearchParams(config).toString()}`)
-      // console.log('🎵 DEBUG: http.get call structure:', { 
-      //   endpoint: SoundCloudService.API_ENDPOINT, 
-      //   options: { params: config },
-      //   config_keys: Object.keys(config),
-      //   config_values: Object.values(config)
-      // })
 
       // Fix: For GET requests, parameters should be in config.params, not as second argument
       const response = await http.get(SoundCloudService.API_ENDPOINT, { params: config })
       const responseTime = Date.now() - startTime
 
-      // console.log('✅ SoundCloud API Response Success', {
-      //   status: 'success',
-      //   response_time_ms: responseTime,
-      //   track_count: response.collection?.length || response.data?.length || 0,
-      //   first_track_title: response.collection?.[0]?.title || response.data?.[0]?.title || 'none',
-      //   has_next_page: !!response.next_href,
-      //   timestamp: new Date().toISOString()
-      // })
 
       return response
     } catch (error: any) {
       const responseTime = Date.now() - startTime
       
-      // console.error('❌ SoundCloud API Request Error', {
-      //   error_type: error.name || 'Unknown',
-      //   error_message: error.message,
-      //   status_code: error.response?.status,
-      //   response_time_ms: responseTime,
-      //   retries_remaining: retries,
-      //   will_retry: retries > 0 && error.response?.status >= 500,
-      //   timestamp: new Date().toISOString()
-      // })
 
       if (retries > 0 && error.response?.status >= 500) {
-        // console.log(`🔄 Retrying request after ${SoundCloudService.RETRY_DELAY_MS}ms delay...`)
         await new Promise(resolve => setTimeout(resolve, SoundCloudService.RETRY_DELAY_MS))
         return this.makeRequest(config, retries - 1)
       }
@@ -152,25 +115,16 @@ class SoundCloudService {
     }
   }
 
+
   /**
    * Minimal filtering to match Python script behavior
    */
   private applyMinimalFilters = (tracks: SoundCloudTrack[], filters: SoundCloudFilters): SoundCloudTrack[] => {
     // Ensure tracks is a valid array
     if (!tracks || !Array.isArray(tracks)) {
-      console.log('🎵 applyMinimalFilters: Invalid tracks data, returning empty array')
-      console.log('🎵 DEBUG: tracks value:', tracks)
-      console.log('🎵 DEBUG: tracks type:', typeof tracks)
       return []
     }
 
-    console.log(`🎵 Applying minimal filters to ${tracks.length} tracks`)
-    console.log('🎵 DEBUG: Active filters:', {
-      durationFrom: filters.durationFrom,
-      durationTo: filters.durationTo, 
-      minPlays: filters.minPlays,
-      maxPlays: filters.maxPlays
-    })
     
     let filteredTracks = tracks
 
@@ -179,24 +133,19 @@ class SoundCloudService {
       // Duration filter
       if (filters.durationFrom || filters.durationTo) {
         const durationSec = track.duration / 1000
-        console.log(`🎵 Duration check: track ${track.title} has ${durationSec}s, range: ${filters.durationFrom}-${filters.durationTo}`)
         if (filters.durationFrom && durationSec < filters.durationFrom) {
-          console.log(`🎵 Filtered out ${track.title} - too short (${durationSec}s < ${filters.durationFrom}s)`)
           return false
         }
         if (filters.durationTo && durationSec > filters.durationTo) {
-          console.log(`🎵 Filtered out ${track.title} - too long (${durationSec}s > ${filters.durationTo}s)`)
           return false
         }
       }
       
       // Popularity filter
       if (filters.minPlays && track.playback_count < filters.minPlays) {
-        console.log(`🎵 Filtered out ${track.title} - too few plays (${track.playback_count} < ${filters.minPlays})`)
         return false
       }
       if (filters.maxPlays && track.playback_count > filters.maxPlays) {
-        console.log(`🎵 Filtered out ${track.title} - too many plays (${track.playback_count} > ${filters.maxPlays})`)
         return false
       }
       
@@ -205,7 +154,6 @@ class SoundCloudService {
 
     // Apply VERY lenient genre filtering only for Country
     if (filters.genre && filters.genre.toLowerCase() === 'country') {
-      // console.log(`🎵 Applying VERY lenient country filtering`)
       
       filteredTracks = filteredTracks.filter(track => {
         const searchText = `${track.title} ${track.user.username}`.toLowerCase()
@@ -215,11 +163,9 @@ class SoundCloudService {
         const hasArabic = arabicKeywords.some(keyword => searchText.includes(keyword.toLowerCase()))
         
         if (hasArabic) {
-          // console.log(`🎵 Removing Arabic track: ${track.title}`)
           return false
         }
         
-        // console.log(`🎵 Keeping track: ${track.title}`)
         return true
       })
     }
@@ -228,7 +174,6 @@ class SoundCloudService {
     filteredTracks.sort((a, b) => b.playback_count - a.playback_count)
     
     // Return all filtered tracks (not limited) for Load More functionality
-    console.log(`🎵 Minimal filtering result: ${tracks.length} -> ${filteredTracks.length} tracks`)
     
     return filteredTracks
   }
@@ -237,7 +182,6 @@ class SoundCloudService {
    * Progressive search - returns first batch immediately, continues loading in background
    */
   async searchWithProgressiveLoading(filters: SoundCloudFilters, onBatchReceived?: (tracks: SoundCloudTrack[]) => void): Promise<{tracks: SoundCloudTrack[], hasMore: boolean, nextHref?: string, apiCalls?: number}> {
-    console.log('🎵 Starting progressive search')
 
     try {
       // Always use single API call with higher limit for better filtering pool
@@ -256,11 +200,10 @@ class SoundCloudService {
         params.genre = filters.genre
       }
       
-      // Add search query parameter - prioritize searchQuery over searchTags
-      if (filters.searchQuery) {
-        params.q = filters.searchQuery
-      } else if (filters.searchTags) {
-        params.q = filters.searchTags
+      // Combine search query and search tags when both are provided
+      const searchTerms = [filters.searchQuery, filters.searchTags].filter(Boolean)
+      if (searchTerms.length > 0) {
+        params.q = searchTerms.join(' ')
       }
       
       // Add time period filtering
@@ -278,7 +221,6 @@ class SoundCloudService {
         params['bpm[to]'] = filters.bpmTo  
       }
       
-      console.log('🎵 Getting first batch immediately')
       
       const allTracks: any[] = []
       let currentResponse = await this.makeRequest(params)
@@ -287,9 +229,8 @@ class SoundCloudService {
       // Get first batch and apply filtering
       const firstBatch = currentResponse?.collection || currentResponse?.data || []
       allTracks.push(...firstBatch)
-      const firstFiltered = this.applyMinimalFilters([...allTracks], filters)
+      const firstFiltered = this.applyMinimalFilters(allTracks, filters)
       
-      console.log(`🎵 First batch ready: ${firstBatch.length} raw -> ${firstFiltered.length} filtered`)
       
       // Send first batch immediately via callback
       if (onBatchReceived) {
@@ -299,7 +240,6 @@ class SoundCloudService {
       // Continue fetching more tracks in background
       const backgroundFetch = async () => {
         while (currentResponse?.next_href && requestCount < 4 && allTracks.length < 100) {
-          console.log(`🎵 Background fetch: request ${requestCount + 1}`)
           
           try {
             const nextUrl = new URL(currentResponse.next_href, 'https://api.soundcloud.com')
@@ -314,9 +254,8 @@ class SoundCloudService {
               requestCount++
               
               // Apply filtering to all tracks so far
-              const allFiltered = this.applyMinimalFilters([...allTracks], filters)
+              const allFiltered = this.applyMinimalFilters(allTracks, filters)
               
-              console.log(`🎵 Background batch: +${nextBatch.length} raw (total: ${allTracks.length} raw, ${allFiltered.length} filtered)`)
               
               // Send updated batch via callback
               if (onBatchReceived) {
@@ -326,12 +265,10 @@ class SoundCloudService {
               break
             }
           } catch (error) {
-            console.error('🎵 Background fetch error:', error)
             break
           }
         }
         
-        console.log(`🎵 Progressive loading complete: ${allTracks.length} tracks from ${requestCount} requests`)
       }
       
       // Start background fetching (don't await - let it run in background)
@@ -346,7 +283,6 @@ class SoundCloudService {
       }
       
     } catch (error) {
-      console.error('🎵 Progressive search failed:', error)
       return {
         tracks: [],
         hasMore: false,
@@ -368,29 +304,14 @@ class SoundCloudService {
     // Apply frontend filtering for duration and plays (SoundCloud API doesn't support these)
     const tracks = this.applyMinimalFilters(rawTracks, filters)
     
-    // console.log('🎵 Pagination check:', {
-    //   has_next_href: hasMore,
-    //   next_href: response?.next_href,
-    //   tracks_count: tracks.length
-    // })
     
     // DEBUG: Check followers count issue  
     if (tracks && tracks.length > 0) {
-      // console.log('🎵 DEBUG: First filtered track user object:', tracks[0]?.user)
-      // console.log('🎵 DEBUG: User object fields:', tracks[0]?.user ? Object.keys(tracks[0].user) : 'No user object')
-      // console.log('🎵 DEBUG: User followers_count:', tracks[0]?.user?.followers_count)
       
       // Check if followers_count exists in any form
       if (tracks[0]?.user) {
         const userKeys = Object.keys(tracks[0].user)
         const followerKeys = userKeys.filter(key => key.toLowerCase().includes('follow'))
-        // console.log('🎵 DEBUG: Follower-related keys in user:', followerKeys)
-        
-        // Check all user properties and their values
-        // console.log('🎵 DEBUG: All user properties and values:')
-        Object.entries(tracks[0].user).forEach(([key, value]) => {
-          // console.log(`  ${key}:`, value)
-        })
       }
     }
     
@@ -403,7 +324,6 @@ class SoundCloudService {
   }
 
   private async searchWithRawResponse(filters: SoundCloudFilters): Promise<any> {
-    console.log('🎵 SoundCloud Single API Call Search - Filters:', filters)
 
     try {
       // Always use single API call with higher limit for better filtering pool
@@ -422,11 +342,10 @@ class SoundCloudService {
         params.genre = filters.genre
       }
       
-      // Add search query parameter - prioritize searchQuery over searchTags
-      if (filters.searchQuery) {
-        params.q = filters.searchQuery
-      } else if (filters.searchTags) {
-        params.q = filters.searchTags
+      // Combine search query and search tags when both are provided
+      const searchTerms = [filters.searchQuery, filters.searchTags].filter(Boolean)
+      if (searchTerms.length > 0) {
+        params.q = searchTerms.join(' ')
       }
       
       // Add time period filtering
@@ -435,10 +354,6 @@ class SoundCloudService {
         // SoundCloud API expects format: "yyyy-mm-dd hh:mm:ss"
         const formattedDate = cutoffDate.toISOString().slice(0, 19).replace('T', ' ')
         params['created_at[from]'] = formattedDate
-        console.log('📅 Time period filter added:', {
-          period: filters.timePeriod,
-          cutoff_date: formattedDate
-        })
       }
       
       // Add BPM filtering if not default range (95-172)
@@ -451,43 +366,12 @@ class SoundCloudService {
       
       // Note: Duration and plays filtering applied frontend-side since SoundCloud API doesn't support them
       
-      console.log('🎵 Single API call params:', params)
-      console.log('🎵 Making single API request')
       
       const response = await this.makeRequest(params)
-      console.log('🎵 Single API call response:', {
-        track_count: response?.collection?.length || response?.data?.length || 0,
-        has_next_href: !!response?.next_href
-      })
       
       // Log first track structure to see what data is available
       const tracks = response?.collection || response?.data || []
       if (tracks && tracks.length > 0) {
-        console.log('🎵 First track complete structure:', tracks[0])
-        console.log('🎵 First track user object:', tracks[0]?.user)
-        
-        if (tracks[0]?.user) {
-          console.log('🎵 User object keys:', Object.keys(tracks[0].user))
-          console.log('🎵 User followers_count:', tracks[0].user.followers_count)
-          console.log('🎵 User followings_count:', tracks[0].user.followings_count)
-          console.log('🎵 User track_count:', tracks[0].user.track_count)
-          console.log('🎵 User public_favorites_count:', tracks[0].user.public_favorites_count)
-          
-          // Look for any follower-related fields
-          const userKeys = Object.keys(tracks[0].user)
-          const followerKeys = userKeys.filter(key => 
-            key.toLowerCase().includes('follow') || 
-            key.toLowerCase().includes('fan') ||
-            key.toLowerCase().includes('subscriber')
-          )
-          console.log('🎵 Follower-related keys found:', followerKeys)
-          
-          // Log all user fields and values
-          console.log('🎵 Complete user data:')
-          Object.entries(tracks[0].user).forEach(([key, value]) => {
-            console.log(`  ${key}:`, value)
-          })
-        }
       }
       
       return {
@@ -496,7 +380,6 @@ class SoundCloudService {
       }
       
     } catch (error) {
-      console.error('🎵 Single API call search failed:', error)
       return null
     }
   }
@@ -505,41 +388,34 @@ class SoundCloudService {
    * FIXED: Exact Python script replication strategy
    */
   async search(filters: SoundCloudFilters): Promise<SoundCloudTrack[]> {
-    console.log('🎵 Simplified search using single API call')
     
     const response = await this.searchWithRawResponse(filters)
     
     if (!response) {
-      console.log('🎵 No response from API')
       return []
     }
     
     const rawTracks = response.collection || response.data || []
     
     if (!rawTracks || !Array.isArray(rawTracks)) {
-      console.log('🎵 Invalid tracks data returned')
       return []
     }
     
-    console.log(`🎵 Got ${rawTracks.length} tracks from API, applying frontend filtering`)
     
     // Apply frontend filtering for duration, plays, etc.
     const filteredTracks = this.applyMinimalFilters(rawTracks, filters)
     
     // Return ALL filtered tracks (not limited to 20) so Load More can work
-    console.log(`🎵 Returning ${filteredTracks.length} tracks (filtered from ${rawTracks.length})`)
     
     return filteredTracks
   }
 
   async getUserDetails(userId: number): Promise<any> {
-    // console.log('🎵 Fetching user details for:', userId)
 
     const response = await http.get<any>('soundcloud/user', { 
       params: { user_id: userId } 
     })
 
-    // console.log('✅ User details fetched successfully:', response)
     return response
   }
 
@@ -550,12 +426,6 @@ class SoundCloudService {
     show_user?: boolean
     visual?: boolean
   } = {}): Promise<string> {
-    // console.log('🎵 Requesting SoundCloud embed URL', {
-    //   track_id: trackId,
-    //   options,
-    //   endpoint: SoundCloudService.EMBED_API_ENDPOINT,
-    //   timestamp: new Date().toISOString()
-    // })
 
     const response = await http.post<{ embed_url: string }>(SoundCloudService.EMBED_API_ENDPOINT, {
       track_id: trackId,
@@ -567,11 +437,6 @@ class SoundCloudService {
       ...options
     })
 
-    // console.log('✅ SoundCloud embed URL generated successfully', {
-    //   track_id: trackId,
-    //   embed_url: response.embed_url,
-    //   url_length: response.embed_url.length
-    // })
 
     return response.embed_url
   }

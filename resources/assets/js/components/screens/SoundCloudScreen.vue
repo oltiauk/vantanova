@@ -50,30 +50,15 @@
 
         <!-- Top Row: Genres and Tags -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <!-- Genres Input/Dropdown -->
-          <div class="relative">
+          <!-- Genre Input -->
+          <div>
             <label class="block text-sm font-medium mb-2 text-white/80">Genre</label>
             <input
               v-model="selectedGenre"
               type="text"
               class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-              placeholder="Type genre or select from suggestions..."
-              @focus="showGenreDropdown = true"
-              @blur="hideGenreDropdown"
+              placeholder="Type genre..."
             />
-            <div 
-              v-if="showGenreDropdown && filteredGenres.length > 0"
-              class="absolute z-10 w-full mt-1 bg-gray-800 border border-white/20 rounded max-h-48 overflow-y-auto"
-            >
-              <button
-                v-for="genre in filteredGenres"
-                :key="genre"
-                @mousedown.prevent="selectGenre(genre)"
-                class="w-full px-3 py-2 text-left text-white hover:bg-k-accent/20 transition"
-              >
-                {{ genre }}
-              </button>
-            </div>
           </div>
 
           <!-- Tags Input -->
@@ -98,7 +83,7 @@
           </div>
         </div>
 
-        <!-- Second Row: Time Period and BPM Range -->
+        <!-- Second Row: Time Period and Content Type -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <!-- Time Period -->
           <div>
@@ -117,61 +102,7 @@
             </select>
           </div>
 
-          <!-- BPM Range -->
-          <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">
-              BPM Range: {{ bpmFrom }} - {{ bpmTo }}
-            </label>
-            <div class="space-y-2">
-              <DualRangeSlider
-                :min="60"
-                :max="200"
-                :from="bpmFrom"
-                :to="bpmTo"
-                @update:from="bpmFrom = $event"
-                @update:to="bpmTo = $event"
-              />
-              <div class="grid grid-cols-2 gap-2">
-                <input
-                  v-model="bpmFromInput"
-                  @input="handleBpmFromInput"
-                  type="number"
-                  min="60"
-                  max="200"
-                  placeholder="Min BPM"
-                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-sm"
-                />
-                <input
-                  v-model="bpmToInput"
-                  @input="handleBpmToInput"
-                  type="number"
-                  min="60"
-                  max="200"
-                  placeholder="Max BPM"
-                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Advanced Filters Toggle -->
-        <div class="mb-4">
-          <button
-            @click="showAdvancedFilters = !showAdvancedFilters"
-            class="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm text-white/80 transition"
-          >
-            <Icon :icon="faFilter" />
-            Advanced Filters
-            <span class="text-xs bg-k-accent/20 text-k-accent px-2 py-0.5 rounded">
-              {{ showAdvancedFilters ? 'Hide' : 'Show' }}
-            </span>
-          </button>
-        </div>
-
-        <!-- Advanced Filters -->
-        <div v-if="showAdvancedFilters" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 p-4 bg-white/5 rounded-lg">
-          <!-- Track vs Mix Selection -->
+          <!-- Content Type -->
           <div>
             <label class="block text-sm font-medium mb-3 text-white/80">Content Type</label>
             <div class="flex gap-3">
@@ -207,30 +138,61 @@
               </label>
             </div>
           </div>
+        </div>
 
-          <!-- Minimum Plays -->
-          <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Minimum Plays</label>
-            <input
-              v-model="minPlaysFormatted"
-              type="text"
-              placeholder="e.g. 10,000"
-              @input="handleMinPlaysInput"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-            />
+
+        <!-- Advanced Filters -->
+        <div class="mb-4 p-4 bg-white/5 rounded-lg">
+          <div class="flex items-center gap-2 mb-4">
+            <Icon :icon="faFilter" class="text-white/80" />
+            <h3 class="text-sm font-medium text-white/80">Advanced Filters</h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Left Side: Min/Max Plays -->
+          <div class="space-y-4">
+            <!-- Minimum Plays -->
+            <div>
+              <label class="block text-sm font-medium mb-2 text-white/80">Minimum Plays</label>
+              <input
+                v-model="minPlaysFormatted"
+                type="text"
+                placeholder="e.g. 10,000"
+                @input="handleMinPlaysInput"
+                class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+              />
+            </div>
+
+            <!-- Maximum Plays -->
+            <div>
+              <label class="block text-sm font-medium mb-2 text-white/80">Maximum Plays</label>
+              <input
+                v-model="maxPlaysFormatted"
+                type="text"
+                placeholder="e.g. 1,000,000"
+                @input="handleMaxPlaysInput"
+                class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+              />
+            </div>
           </div>
 
-          <!-- Maximum Plays -->
+          <!-- Right Side: BPM Range -->
           <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Maximum Plays</label>
-            <input
-              v-model="maxPlaysFormatted"
-              type="text"
-              placeholder="e.g. 1,000,000"
-              @input="handleMaxPlaysInput"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-            />
+            <label class="block text-sm font-medium mb-2 text-white/80">
+              BPM Range: {{ bpmFrom }} - {{ bpmTo }}
+            </label>
+            <div class="mt-4">
+              <DualRangeSlider
+                :min="60"
+                :max="200"
+                :from="bpmFrom"
+                :to="bpmTo"
+                @update:from="bpmFrom = $event"
+                @update:to="bpmTo = $event"
+                class="bpm-slider-white"
+              />
+            </div>
           </div>
+        </div>
         </div>
 
         <!-- Search Button -->
@@ -280,10 +242,56 @@
 
       <!-- Enhanced Results Table -->
       <div v-if="tracks.length > 0">
+        <!-- Filter by Likes Ratio Dropdown -->
+        <div class="flex justify-end mb-4 relative">
+          <button
+            @click="toggleLikesRatioDropdown"
+            @blur="hideLikesRatioDropdown"
+            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2"
+            :class="likesRatioFilter !== 'none'
+              ? 'bg-k-accent text-white hover:bg-k-accent/80' 
+              : 'bg-white/10 text-white/80 hover:bg-white/20'"
+          >
+            <Icon :icon="getLikesRatioIcon()" />
+            {{ getLikesRatioText() }}
+            <Icon :icon="faChevronDown" class="text-xs" />
+          </button>
+          
+          <!-- Dropdown Menu -->
+          <div 
+            v-if="showLikesRatioDropdown"
+            class="absolute right-0 mt-12 w-48 bg-gray-800 border border-white/20 rounded-lg shadow-lg z-10"
+          >
+            <button
+              @mousedown.prevent="setLikesRatioFilter('none')"
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-t-lg"
+              :class="likesRatioFilter === 'none' ? 'bg-k-accent/20' : ''"
+            >
+              <Icon :icon="faFilter" />
+              Default (by Plays)
+            </button>
+            <button
+              @mousedown.prevent="setLikesRatioFilter('highest')"
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+              :class="likesRatioFilter === 'highest' ? 'bg-k-accent/20' : ''"
+            >
+              <Icon :icon="faArrowUp" />
+              Highest Likes Ratio
+            </button>
+            <button
+              @mousedown.prevent="setLikesRatioFilter('lowest')"
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-b-lg"
+              :class="likesRatioFilter === 'lowest' ? 'bg-k-accent/20' : ''"
+            >
+              <Icon :icon="faArrowDown" />
+              Lowest Likes Ratio
+            </button>
+          </div>
+        </div>
+
         <SoundCloudTrackTable 
           :tracks="tracks"
           @play="playTrack"
-          @view-artist="viewArtist"
         />
         
         <!-- Load More Button -->
@@ -355,131 +363,87 @@
       </div>
     </div>
 
-    <!-- Artist Details Modal -->
-    <teleport to="body">
-      <div
-        v-if="showArtistModal"
-        class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-        @click="closeArtistModal"
-      >
-        <div
-          class="bg-k-bg-secondary rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-auto"
-          @click.stop
-        >
-          <div class="flex justify-between items-center mb-4">
-            <div>
-              <h3 class="text-xl font-semibold text-white">{{ currentArtist?.username }}</h3>
-              <p class="text-white/60">Artist Details</p>
+    <!-- SoundCloud Player (functional with embed) -->
+    <div
+      v-if="showPlayer"
+      class="fixed bottom-0 left-[39px] right-[56px] bg-gray-900 border-t border-white/10 z-50"
+      style="height: 120px;"
+    >
+      <div class="flex items-center h-full px-4 gap-4">
+        <!-- Left: Track Info and Album Art -->
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <!-- Album Art -->
+          <div class="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+            <img 
+              v-if="currentTrack?.artwork_url" 
+              :src="currentTrack.artwork_url.replace('large', 't300x300')" 
+              :alt="currentTrack.title"
+              class="w-full h-full object-cover rounded-lg"
+              @error="$event.target.style.display = 'none'"
+            />
+            <div v-else class="text-white font-bold text-xs text-center leading-tight">
+              <Icon :icon="faSoundcloud" class="text-2xl" />
             </div>
-            <button
-              @click="closeArtistModal"
-              class="p-2 hover:bg-white/10 rounded-lg transition"
-            >
-              <Icon :icon="faTimes" class="text-white" />
-            </button>
           </div>
           
-          <div v-if="loadingArtist" class="text-center py-8">
-            <Icon :icon="faSpinner" spin class="text-2xl text-k-accent mb-2" />
-            <p class="text-white/60">Loading artist details...</p>
-          </div>
-          
-          <div v-else-if="artistDetails" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-              <div class="bg-white/5 p-4 rounded">
-                <div class="text-k-accent font-semibold">Followers</div>
-                <div class="text-2xl text-white">{{ formatCount(artistDetails.followers_count || 0) }}</div>
-              </div>
-              <div class="bg-white/5 p-4 rounded">
-                <div class="text-k-accent font-semibold">Following</div>
-                <div class="text-2xl text-white">{{ formatCount(artistDetails.followings_count || 0) }}</div>
-              </div>
-              <div class="bg-white/5 p-4 rounded">
-                <div class="text-k-accent font-semibold">Tracks</div>
-                <div class="text-2xl text-white">{{ formatCount(artistDetails.track_count || 0) }}</div>
-              </div>
-              <div class="bg-white/5 p-4 rounded">
-                <div class="text-k-accent font-semibold">Playlists</div>
-                <div class="text-2xl text-white">{{ formatCount(artistDetails.playlist_count || 0) }}</div>
-              </div>
+          <!-- Track Info -->
+          <div class="min-w-0">
+            <div class="text-white font-semibold text-sm truncate max-w-48">
+              {{ currentTrack?.user.username || 'Unknown Artist' }}
             </div>
-            
-            <div v-if="artistDetails.description" class="bg-white/5 p-4 rounded">
-              <div class="text-k-accent font-semibold mb-2">About</div>
-              <div class="text-white/80 whitespace-pre-wrap">{{ artistDetails.description }}</div>
+            <div class="text-white/80 font-medium text-xs truncate max-w-48 mb-1">
+              {{ currentTrack?.title || 'Unknown Track' }}
             </div>
-            
-            <div class="flex gap-2">
-              <a
-                v-if="artistDetails.permalink_url"
-                :href="artistDetails.permalink_url"
-                target="_blank"
-                class="px-4 py-2 bg-k-accent hover:bg-k-accent/80 rounded text-white font-medium transition"
-              >
-                View on SoundCloud
-              </a>
-              <a
-                v-if="artistDetails.website"
-                :href="artistDetails.website"
-                target="_blank"
-                class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white font-medium transition"
-              >
-                {{ artistDetails.website_title || 'Website' }}
-              </a>
+            <div class="flex items-center gap-2">
+              <div v-if="currentTrack?.genre" class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs font-medium">
+                #{{ currentTrack.genre }}
+              </div>
+              <div class="text-xs text-white/50">
+                {{ formatDate(currentTrack?.created_at || '') }}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </teleport>
-
-    <!-- SoundCloud Player Modal -->
-    <teleport to="body">
-      <div
-        v-if="showPlayer"
-        class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-        @click="closePlayer"
-      >
-        <div
-          class="bg-k-bg-secondary rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-auto"
-          @click.stop
-        >
-          <div class="flex justify-between items-center mb-4">
-            <div>
-              <h3 class="text-xl font-semibold text-white">{{ currentTrack?.title }}</h3>
-              <p class="text-white/60">by {{ currentTrack?.user.username }}</p>
-              <div class="flex items-center gap-4 mt-1 text-sm text-white/50">
-                <span v-if="currentTrack?.bpm">{{ currentTrack.bpm }} BPM</span>
-                <span v-if="currentTrack?.genre">{{ currentTrack.genre }}</span>
-                <span>{{ formatCount(currentTrack?.playback_count || 0) }} plays</span>
-              </div>
-            </div>
-            <button
-              @click="closePlayer"
-              class="p-2 hover:bg-white/10 rounded-lg transition"
-            >
-              <Icon :icon="faTimes" class="text-white" />
-            </button>
-          </div>
+        
+        <!-- Center: SoundCloud Embed Player -->
+        <div class="flex-1 min-w-0 mx-4 soundcloud-player-container">
           <iframe
             v-if="embedUrl"
             :src="embedUrl"
             width="100%"
-            height="166"
-            frameborder="no"
+            height="80"
             scrolling="no"
+            frameborder="no"
             allow="autoplay"
-            class="rounded"
-          />
+            class="rounded pointer-events-auto"
+            style="pointer-events: auto !important; z-index: 2; position: relative;"
+          ></iframe>
+          <div v-else class="h-20 bg-gray-800 rounded flex items-center justify-center">
+            <Icon :icon="faSpinner" spin class="text-white/50" />
+            <span class="text-white/50 ml-2 text-sm">Loading player...</span>
+          </div>
+        </div>
+        
+        <!-- Right: Close Button -->
+        <div class="flex-shrink-0">
+          <button
+            @click="closePlayer"
+            class="p-2 hover:bg-white/10 rounded-full transition text-white/60 hover:text-white"
+            title="Close Player"
+          >
+            <Icon :icon="faTimes" class="text-lg" />
+          </button>
         </div>
       </div>
-    </teleport>
+    </div>
+
   </ScreenBase>
 </template>
 
 <script lang="ts" setup>
-import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle, faPlus } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle, faPlus, faArrowUp, faArrowDown, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { soundcloudService, type SoundCloudTrack, type SoundCloudFilters } from '@/services/soundcloudService'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
@@ -509,6 +473,8 @@ const maxPlays = ref<number>()
 const minPlaysFormatted = ref('')
 const maxPlaysFormatted = ref('')
 const contentType = ref('tracks') // Default to tracks
+const likesRatioFilter = ref<'none' | 'highest' | 'lowest'>('none') // Likes ratio filter state
+const showLikesRatioDropdown = ref(false) // Dropdown visibility
 
 // Results state
 const tracks = ref<SoundCloudTrack[]>([])
@@ -529,18 +495,10 @@ const lastSearchFilters = ref<SoundCloudFilters | null>(null)
 const showPlayer = ref(false)
 const currentTrack = ref<SoundCloudTrack | null>(null)
 const embedUrl = ref('')
+// Note: Player will only show when this component is mounted (SoundCloud page)
 
-// Artist modal state
-const showArtistModal = ref(false)
-const currentArtist = ref<any>(null)
-const artistDetails = ref<any>(null)
-const loadingArtist = ref(false)
 
-// Advanced filters toggle
-const showAdvancedFilters = ref(false)
 
-// Genre dropdown state
-const showGenreDropdown = ref(false)
 
 // Computed properties
 const hasValidFilters = computed(() => {
@@ -562,40 +520,13 @@ const searchButtonText = computed(() => {
   return 'Search'
 })
 
-const filteredGenres = computed(() => {
-  if (!selectedGenre.value) {
-    return genres
-  }
-  return genres.filter(genre => 
-    genre.toLowerCase().includes(selectedGenre.value.toLowerCase())
-  )
-})
 
-// Available genres
-const genres = [
-  'Alternative Rock', 'Ambient', 'Classical', 'Country', 'Dance & EDM',
-  'Dancehall', 'Deep House', 'Disco', 'Drum & Bass', 'Dubstep',
-  'Electronic', 'Folk & Singer-Songwriter', 'Hip-hop & Rap', 'House',
-  'Indie', 'Jazz & Blues', 'Latin', 'Metal', 'Piano', 'Pop',
-  'R&B & Soul', 'Reggae', 'Reggaeton', 'Rock', 'Soundtrack',
-  'Techno', 'Trance', 'Trap', 'Triphop', 'World'
-]
 
 // Popular tags that users commonly search for
 const popularTags = [
   'vocal', 'remix', 'instrumental', 'chill', 'upbeat', 'melodic', 'experimental', 'vintage', 'modern', 'dark'
 ]
 
-const selectGenre = (genre: string) => {
-  selectedGenre.value = genre
-  showGenreDropdown.value = false
-}
-
-const hideGenreDropdown = () => {
-  setTimeout(() => {
-    showGenreDropdown.value = false
-  }, 150) // Small delay to allow click events to register
-}
 
 const addTag = (tag: string) => {
   if (searchTags.value) {
@@ -616,6 +547,86 @@ const formatCount = (count: number): string => {
     return (count / 1000).toFixed(1) + 'K'
   }
   return count.toString()
+}
+
+const formatDate = (dateString: string): string => {
+  if (!dateString) return 'Unknown'
+  try {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays < 30) {
+      return `${diffDays} days ago`
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30)
+      return `${months} month${months > 1 ? 's' : ''} ago`
+    } else {
+      const years = Math.floor(diffDays / 365)
+      return `${years} year${years > 1 ? 's' : ''} ago`
+    }
+  } catch {
+    return 'Unknown'
+  }
+}
+
+const toggleLikesRatioDropdown = () => {
+  showLikesRatioDropdown.value = !showLikesRatioDropdown.value
+}
+
+const hideLikesRatioDropdown = () => {
+  setTimeout(() => {
+    showLikesRatioDropdown.value = false
+  }, 150) // Small delay to allow click events to register
+}
+
+const setLikesRatioFilter = (type: 'none' | 'highest' | 'lowest') => {
+  likesRatioFilter.value = type
+  showLikesRatioDropdown.value = false
+  applyFiltering()
+}
+
+const getLikesRatioIcon = () => {
+  switch (likesRatioFilter.value) {
+    case 'highest': return faArrowUp
+    case 'lowest': return faArrowDown
+    default: return faFilter
+  }
+}
+
+const getLikesRatioText = () => {
+  switch (likesRatioFilter.value) {
+    case 'highest': return 'Highest Likes Ratio'
+    case 'lowest': return 'Lowest Likes Ratio'
+    default: return 'Filter by: Likes Ratio'
+  }
+}
+
+const applyFiltering = () => {
+  let filteredTracks = [...allFetchedTracks.value]
+  
+  if (likesRatioFilter.value === 'highest') {
+    // Sort by likes ratio highest to lowest
+    filteredTracks.sort((a, b) => {
+      const ratioA = (a.playback_count || 0) > 0 ? (a.favoritings_count || 0) / (a.playback_count || 0) : 0
+      const ratioB = (b.playback_count || 0) > 0 ? (b.favoritings_count || 0) / (b.playback_count || 0) : 0
+      return ratioB - ratioA
+    })
+  } else if (likesRatioFilter.value === 'lowest') {
+    // Sort by likes ratio lowest to highest
+    filteredTracks.sort((a, b) => {
+      const ratioA = (a.playback_count || 0) > 0 ? (a.favoritings_count || 0) / (a.playback_count || 0) : 0
+      const ratioB = (b.playback_count || 0) > 0 ? (b.favoritings_count || 0) / (b.playback_count || 0) : 0
+      return ratioA - ratioB
+    })
+  } else {
+    // Default sort by plays (highest to lowest)
+    filteredTracks.sort((a, b) => (b.playback_count || 0) - (a.playback_count || 0))
+  }
+  
+  // Update displayed tracks
+  tracks.value = filteredTracks.slice(0, displayedTrackCount.value)
 }
 
 // Number formatting helpers for plays inputs
@@ -807,9 +818,9 @@ const search = async () => {
     // Store all tracks from single API call
     allFetchedTracks.value = response.tracks
     
-    // Display only first 20 tracks  
+    // Display only first 20 tracks with current filtering
     displayedTrackCount.value = 20
-    tracks.value = allFetchedTracks.value.slice(0, displayedTrackCount.value)
+    applyFiltering()
     
     // Check if we have more tracks OR if SoundCloud has more via next_href
     hasMoreResults.value = allFetchedTracks.value.length > displayedTrackCount.value || response.hasMore
@@ -859,9 +870,9 @@ const loadMore = async () => {
     if (displayedTrackCount.value < allFetchedTracks.value.length) {
       console.log('🎵 Load More: Showing cached tracks')
       
-      // Show 20 more tracks from cache
+      // Show 20 more tracks from cache with current filtering
       displayedTrackCount.value = Math.min(displayedTrackCount.value + 20, allFetchedTracks.value.length)
-      tracks.value = allFetchedTracks.value.slice(0, displayedTrackCount.value)
+      applyFiltering()
       
       // Still more cached tracks or can fetch more from API?
       hasMoreResults.value = displayedTrackCount.value < allFetchedTracks.value.length || 
@@ -881,12 +892,20 @@ const loadMore = async () => {
       const response = await soundcloudService.searchWithPagination(filters)
       
       if (response.tracks && response.tracks.length > 0) {
-        // Add new tracks to our cache
-        allFetchedTracks.value.push(...response.tracks)
+        // Add new tracks to our cache, removing duplicates
+        const existingIds = new Set(allFetchedTracks.value.map(track => track.id))
+        const newTracks = response.tracks.filter(track => !existingIds.has(track.id))
         
-        // Show next 20 tracks (which includes the new ones)
+        if (newTracks.length > 0) {
+          allFetchedTracks.value.push(...newTracks)
+          console.log(`🎵 Deduplication: ${response.tracks.length} -> ${newTracks.length} new tracks (removed ${response.tracks.length - newTracks.length} duplicates)`)
+        } else {
+          console.log(`🎵 Deduplication: All ${response.tracks.length} tracks were duplicates`)
+        }
+        
+        // Show next 20 tracks with current filtering applied
         displayedTrackCount.value = Math.min(displayedTrackCount.value + 20, allFetchedTracks.value.length)
-        tracks.value = allFetchedTracks.value.slice(0, displayedTrackCount.value)
+        applyFiltering()
         
         // Check if more tracks are available
         hasMoreResults.value = response.hasMore
@@ -910,6 +929,13 @@ const loadMore = async () => {
 
 const playTrack = async (track: SoundCloudTrack) => {
   try {
+    // Show player immediately with loading state
+    currentTrack.value = track
+    showPlayer.value = true
+    embedUrl.value = '' // Clear previous embed URL to show loading
+    
+    console.log('🎵 Loading SoundCloud player for track:', track.title)
+    
     const embedUrl_new = await soundcloudService.getEmbedUrl(track.id, {
       auto_play: true,
       hide_related: true,
@@ -918,11 +944,12 @@ const playTrack = async (track: SoundCloudTrack) => {
       visual: true
     })
 
-    currentTrack.value = track
     embedUrl.value = embedUrl_new
-    showPlayer.value = true
-  } catch (err) {
-    error.value = 'Failed to load SoundCloud player.'
+    console.log('🎵 SoundCloud player loaded successfully')
+  } catch (err: any) {
+    console.error('🎵 Failed to load SoundCloud player:', err)
+    error.value = `Failed to load SoundCloud player: ${err.message || 'Unknown error'}`
+    closePlayer() // Close player on error
   }
 }
 
@@ -940,47 +967,30 @@ const resetFilters = () => {
   minPlaysFormatted.value = ''
   maxPlaysFormatted.value = ''
   contentType.value = 'tracks'
+  likesRatioFilter.value = 'none'
+  showLikesRatioDropdown.value = false
   tracks.value = []
   allFetchedTracks.value = []
   displayedTrackCount.value = 20
   searched.value = false
   error.value = ''
   searchStats.value = null
-  showAdvancedFilters.value = false
   hasMoreResults.value = false
   currentOffset.value = 0
   lastSearchFilters.value = null
 }
 
-const viewArtist = async (user: any) => {
-  currentArtist.value = user
-  showArtistModal.value = true
-  loadingArtist.value = true
-  artistDetails.value = null
-
-  try {
-    const details = await soundcloudService.getUserDetails(user.id)
-    artistDetails.value = details
-  } catch (err) {
-    // console.error('Failed to load artist details:', err)
-    // Fall back to basic user data
-    artistDetails.value = user
-  } finally {
-    loadingArtist.value = false
-  }
-}
-
-const closeArtistModal = () => {
-  showArtistModal.value = false
-  currentArtist.value = null
-  artistDetails.value = null
-}
 
 const closePlayer = () => {
   showPlayer.value = false
   currentTrack.value = null
   embedUrl.value = ''
 }
+
+// Clean up player when component is unmounted (user navigates away)
+onBeforeUnmount(() => {
+  closePlayer()
+})
 </script>
 
 <style scoped>
@@ -1000,5 +1010,54 @@ select::-webkit-scrollbar-thumb {
 
 select::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.4);
+}
+
+/* White BPM slider styling */
+.bpm-slider-white :deep(.track-background) {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bpm-slider-white :deep(.track-fill) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.bpm-slider-white :deep(.range-input::-webkit-slider-thumb) {
+  background: white;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  margin-top: 0px;
+}
+
+.bpm-slider-white :deep(.range-input::-webkit-slider-thumb:hover) {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: white;
+  box-shadow: 0 4px 8px rgba(255, 255, 255, 0.3);
+}
+
+.bmp-slider-white :deep(.range-input::-moz-range-thumb) {
+  background: white;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  margin-top: 0px;
+}
+
+/* Ensure SoundCloud iframe is fully interactive */
+iframe {
+  pointer-events: auto !important;
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+  -moz-user-select: auto !important;
+  -ms-user-select: auto !important;
+}
+
+/* Fix any potential overlay issues */
+.soundcloud-player-container {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto !important;
+}
+
+.soundcloud-player-container iframe {
+  position: relative;
+  z-index: 2;
 }
 </style>
