@@ -1,7 +1,8 @@
 <template>
   <footer
     ref="root"
-    class="flex flex-col relative z-20 bg-k-bg-secondary h-k-footer-height"
+    class="flex flex-col relative z-20 bg-k-bg-secondary"
+    :class="showSoundCloudPlayer ? 'h-[130px]' : 'h-k-footer-height'"
     @mousemove="showControls"
     @contextmenu.prevent="requestContextMenu"
   >
@@ -12,12 +13,18 @@
     
     <div class="fullscreen-backdrop hidden" />
 
-    <div class="wrapper relative flex flex-1">
-      <div class="flex flex-1 items-center">
-        <SongInfo />
-      </div>
-      <PlaybackControls />
-      <ExtraControls />
+    <div class="wrapper relative" :class="showSoundCloudPlayer ? 'flex flex-col' : 'flex flex-1'">
+      <!-- SoundCloud Player (when on SoundCloud page) -->
+      <SoundCloudFooterPlayer v-if="showSoundCloudPlayer" />
+      
+      <!-- Default Koel Player (when not on SoundCloud page or SoundCloud player not visible) -->
+      <template v-else>
+        <div class="flex flex-1 items-center">
+          <SongInfo />
+        </div>
+        <PlaybackControls />
+        <ExtraControls />
+      </template>
     </div>
   </footer>
 </template>
@@ -35,12 +42,15 @@ import { artistStore } from '@/stores/artistStore'
 import { preferenceStore } from '@/stores/preferenceStore'
 import { audioService } from '@/services/audioService'
 import { playbackService } from '@/services/playbackService'
+import { useRouter } from '@/composables/useRouter'
+import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 
 import YouTubePlayer from '@/components/layout/app-footer/YouTubePlayer.vue'
 import YouTubeProgressBar from '@/components/layout/app-footer/YouTubeProgressBar.vue'
 import SongInfo from '@/components/layout/app-footer/FooterSongInfo.vue'
 import ExtraControls from '@/components/layout/app-footer/FooterExtraControls.vue'
 import PlaybackControls from '@/components/layout/app-footer/FooterPlaybackControls.vue'
+import SoundCloudFooterPlayer from '@/components/layout/app-footer/SoundCloudFooterPlayer.vue'
 
 const playable = requireInjection(CurrentPlayableKey, ref())
 let hideControlsTimeout: number
@@ -48,6 +58,12 @@ let hideControlsTimeout: number
 const root = ref<HTMLElement>()
 const artist = ref<Artist>()
 const youtubePlayer = ref<InstanceType<typeof YouTubePlayer>>()
+const { isCurrentScreen } = useRouter()
+
+// Check if we're on the SoundCloud page and should show SoundCloud player
+const showSoundCloudPlayer = computed(() => {
+  return isCurrentScreen('SoundCloud') && soundcloudPlayerStore.isVisible
+})
 
 const requestContextMenu = (event: MouseEvent) => {
   if (document.fullscreenElement) {

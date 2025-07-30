@@ -1,5 +1,14 @@
 <template>
   <div class="youtube-player-container relative" :class="{ 'video-loading': isLoading, 'hidden': !isVisible }">
+    <!-- Close Button -->
+    <button
+      @click="closePlayer"
+      class="absolute top-2 right-2 z-20 w-8 h-8 bg-black/70 hover:bg-black/90 rounded-full flex items-center justify-center text-white text-sm transition-all"
+      title="Close YouTube Player"
+    >
+      ✕
+    </button>
+    
     <div
       ref="playerContainer"
       class="youtube-player w-full h-full rounded-lg overflow-hidden shadow-lg bg-black/20"
@@ -21,11 +30,13 @@ import { isSong } from '@/utils/typeGuards'
 import { youTubeService } from '@/services/youTubeService'
 import { eventBus } from '@/utils/eventBus'
 import { queueStore } from '@/stores/queueStore'
+import { useRouter } from '@/composables/useRouter'
 
 const playable = requireInjection(CurrentPlayableKey, ref())
 const playerContainer = ref<HTMLElement>()
 const isLoading = ref(false)
 const isVisible = ref(false)
+const { isCurrentScreen } = useRouter()
 
 let youtubePlayer: any = null
 let isPlayerReady = false
@@ -268,6 +279,25 @@ const searchAndPlayVideo = async (song: Song) => {
   }
 }
 
+// Close player function
+const closePlayer = () => {
+  if (isPlayerReady && youtubePlayer) {
+    youtubePlayer.pauseVideo()
+    if (queueStore.current) {
+      queueStore.current.playback_state = 'Stopped'
+    }
+  }
+  isVisible.value = false
+  currentVideoId = null
+}
+
+// Auto-hide when on SoundCloud page
+watch(() => isCurrentScreen('SoundCloud'), (onSoundCloudPage) => {
+  if (onSoundCloudPage && isVisible.value) {
+    closePlayer()
+  }
+})
+
 // Watch for song changes
 watch(playable, async (newPlayable, oldPlayable) => {
   // console.log('🎵 YouTubePlayer - playable changed:', {
@@ -341,7 +371,7 @@ const play = () => {
   // })
   
   try {
-    if (isPlayerReady && youtubePlayer) {
+    if (isPlayerReady && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
       // console.log('🎵 YouTubePlayer - calling youtubePlayer.playVideo()')
       youtubePlayer.playVideo()
       // Update playback state immediately for responsive UI
@@ -353,7 +383,9 @@ const play = () => {
       // console.log('🎵 YouTubePlayer - cannot play: player not ready or not available')
     }
   } catch (error) {
-    // console.error('🎵 YouTubePlayer - error in play():', error)
+    console.warn('🎵 YouTubePlayer - play error (likely player destroyed):', error.message)
+    isPlayerReady = false
+    youtubePlayer = null
   }
 }
 
@@ -366,7 +398,7 @@ const pause = () => {
   // })
   
   try {
-    if (isPlayerReady && youtubePlayer) {
+    if (isPlayerReady && youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
       // console.log('🎵 YouTubePlayer - calling youtubePlayer.pauseVideo()')
       youtubePlayer.pauseVideo()
       // Update playback state immediately for responsive UI
@@ -378,7 +410,9 @@ const pause = () => {
       // console.log('🎵 YouTubePlayer - cannot pause: player not ready or not available')
     }
   } catch (error) {
-    // console.error('🎵 YouTubePlayer - error in pause():', error)
+    console.warn('🎵 YouTubePlayer - pause error (likely player destroyed):', error.message)
+    isPlayerReady = false
+    youtubePlayer = null
   }
 }
 
@@ -425,11 +459,18 @@ const seekTo = (seconds: number) => {
   //   hasYoutubePlayer: !!youtubePlayer
   // })
   
-  if (isPlayerReady && youtubePlayer) {
-    // console.log('🎵 YouTubePlayer - seeking to:', seconds)
-    youtubePlayer.seekTo(seconds)
-  } else {
-    // console.log('🎵 YouTubePlayer - cannot seek: player not ready or not available')
+  try {
+    if (isPlayerReady && youtubePlayer && typeof youtubePlayer.seekTo === 'function') {
+      // console.log('🎵 YouTubePlayer - seeking to:', seconds)
+      youtubePlayer.seekTo(seconds)
+    } else {
+      // console.log('🎵 YouTubePlayer - cannot seek: player not ready or not available')
+    }
+  } catch (error) {
+    console.warn('🎵 YouTubePlayer - seekTo error (likely player destroyed):', error.message)
+    // Reset player state if it's in a bad state
+    isPlayerReady = false
+    youtubePlayer = null
   }
 }
 

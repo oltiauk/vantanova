@@ -280,15 +280,6 @@
               Highest Likes Ratio
             </button>
             <button
-              @mousedown.prevent="setLikesRatioFilter('lowest')"
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-              :class="likesRatioFilter === 'lowest' ? 'background-color: rgb(67,67,67,255)' : ''"
-              :style="likesRatioFilter === 'lowest' ? 'background-color: rgb(67,67,67,255)' : ''"
-            >
-              <Icon :icon="faArrowDown" />
-              Lowest Likes Ratio
-            </button>
-            <button
               @mousedown.prevent="setLikesRatioFilter('newest')"
               class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-b-lg"
               :class="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
@@ -305,17 +296,52 @@
           @play="playTrack"
         />
         
-        <!-- Load More Button -->
-        <div v-if="hasMoreResults" class="text-center mt-6">
+        <!-- Pagination Controls -->
+        <div v-if="searched && tracks.length > 0" class="flex justify-center items-center gap-4 mt-6">
+          <!-- Previous Button -->
           <button
-            @click="loadMore"
-            :disabled="loadingMore"
-            class="px-6 py-3 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition flex items-center gap-2 mx-auto"
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage <= 1 || loadingMore"
+            class="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition flex items-center gap-2"
+          >
+            <Icon :icon="faChevronLeft" />
+            Previous
+          </button>
+          
+          <!-- Page Numbers -->
+          <div class="flex items-center gap-2">
+            <button
+              v-for="page in visiblePages"
+              :key="page"
+              @click="goToPage(page)"
+              :disabled="loadingMore"
+              class="px-3 py-2 rounded-lg font-medium transition"
+              :class="page === currentPage 
+                ? 'bg-k-accent text-white' 
+                : 'bg-white/10 hover:bg-white/20 text-white/80'"
+            >
+              {{ page }}
+            </button>
+          </div>
+          
+          <!-- Next Button -->
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="!hasMoreResults || loadingMore"
+            class="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition flex items-center gap-2"
           >
             <Icon v-if="loadingMore" :icon="faSpinner" spin />
-            <Icon v-else :icon="faPlus" />
-            {{ loadingMore ? 'Loading...' : 'Load More' }}
+            <Icon v-else :icon="faChevronRight" />
+            {{ loadingMore ? 'Loading...' : 'Next' }}
           </button>
+        </div>
+        
+        <!-- Page Info -->
+        <div v-if="searched && tracks.length > 0" class="text-center mt-3">
+          <div class="text-sm text-white/60">
+            Page {{ currentPage }} • {{ tracks.length }} tracks
+            <span v-if="hasMoreResults"> • More pages available</span>
+          </div>
         </div>
       </div>
 
@@ -374,88 +400,17 @@
       </div>
     </div>
 
-    <!-- SoundCloud Player (functional with embed) -->
-    <div
-      v-if="showPlayer"
-      class="fixed bottom-0 left-[39px] right-[56px] bg-gray-900 border-t border-white/10 z-50"
-      style="height: 120px;"
-    >
-      <div class="flex items-center h-full px-4 gap-4">
-        <!-- Left: Track Info and Album Art -->
-        <div class="flex items-center gap-3 flex-shrink-0">
-          <!-- Album Art -->
-          <div class="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
-            <img 
-              v-if="currentTrack?.artwork_url" 
-              :src="currentTrack.artwork_url.replace('large', 't300x300')" 
-              :alt="currentTrack.title"
-              class="w-full h-full object-cover rounded-lg"
-              @error="$event.target.style.display = 'none'"
-            />
-            <div v-else class="text-white font-bold text-xs text-center leading-tight">
-              <Icon :icon="faSoundcloud" class="text-2xl" />
-            </div>
-          </div>
-          
-          <!-- Track Info -->
-          <div class="min-w-0">
-            <div class="text-white font-semibold text-sm truncate max-w-48">
-              {{ currentTrack?.user.username || 'Unknown Artist' }}
-            </div>
-            <div class="text-white/80 font-medium text-xs truncate max-w-48 mb-1">
-              {{ currentTrack?.title || 'Unknown Track' }}
-            </div>
-            <div class="flex items-center gap-2">
-              <div v-if="currentTrack?.genre" class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs font-medium">
-                #{{ currentTrack.genre }}
-              </div>
-              <div class="text-xs text-white/50">
-                {{ formatDate(currentTrack?.created_at || '') }}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Center: SoundCloud Embed Player -->
-        <div class="flex-1 min-w-0 mx-4 soundcloud-player-container">
-          <iframe
-            v-if="embedUrl"
-            :src="embedUrl"
-            width="100%"
-            height="80"
-            scrolling="no"
-            frameborder="no"
-            allow="autoplay"
-            class="rounded pointer-events-auto"
-            style="pointer-events: auto !important; z-index: 2; position: relative;"
-          ></iframe>
-          <div v-else class="h-20 bg-gray-800 rounded flex items-center justify-center">
-            <Icon :icon="faSpinner" spin class="text-white/50" />
-            <span class="text-white/50 ml-2 text-sm">Loading player...</span>
-          </div>
-        </div>
-        
-        <!-- Right: Close Button -->
-        <div class="flex-shrink-0">
-          <button
-            @click="closePlayer"
-            class="p-2 hover:bg-white/10 rounded-full transition text-white/60 hover:text-white"
-            title="Close Player"
-          >
-            <Icon :icon="faTimes" class="text-lg" />
-          </button>
-        </div>
-      </div>
-    </div>
 
   </ScreenBase>
 </template>
 
 <script lang="ts" setup>
-import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle, faPlus, faArrowUp, faArrowDown, faChevronDown, faClock } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faSearch, faSpinner, faTimes, faFilter, faChartLine, faExclamationTriangle, faPlus, faArrowUp, faArrowDown, faChevronDown, faClock, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { soundcloudService, type SoundCloudTrack, type SoundCloudFilters } from '@/services/soundcloudService'
+import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
+import { eventBus } from '@/utils/eventBus'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -484,13 +439,11 @@ const maxPlays = ref<number>()
 const minPlaysFormatted = ref('')
 const maxPlaysFormatted = ref('')
 const contentType = ref('tracks') // Default to tracks
-const likesRatioFilter = ref<'none' | 'highest' | 'lowest' | 'newest'>('none') // Sort filter state
+const likesRatioFilter = ref<'none' | 'highest' | 'newest'>('none') // Sort filter state
 const showLikesRatioDropdown = ref(false) // Dropdown visibility
 
 // Results state
 const tracks = ref<SoundCloudTrack[]>([])
-const allFetchedTracks = ref<SoundCloudTrack[]>([]) // Store all 100 tracks from API
-const displayedTrackCount = ref(20) // How many tracks we're currently showing
 const loading = ref(false)
 const searched = ref(false)
 const error = ref('')
@@ -499,14 +452,12 @@ const searchStats = ref<SearchStats | null>(null)
 // Pagination state
 const loadingMore = ref(false)
 const hasMoreResults = ref(false)
-const currentOffset = ref(0)
+const currentPage = ref(1)
+const totalPages = ref(1)
 const lastSearchFilters = ref<SoundCloudFilters | null>(null)
 
-// Player state
-const showPlayer = ref(false)
-const currentTrack = ref<SoundCloudTrack | null>(null)
-const embedUrl = ref('')
-// Note: Player will only show when this component is mounted (SoundCloud page)
+// Player state (now using global store)
+// Note: Player will show in footer when this component is mounted (SoundCloud page)
 
 
 
@@ -529,6 +480,25 @@ const searchButtonText = computed(() => {
     return `Search`
   }
   return 'Search'
+})
+
+// Pagination computed properties
+const visiblePages = computed(() => {
+  const pages = []
+  const maxVisiblePages = 5
+  let startPage = Math.max(1, currentPage.value - Math.floor(maxVisiblePages / 2))
+  let endPage = Math.min(totalPages.value, startPage + maxVisiblePages - 1)
+  
+  // Adjust start page if we're near the end
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1)
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i)
+  }
+  
+  return pages
 })
 
 
@@ -592,7 +562,7 @@ const hideLikesRatioDropdown = () => {
   }, 150) // Small delay to allow click events to register
 }
 
-const setLikesRatioFilter = (type: 'none' | 'highest' | 'lowest' | 'newest') => {
+const setLikesRatioFilter = (type: 'none' | 'highest' | 'newest') => {
   likesRatioFilter.value = type
   showLikesRatioDropdown.value = false
   applyFiltering()
@@ -601,7 +571,6 @@ const setLikesRatioFilter = (type: 'none' | 'highest' | 'lowest' | 'newest') => 
 const getSortIcon = () => {
   switch (likesRatioFilter.value) {
     case 'highest': return faArrowUp
-    case 'lowest': return faArrowDown
     case 'newest': return faClock
     default: return faFilter
   }
@@ -610,14 +579,13 @@ const getSortIcon = () => {
 const getSortText = () => {
   switch (likesRatioFilter.value) {
     case 'highest': return 'Highest Likes Ratio'
-    case 'lowest': return 'Lowest Likes Ratio'
     case 'newest': return 'Newest Releases'
     default: return 'Sort by: Plays'
   }
 }
 
 const applyFiltering = () => {
-  let filteredTracks = [...allFetchedTracks.value]
+  let filteredTracks = [...tracks.value]
   
   if (likesRatioFilter.value === 'highest') {
     // Sort by likes ratio highest to lowest
@@ -625,13 +593,6 @@ const applyFiltering = () => {
       const ratioA = (a.playback_count || 0) > 0 ? (a.favoritings_count || 0) / (a.playback_count || 0) : 0
       const ratioB = (b.playback_count || 0) > 0 ? (b.favoritings_count || 0) / (b.playback_count || 0) : 0
       return ratioB - ratioA
-    })
-  } else if (likesRatioFilter.value === 'lowest') {
-    // Sort by likes ratio lowest to highest
-    filteredTracks.sort((a, b) => {
-      const ratioA = (a.playback_count || 0) > 0 ? (a.favoritings_count || 0) / (a.playback_count || 0) : 0
-      const ratioB = (b.playback_count || 0) > 0 ? (b.favoritings_count || 0) / (b.playback_count || 0) : 0
-      return ratioA - ratioB
     })
   } else if (likesRatioFilter.value === 'newest') {
     // Sort by creation date newest to oldest
@@ -645,8 +606,8 @@ const applyFiltering = () => {
     filteredTracks.sort((a, b) => (b.playback_count || 0) - (a.playback_count || 0))
   }
   
-  // Update displayed tracks
-  tracks.value = filteredTracks.slice(0, displayedTrackCount.value)
+  // Update displayed tracks - show all filtered tracks
+  tracks.value = filteredTracks
 }
 
 // Number formatting helpers for plays inputs
@@ -781,12 +742,7 @@ watch([bpmFrom, bpmTo], ([newFrom, newTo]) => {
 })
 
 const search = async () => {
-  // console.log('🎵 DEBUG: search() function called')
-  // console.log('🎵 DEBUG: hasValidFilters.value:', hasValidFilters.value)
-  // console.log('🎵 DEBUG: selectedGenre.value:', selectedGenre.value)
-  
   if (!hasValidFilters.value) {
-    // console.log('🎵 DEBUG: Blocking search - no valid filters')
     error.value = 'Please select at least one filter to search with enhanced features.'
     return
   }
@@ -796,7 +752,7 @@ const search = async () => {
   tracks.value = []
   searchStats.value = null
   hasMoreResults.value = false
-  currentOffset.value = 0
+  currentPage.value = 1
 
   const startTime = performance.now()
   
@@ -824,10 +780,8 @@ const search = async () => {
       minPlays: minPlays.value || undefined,
       maxPlays: maxPlays.value || undefined,
       timePeriod: timePeriod.value || undefined,
-      limit: 20
+      limit: 100
     }
-
-    // console.log('🎵 Enhanced SoundCloud Search - Filters:', filters)
 
     // Store filters for pagination
     lastSearchFilters.value = filters
@@ -835,43 +789,47 @@ const search = async () => {
     const response = await soundcloudService.searchWithPagination(filters)
     const endTime = performance.now()
     
-    // Store all tracks from single API call
-    allFetchedTracks.value = response.tracks
+    // Display ALL tracks from the API call at once
+    tracks.value = response.tracks
     
-    // Display only first 20 tracks with current filtering
-    displayedTrackCount.value = 20
+    // Apply current filtering to all tracks
     applyFiltering()
     
-    // Check if we have more tracks OR if SoundCloud has more via next_href
-    hasMoreResults.value = allFetchedTracks.value.length > displayedTrackCount.value || response.hasMore
+    // Check if SoundCloud has more pages available
+    hasMoreResults.value = response.hasMore
     
-    console.log('🎵 DEBUG Load More button:', {
-      allFetchedCount: allFetchedTracks.value.length,
-      displayedCount: displayedTrackCount.value,
-      hasMoreResults: hasMoreResults.value
+    // Set up pagination state
+    if (hasMoreResults.value) {
+      totalPages.value = 2 // At least 2 pages since we have more
+    } else {
+      totalPages.value = 1 // Only 1 page
+    }
+    
+    console.log('🎵 Search complete:', {
+      totalTracks: tracks.value.length,
+      hasMorePages: hasMoreResults.value,
+      currentPage: currentPage.value,
+      estimatedTotalPages: totalPages.value
     })
     
-    // Calculate search statistics - now using single API call
+    // Calculate search statistics
     const resultQuality: SearchStats['resultQuality'] = 
-      allFetchedTracks.value.length > 15 ? 'high' : 
-      allFetchedTracks.value.length > 5 ? 'medium' : 'low'
+      tracks.value.length > 15 ? 'high' : 
+      tracks.value.length > 5 ? 'medium' : 'low'
     
     searchStats.value = {
-      apiCalls: response.apiCalls || 1, // Use actual API call count
+      apiCalls: response.apiCalls || 1,
       totalTime: Math.round(endTime - startTime),
-      cacheHits: 0, // TODO: implement cache hit tracking
+      cacheHits: 0,
       resultQuality
     }
 
-    console.log(`🎵 Search complete: ${allFetchedTracks.value.length} tracks fetched, showing first ${tracks.value.length}`)
-    currentOffset.value = tracks.value.length
     searched.value = true
 
     if (tracks.value.length === 0) {
-      error.value = 'No tracks found with your criteria. The enhanced search uses intersection of results for higher quality - try broadening your filters.'
+      error.value = 'No tracks found with your criteria. Try broadening your filters.'
     }
   } catch (err: any) {
-    // console.error('🎵 Enhanced SoundCloud Search - Error:', err)
     error.value = err.message || 'Failed to search SoundCloud. Please try again.'
     tracks.value = []
   } finally {
@@ -879,69 +837,53 @@ const search = async () => {
   }
 }
 
-const loadMore = async () => {
-  if (!lastSearchFilters.value) return
+const goToPage = async (page: number) => {
+  if (!lastSearchFilters.value || page < 1 || page === currentPage.value) return
   
   loadingMore.value = true
   error.value = ''
 
   try {
-    // First, check if we have more cached tracks to show
-    if (displayedTrackCount.value < allFetchedTracks.value.length) {
-      console.log('🎵 Load More: Showing cached tracks')
+    console.log(`🎵 Navigation: Going to page ${page}`)
+    
+    // Calculate offset based on page number (100 tracks per page)
+    const offset = (page - 1) * 100
+    
+    const filters = {
+      ...lastSearchFilters.value,
+      offset: offset
+    }
+
+    const response = await soundcloudService.searchWithPagination(filters)
+    
+    if (response.tracks && response.tracks.length > 0) {
+      // Replace current tracks with new page tracks (clean slate)
+      tracks.value = response.tracks
+      currentPage.value = page
       
-      // Show 20 more tracks from cache with current filtering
-      displayedTrackCount.value = Math.min(displayedTrackCount.value + 20, allFetchedTracks.value.length)
+      // Apply current filtering to new page tracks
       applyFiltering()
       
-      // Still more cached tracks or can fetch more from API?
-      hasMoreResults.value = displayedTrackCount.value < allFetchedTracks.value.length || 
-                             (lastSearchFilters.value && currentOffset.value < 100)
+      // Update pagination state
+      hasMoreResults.value = response.hasMore
       
-      console.log(`🎵 Load More: Now showing ${tracks.value.length} of ${allFetchedTracks.value.length} cached tracks`)
-      
-    } else {
-      // Need to fetch more tracks from API
-      console.log('🎵 Load More: Fetching more tracks from API')
-      
-      const filters = {
-        ...lastSearchFilters.value,
-        offset: allFetchedTracks.value.length // Use current total as offset
-      }
-
-      const response = await soundcloudService.searchWithPagination(filters)
-      
-      if (response.tracks && response.tracks.length > 0) {
-        // Add new tracks to our cache, removing duplicates
-        const existingIds = new Set(allFetchedTracks.value.map(track => track.id))
-        const newTracks = response.tracks.filter(track => !existingIds.has(track.id))
-        
-        if (newTracks.length > 0) {
-          allFetchedTracks.value.push(...newTracks)
-          console.log(`🎵 Deduplication: ${response.tracks.length} -> ${newTracks.length} new tracks (removed ${response.tracks.length - newTracks.length} duplicates)`)
-        } else {
-          console.log(`🎵 Deduplication: All ${response.tracks.length} tracks were duplicates`)
-        }
-        
-        // Show next 20 tracks with current filtering applied
-        displayedTrackCount.value = Math.min(displayedTrackCount.value + 20, allFetchedTracks.value.length)
-        applyFiltering()
-        
-        // Check if more tracks are available
-        hasMoreResults.value = response.hasMore
-        
-        console.log(`🎵 Load More: Fetched ${response.tracks.length} new tracks, now showing ${tracks.value.length} total`)
+      // Estimate total pages (this is approximate since we don't know exact total)
+      if (hasMoreResults.value) {
+        totalPages.value = Math.max(totalPages.value, page + 1)
       } else {
-        hasMoreResults.value = false
-        console.log('🎵 Load More: No more tracks available')
+        totalPages.value = page
       }
+      
+      console.log(`🎵 Page ${page}: Showing ${tracks.value.length} tracks`)
+    } else {
+      hasMoreResults.value = false
+      totalPages.value = Math.max(1, page - 1)
+      console.log(`🎵 Page ${page}: No tracks found`)
     }
-    
-    currentOffset.value = tracks.value.length
 
   } catch (err: any) {
-    console.error('🎵 Load More Error:', err)
-    error.value = 'Failed to load more results. Please try again.'
+    console.error('🎵 Page Navigation Error:', err)
+    error.value = 'Failed to load page. Please try again.'
   } finally {
     loadingMore.value = false
   }
@@ -949,27 +891,67 @@ const loadMore = async () => {
 
 const playTrack = async (track: SoundCloudTrack) => {
   try {
+    console.log('🎵 [DEBUG] Starting playTrack for:', track.title)
+    console.log('🎵 [DEBUG] Track ID:', track.id)
+    
     // Show player immediately with loading state
-    currentTrack.value = track
-    showPlayer.value = true
-    embedUrl.value = '' // Clear previous embed URL to show loading
+    soundcloudPlayerStore.show(track, '')
+    console.log('🎵 [DEBUG] Player store shown, isVisible:', soundcloudPlayerStore.isVisible)
+    
+    // Update navigation state based on track position
+    updateNavigationState(track)
     
     console.log('🎵 Loading SoundCloud player for track:', track.title)
     
-    const embedUrl_new = await soundcloudService.getEmbedUrl(track.id, {
+    const embedUrl = await soundcloudService.getEmbedUrl(track.id, {
       auto_play: true,
       hide_related: true,
       show_comments: false,
-      show_user: true,
-      visual: true
+      show_user: true
     })
 
-    embedUrl.value = embedUrl_new
+    console.log('🎵 [DEBUG] Got embed URL:', embedUrl)
+    soundcloudPlayerStore.setEmbedUrl(embedUrl)
+    console.log('🎵 [DEBUG] Embed URL set in store')
     console.log('🎵 SoundCloud player loaded successfully')
   } catch (err: any) {
-    console.error('🎵 Failed to load SoundCloud player:', err)
+    console.error('🎵 [ERROR] Failed to load SoundCloud player:', err)
     error.value = `Failed to load SoundCloud player: ${err.message || 'Unknown error'}`
-    closePlayer() // Close player on error
+    soundcloudPlayerStore.hide() // Close player on error
+  }
+}
+
+// Track navigation functions
+const getCurrentTrackIndex = () => {
+  const currentTrack = soundcloudPlayerStore.track
+  if (!currentTrack) return -1
+  return tracks.value.findIndex(track => track.id === currentTrack.id)
+}
+
+const updateNavigationState = (track: SoundCloudTrack) => {
+  const currentIndex = tracks.value.findIndex(t => t.id === track.id)
+  const canSkipPrevious = currentIndex > 0
+  const canSkipNext = currentIndex >= 0 && currentIndex < tracks.value.length - 1
+  
+  soundcloudPlayerStore.setNavigationState(canSkipPrevious, canSkipNext)
+  console.log('🎵 Navigation state updated:', { canSkipPrevious, canSkipNext, currentIndex, totalTracks: tracks.value.length })
+}
+
+const skipToPrevious = () => {
+  const currentIndex = getCurrentTrackIndex()
+  if (currentIndex > 0) {
+    const previousTrack = tracks.value[currentIndex - 1]
+    console.log('🎵 Skipping to previous track:', previousTrack.title)
+    playTrack(previousTrack) // This will automatically update navigation state
+  }
+}
+
+const skipToNext = () => {
+  const currentIndex = getCurrentTrackIndex()
+  if (currentIndex >= 0 && currentIndex < tracks.value.length - 1) {
+    const nextTrack = tracks.value[currentIndex + 1]
+    console.log('🎵 Skipping to next track:', nextTrack.title)
+    playTrack(nextTrack) // This will automatically update navigation state
   }
 }
 
@@ -990,26 +972,34 @@ const resetFilters = () => {
   likesRatioFilter.value = 'none'
   showLikesRatioDropdown.value = false
   tracks.value = []
-  allFetchedTracks.value = []
-  displayedTrackCount.value = 20
   searched.value = false
   error.value = ''
   searchStats.value = null
   hasMoreResults.value = false
-  currentOffset.value = 0
+  currentPage.value = 1
+  totalPages.value = 1
   lastSearchFilters.value = null
 }
 
 
 const closePlayer = () => {
-  showPlayer.value = false
-  currentTrack.value = null
-  embedUrl.value = ''
+  soundcloudPlayerStore.hide()
 }
 
-// Clean up player when component is unmounted (user navigates away)
+// Set up event bus listeners when component is mounted
+onMounted(() => {
+  // Listen for skip events from the footer player
+  eventBus.on('SOUNDCLOUD_SKIP_PREVIOUS', skipToPrevious)
+  eventBus.on('SOUNDCLOUD_SKIP_NEXT', skipToNext)
+})
+
+// Clean up player and event listeners when component is unmounted (user navigates away)
 onBeforeUnmount(() => {
   closePlayer()
+  
+  // Remove event listeners
+  eventBus.off('SOUNDCLOUD_SKIP_PREVIOUS', skipToPrevious)
+  eventBus.off('SOUNDCLOUD_SKIP_NEXT', skipToNext)
 })
 </script>
 

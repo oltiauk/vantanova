@@ -21,21 +21,42 @@
           <tr
             v-for="(track, index) in tracks"
             :key="track.id"
-            class="border-b border-white/5 hover:bg-white/5 transition"
+            class="hover:bg-white/5 transition"
+            :class="isCurrentTrack(track)
+              ? 'bg-white/5 border-2 border-white/20'
+              : 'border-b border-white/5'"
           >
             <!-- Index -->
             <td class="p-3 text-white/60">{{ index + 1 }}</td>
-            
+
             <!-- Artist -->
             <td class="p-3">
-              <div class="font-medium">{{ track.user?.username || 'Unknown' }}</div>
+              <a
+                v-if="track.user?.username"
+                :href="`https://soundcloud.com/${track.user.username}`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-white hover:text-k-accent transition cursor-pointer underline"
+              >
+                {{ track.user.username }}
+              </a>
+              <div v-else class="font-medium">Unknown</div>
             </td>
-            
+
             <!-- Title -->
             <td class="p-3">
-              <div class="font-medium text-white">{{ track.title || 'Untitled' }}</div>
+              <a
+                v-if="track.permalink_url"
+                :href="track.permalink_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-white hover:text-k-accent transition cursor-pointer underline"
+              >
+                {{ track.title || 'Untitled' }}
+              </a>
+              <div v-else class="font-medium text-white">{{ track.title || 'Untitled' }}</div>
             </td>
-            
+
             <!-- Genre -->
             <td class="p-3">
               <span
@@ -46,46 +67,46 @@
               </span>
               <span v-else class="text-white/40">-</span>
             </td>
-            
+
             <!-- BPM -->
             <td class="p-3">
               <span v-if="track.bpm" class="text-white/80">{{ track.bpm }}</span>
               <span v-else class="text-white/40">-</span>
             </td>
-            
+
             <!-- Playback Count -->
             <td class="p-3">
               <span class="text-white/80">{{ formatCount(track.playback_count || 0) }}</span>
             </td>
-            
+
             <!-- Likes (Favoritings) -->
             <td class="p-3">
               <span class="text-white/80">{{ formatCount(track.favoritings_count || 0) }}</span>
             </td>
-            
+
             <!-- Likes Ratio -->
             <td class="p-3">
               <span class="text-white/80">{{ formatLikesRatio(track.favoritings_count || 0, track.playback_count || 0) }}</span>
             </td>
-            
+
             <!-- Release Date -->
             <td class="p-3 whitespace-nowrap">
               <span class="text-white/80 whitespace-nowrap inline-block">{{ formatDate(track.created_at || '') }}</span>
             </td>
-            
+
             <!-- Duration -->
             <td class="p-3">
               <span class="text-white/80">{{ formatDuration(track.duration || 0) }}</span>
             </td>
-            
+
             <!-- Actions -->
             <td class="p-3">
               <button
-                @click="$emit('play', track)"
                 class="px-3 py-1.5 bg-k-accent hover:bg-k-accent/80 rounded text-sm font-medium transition"
+                @click="$emit('play', track)"
               >
-                <Icon :icon="faPlay" class="mr-1" />
-                Play
+                <Icon :icon="isCurrentTrack(track) ? faPause : faPlay" class="mr-1" />
+                {{ isCurrentTrack(track) ? 'Stop' : 'Play' }}
               </button>
             </td>
           </tr>
@@ -96,7 +117,9 @@
 </template>
 
 <script lang="ts" setup>
-import { faPlay } from '@fortawesome/free-solid-svg-icons'
+import { faPause, faPlay } from '@fortawesome/free-solid-svg-icons'
+import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
+import { computed } from 'vue'
 
 interface SoundCloudTrack {
   id: number
@@ -108,6 +131,7 @@ interface SoundCloudTrack {
   bpm?: number
   playback_count: number
   favoritings_count: number
+  permalink_url?: string
   user: {
     username: string
     followers_count: number
@@ -125,14 +149,20 @@ interface Emits {
 defineProps<Props>()
 defineEmits<Emits>()
 
+// Helper function to check if a track is currently playing
+const isCurrentTrack = (track: SoundCloudTrack) => {
+  const currentTrack = soundcloudPlayerStore.track
+  return currentTrack && currentTrack.id === track.id
+}
+
 const formatCount = (count: number | undefined | null): string => {
   if (!count || count === 0) {
     return '0'
   }
   if (count >= 1000000) {
-    return (count / 1000000).toFixed(1) + 'M'
+    return `${(count / 1000000).toFixed(1)}M`
   } else if (count >= 1000) {
-    return (count / 1000).toFixed(1) + 'K'
+    return `${(count / 1000).toFixed(1)}K`
   }
   return count.toString()
 }
@@ -161,6 +191,6 @@ const formatLikesRatio = (likes: number, plays: number): string => {
     return '0.00%'
   }
   const ratio = (likes / plays) * 100
-  return ratio.toFixed(2) + '%'
+  return `${ratio.toFixed(2)}%`
 }
 </script>
