@@ -1,7 +1,7 @@
 <template>
   <div class="soundcloud-footer-player flex items-start justify-center px-6 bg-k-bg-secondary w-full">
     <!-- SoundCloud Player with Skip Controls -->
-    <div class="flex items-center gap-4 w-full max-w-3xl">
+    <div class="flex items-center gap-4 w-full max-w-4xl">
       <!-- Related Tracks Button -->
       <button
         @click="openRelatedTracks"

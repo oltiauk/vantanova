@@ -7,31 +7,6 @@
     <div class="p-6 space-y-6">
       <!-- Enhanced Search Controls -->
       <div class="bg-white/5 rounded-lg p-4">
-        <!-- Search Quality Indicator -->
-        <div v-if="searchStats" class="mb-4 flex items-center justify-between text-sm">
-          <div class="flex items-center gap-4 text-white/70">
-            <span class="flex items-center gap-1">
-              <Icon :icon="faChartLine" />
-              {{ searchStats.apiCalls }} Parallel API Calls
-            </span>
-            <span>{{ searchStats.totalTime }}ms</span>
-            <span class="px-2 py-1 rounded text-xs"
-              :class="{
-                'bg-green-500/20 text-green-400': searchStats.resultQuality === 'high',
-                'bg-yellow-500/20 text-yellow-400': searchStats.resultQuality === 'medium',
-                'bg-red-500/20 text-red-400': searchStats.resultQuality === 'low'
-              }"
-            >
-              {{ searchStats.resultQuality.toUpperCase() }} Quality
-            </span>
-          </div>
-          <button 
-            @click="resetFilters"
-            class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-xs transition"
-          >
-            Reset All
-          </button>
-        </div>
 
         <!-- Search Query Row -->
         <div class="mb-4">
@@ -43,6 +18,16 @@
             placeholder="Search for artists, tracks, albums..."
             @keyup.enter="search"
           />
+          <div class="mt-2 flex flex-wrap gap-1">
+            <button
+              v-for="preset in keywordPresets"
+              :key="preset"
+              @click="addKeywordPreset(preset)"
+              class="px-2 py-1 bg-white/10 hover:bg-k-accent/20 rounded text-xs text-white/70 hover:text-k-accent transition"
+            >
+              {{ preset }}
+            </button>
+          </div>
           <div class="mt-1 text-xs text-white/50">
             Press Enter to search or use the search button below
           </div>
@@ -68,18 +53,8 @@
               v-model="searchTags"
               type="text"
               class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-              placeholder="vocal, remix, electronic..."
+              placeholder="Add another genre, style, or characteristic"
             />
-            <div class="mt-1 flex flex-wrap gap-1">
-              <button
-                v-for="tag in popularTags"
-                :key="tag"
-                @click="addTag(tag)"
-                class="px-2 py-0.5 bg-white/10 hover:bg-k-accent/20 rounded text-xs text-white/70 hover:text-k-accent transition"
-              >
-                {{ tag }}
-              </button>
-            </div>
           </div>
         </div>
 
@@ -366,12 +341,13 @@
         <Icon :icon="faSearch" class="text-4xl text-white/40 mb-4" />
         <h3 class="text-lg font-semibold text-white mb-2">No Results Found</h3>
         <p class="text-white/60 mb-4">
-          The enhanced search uses intersection of multiple API calls for higher quality results.
+          No tracks found with your criteria. Try broadening your filters.
         </p>
         <div class="text-sm text-white/50 max-w-md mx-auto">
           <strong>Try:</strong>
           <ul class="list-disc list-inside mt-2 space-y-1">
             <li>Broadening your BPM range</li>
+            <li>Removing BPM range filter</li>
             <li>Using more general tags</li>
             <li>Removing time period restrictions</li>
             <li>Lowering minimum plays/likes</li>
@@ -505,21 +481,20 @@ const visiblePages = computed(() => {
 
 
 
-// Popular tags that users commonly search for
-const popularTags = [
-  'vocal', 'remix', 'instrumental', 'chill', 'upbeat', 'melodic', 'experimental', 'vintage', 'modern', 'dark'
+// Keyword presets that users commonly search for
+const keywordPresets = [
+  'Remix', 'Mashup', 'Free Download', 'Free DL'
 ]
 
-
-const addTag = (tag: string) => {
-  if (searchTags.value) {
-    // Add comma if there are existing tags
-    if (!searchTags.value.endsWith(', ')) {
-      searchTags.value += ', '
+const addKeywordPreset = (preset: string) => {
+  if (searchQuery.value) {
+    // Add space if there are existing keywords
+    if (!searchQuery.value.endsWith(' ')) {
+      searchQuery.value += ' '
     }
-    searchTags.value += tag
+    searchQuery.value += preset
   } else {
-    searchTags.value = tag
+    searchQuery.value = preset
   }
 }
 

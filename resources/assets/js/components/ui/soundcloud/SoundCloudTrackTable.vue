@@ -21,36 +21,38 @@
           <tr
             v-for="(track, index) in tracks"
             :key="track.id"
-            class="hover:bg-white/5 transition"
+            class="hover:bg-white/5 transition h-16"
             :class="isCurrentTrack(track)
               ? 'bg-white/5 border-2 border-white/20'
               : 'border-b border-white/5'"
           >
             <!-- Index -->
-            <td class="p-3 text-white/60">{{ index + 1 }}</td>
+            <td class="p-3 text-white/60 align-middle">{{ index + 1 }}</td>
 
             <!-- Artist -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <a
-                v-if="track.user?.username"
-                :href="`https://soundcloud.com/${track.user.username}`"
+                v-if="getUserProfileUrl(track.user)"
+                :href="getUserProfileUrl(track.user)"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="font-medium text-white hover:text-k-accent transition cursor-pointer underline"
+                class="font-medium text-white hover:text-k-accent transition cursor-pointer"
               >
-                {{ track.user.username }}
+                {{ track.user?.username || 'Unknown' }}
               </a>
-              <div v-else class="font-medium">Unknown</div>
+              <div v-else class="font-medium text-white">
+                {{ track.user?.username || 'Unknown' }}
+              </div>
             </td>
 
             <!-- Title -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <a
                 v-if="track.permalink_url"
                 :href="track.permalink_url"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="font-medium text-white hover:text-k-accent transition cursor-pointer underline"
+                class="font-medium text-white hover:text-k-accent transition cursor-pointer"
               >
                 {{ track.title || 'Untitled' }}
               </a>
@@ -58,7 +60,7 @@
             </td>
 
             <!-- Genre -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <span
                 v-if="track.genre"
                 class="px-2 py-1 bg-white/10 text-white rounded text-sm"
@@ -69,38 +71,38 @@
             </td>
 
             <!-- BPM -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <span v-if="track.bpm" class="text-white/80">{{ track.bpm }}</span>
               <span v-else class="text-white/40">-</span>
             </td>
 
             <!-- Playback Count -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <span class="text-white/80">{{ formatCount(track.playback_count || 0) }}</span>
             </td>
 
             <!-- Likes (Favoritings) -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <span class="text-white/80">{{ formatCount(track.favoritings_count || 0) }}</span>
             </td>
 
             <!-- Likes Ratio -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <span class="text-white/80">{{ formatLikesRatio(track.favoritings_count || 0, track.playback_count || 0) }}</span>
             </td>
 
             <!-- Release Date -->
-            <td class="p-3 whitespace-nowrap">
+            <td class="p-3 whitespace-nowrap align-middle">
               <span class="text-white/80 whitespace-nowrap inline-block">{{ formatDate(track.created_at || '') }}</span>
             </td>
 
             <!-- Duration -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <span class="text-white/80">{{ formatDuration(track.duration || 0) }}</span>
             </td>
 
             <!-- Actions -->
-            <td class="p-3">
+            <td class="p-3 align-middle">
               <div class="flex gap-2">
                 <button
                   class="px-3 py-1.5 bg-k-accent hover:bg-k-accent/80 rounded text-sm font-medium transition"
@@ -147,6 +149,8 @@ interface SoundCloudTrack {
   user: {
     username: string
     followers_count: number
+    permalink_url?: string
+    id?: number
   }
 }
 
@@ -169,6 +173,31 @@ defineEmits<Emits>()
 const isCurrentTrack = (track: SoundCloudTrack) => {
   const currentTrack = soundcloudPlayerStore.track
   return currentTrack && currentTrack.id === track.id
+}
+
+// Helper function to get user profile URL
+const getUserProfileUrl = (user: any): string | null => {
+  if (!user) return null
+  
+  // If we have a permalink_url in the user object, use it
+  if (user.permalink_url) {
+    return user.permalink_url
+  }
+  
+  // If we have a user ID, construct the URL using the user ID
+  if (user.id) {
+    return `https://soundcloud.com/user-${user.id}`
+  }
+  
+  // If we only have username, try to construct URL but only if it doesn't have spaces
+  if (user.username && !user.username.includes(' ')) {
+    // Convert username to lowercase and replace special characters
+    const cleanUsername = user.username.toLowerCase().replace(/[^a-z0-9-_]/g, '-')
+    return `https://soundcloud.com/${cleanUsername}`
+  }
+  
+  // If username has spaces or other issues, don't create a link
+  return null
 }
 
 const formatCount = (count: number | undefined | null): string => {
