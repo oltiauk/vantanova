@@ -250,6 +250,64 @@ class SearchSoundCloudController extends Controller
     }
 
     /**
+     * Get related tracks for a SoundCloud track
+     * 
+     * Fetches related tracks using the SoundCloud API's related tracks endpoint.
+     * Uses the track URN (uniform resource name) to find similar tracks.
+     * 
+     * @param Request $request HTTP request with track_urn parameter
+     * @return JsonResponse JSON response with related tracks or error
+     */
+    public function getRelatedTracks(Request $request): JsonResponse
+    {
+        \Log::info('🔥 RELATED TRACKS API CALLED!!! 🔥', [
+            'method' => 'GET',
+            'endpoint' => '/api/soundcloud/related',
+            'parameters' => $request->all(),
+            'timestamp' => now()->toISOString(),
+            'user_agent' => $request->userAgent(),
+            'ip' => $request->ip(),
+            'url' => $request->fullUrl()
+        ]);
+
+        $trackUrn = $request->input('track_urn');
+        
+        if (!$trackUrn) {
+            \Log::warning('❌ Related tracks request rejected - missing track_urn parameter');
+            return response()->json(['error' => 'track_urn parameter is required'], 400);
+        }
+
+        if (!SoundCloudService::enabled()) {
+            \Log::warning('❌ SoundCloud related tracks rejected - service not enabled');
+            return response()->json(['error' => 'SoundCloud integration is not enabled'], 501);
+        }
+
+        try {
+            $relatedTracks = $this->soundCloudService->getRelatedTracks($trackUrn);
+
+            if ($relatedTracks === null) {
+                \Log::error('❌ SoundCloud related tracks failed - service returned null');
+                return response()->json(['error' => 'Failed to fetch related tracks'], 503);
+            }
+
+            \Log::info('✅ SoundCloud related tracks completed successfully', [
+                'track_urn' => $trackUrn,
+                'related_count' => count($relatedTracks->collection ?? [])
+            ]);
+
+            return response()->json($relatedTracks);
+        } catch (\Exception $e) {
+            \Log::error('❌ SoundCloud related tracks failed', [
+                'track_urn' => $trackUrn,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json(['error' => 'Failed to fetch related tracks'], 500);
+        }
+    }
+
+    /**
      * Get SoundCloud user details including real follower count
      * 
      * @param Request $request HTTP request with user_id parameter

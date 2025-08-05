@@ -60,9 +60,9 @@ const artist = ref<Artist>()
 const youtubePlayer = ref<InstanceType<typeof YouTubePlayer>>()
 const { isCurrentScreen } = useRouter()
 
-// Check if we're on the SoundCloud page and should show SoundCloud player
+// Check if we're on a SoundCloud-related page and should show SoundCloud player
 const showSoundCloudPlayer = computed(() => {
-  return isCurrentScreen('SoundCloud') && soundcloudPlayerStore.isVisible
+  return (isCurrentScreen('SoundCloud') || isCurrentScreen('SoundCloudRelatedTracks')) && soundcloudPlayerStore.isVisible
 })
 
 const requestContextMenu = (event: MouseEvent) => {

@@ -294,6 +294,7 @@
         <SoundCloudTrackTable 
           :tracks="tracks"
           @play="playTrack"
+          @relatedTracks="openRelatedTracks"
         />
         
         <!-- Pagination Controls -->
@@ -411,6 +412,7 @@ import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { soundcloudService, type SoundCloudTrack, type SoundCloudFilters } from '@/services/soundcloudService'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { eventBus } from '@/utils/eventBus'
+import Router from '@/router'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -953,6 +955,21 @@ const skipToNext = () => {
     console.log('🎵 Skipping to next track:', nextTrack.title)
     playTrack(nextTrack) // This will automatically update navigation state
   }
+}
+
+const openRelatedTracks = (track: SoundCloudTrack) => {
+  console.log('🎵 Opening Related Tracks for:', track.title)
+  
+  // Store the related tracks data for the next screen
+  eventBus.emit('SOUNDCLOUD_RELATED_TRACKS_DATA', {
+    type: 'related',
+    trackUrn: `soundcloud:tracks:${track.id}`,
+    trackTitle: track.title,
+    artist: track.user?.username || 'Unknown Artist'
+  })
+  
+  // Navigate to the SoundCloud Related Tracks screen using router
+  Router.go('soundcloud-related-tracks')
 }
 
 const resetFilters = () => {

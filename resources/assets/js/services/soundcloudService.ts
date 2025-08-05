@@ -489,6 +489,29 @@ class SoundCloudService {
     const seconds = totalSeconds % 60
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
+
+  /**
+   * Get related tracks for a SoundCloud track using track URN
+   */
+  async getRelatedTracks(trackUrn: string): Promise<SoundCloudTrack[]> {
+    try {
+      const response = await http.get<any>('soundcloud/related', { 
+        params: { track_urn: trackUrn } 
+      })
+
+      const rawTracks = response?.collection || response?.data || []
+      
+      if (!rawTracks || !Array.isArray(rawTracks)) {
+        return []
+      }
+
+      // Apply minimal filtering and return formatted tracks
+      return this.applyMinimalFilters(rawTracks, {})
+    } catch (error) {
+      console.error('Failed to fetch SoundCloud related tracks:', error)
+      return []
+    }
+  }
 }
 
 export const soundcloudService = new SoundCloudService()

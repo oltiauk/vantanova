@@ -45,6 +45,13 @@
           <SoundCloudSidebarItem>
             SoundCloud
           </SoundCloudSidebarItem>
+          
+          <SidebarItem :href="url('soundcloud-related-tracks')" screen="SoundCloudRelatedTracks">
+            <template #icon>
+              <Icon :icon="faMusic" fixed-width />
+            </template>
+            SoundCloud Related Tracks
+          </SidebarItem>
         </ul>
       </SidebarSection>
   
@@ -65,7 +72,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faTimes, faSearch, faSliders } from '@fortawesome/free-solid-svg-icons'
+import { faTimes, faSearch, faSliders, faMusic } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { eventBus } from '@/utils/eventBus'
 import { useAuthorization } from '@/composables/useAuthorization'

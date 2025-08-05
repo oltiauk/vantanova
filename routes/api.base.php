@@ -188,6 +188,7 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
         Route::get('soundcloud/search', [SearchSoundCloudController::class, 'searchTracks']);
         Route::post('soundcloud/embed', [SearchSoundCloudController::class, 'generateEmbedUrl']);
         Route::get('soundcloud/user', [SearchSoundCloudController::class, 'getUserDetails']);
+        Route::get('soundcloud/related', [SearchSoundCloudController::class, 'getRelatedTracks']);
 
         // Media information routes
         Route::get('albums/{album}/information', FetchAlbumInformationController::class);

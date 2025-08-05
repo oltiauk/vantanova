@@ -101,13 +101,25 @@
 
             <!-- Actions -->
             <td class="p-3">
-              <button
-                class="px-3 py-1.5 bg-k-accent hover:bg-k-accent/80 rounded text-sm font-medium transition"
-                @click="$emit('play', track)"
-              >
-                <Icon :icon="isCurrentTrack(track) ? faPause : faPlay" class="mr-1" />
-                {{ isCurrentTrack(track) ? 'Stop' : 'Play' }}
-              </button>
+              <div class="flex gap-2">
+                <button
+                  class="px-3 py-1.5 bg-k-accent hover:bg-k-accent/80 rounded text-sm font-medium transition"
+                  @click="$emit('play', track)"
+                >
+                  <Icon :icon="isCurrentTrack(track) ? faPause : faPlay" class="mr-1" />
+                  {{ isCurrentTrack(track) ? 'Stop' : 'Play' }}
+                </button>
+                
+                <button
+                  v-if="props.showRelatedButton"
+                  class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium transition"
+                  @click="$emit('relatedTracks', track)"
+                  title="Find Related Tracks"
+                >
+                  <Icon :icon="faMusic" class="mr-1" />
+                  Related
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -117,7 +129,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faPause, faPlay } from '@fortawesome/free-solid-svg-icons'
+import { faPause, faPlay, faMusic } from '@fortawesome/free-solid-svg-icons'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { computed } from 'vue'
 
@@ -140,13 +152,17 @@ interface SoundCloudTrack {
 
 interface Props {
   tracks: SoundCloudTrack[]
+  showRelatedButton?: boolean
 }
 
 interface Emits {
   (e: 'play', track: SoundCloudTrack): void
+  (e: 'relatedTracks', track: SoundCloudTrack): void
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showRelatedButton: true
+})
 defineEmits<Emits>()
 
 // Helper function to check if a track is currently playing

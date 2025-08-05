@@ -2,6 +2,16 @@
   <div class="soundcloud-footer-player flex items-start justify-center px-6 bg-k-bg-secondary w-full">
     <!-- SoundCloud Player with Skip Controls -->
     <div class="flex items-center gap-4 w-full max-w-3xl">
+      <!-- Related Tracks Button -->
+      <button
+        @click="openRelatedTracks"
+        class="px-3 py-2 rounded-lg bg-k-accent hover:bg-k-accent/80 flex items-center gap-2 text-white transition-colors flex-shrink-0 text-sm font-medium"
+        title="Find Related Tracks"
+      >
+        <Icon :icon="faMusic" class="text-sm" />
+        <span>Related Tracks</span>
+      </button>
+      
       <!-- Previous Track Button -->
       <button
         @click="skipToPrevious"
@@ -44,11 +54,12 @@
 </template>
 
 <script lang="ts" setup>
-import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons'
+import { faChevronLeft, faChevronRight, faMusic } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 import { computed } from 'vue'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { eventBus } from '@/utils/eventBus'
+import Router from '@/router'
 
 const currentTrack = computed(() => {
   const track = soundcloudPlayerStore.track
@@ -65,6 +76,27 @@ const embedUrl = computed(() => {
 // Skip navigation computed properties
 const canSkipPrevious = computed(() => soundcloudPlayerStore.canSkipPrevious)
 const canSkipNext = computed(() => soundcloudPlayerStore.canSkipNext)
+
+// Related tracks function
+const openRelatedTracks = () => {
+  const track = soundcloudPlayerStore.state.currentTrack
+  if (track) {
+    console.log('🎵 Opening SoundCloud Related Tracks for:', track.title)
+    // Create URN from SoundCloud track ID (format: soundcloud:tracks:{id})
+    const trackUrn = `soundcloud:tracks:${track.id}`
+    
+    // Store the related tracks data for the next screen
+    eventBus.emit('SOUNDCLOUD_RELATED_TRACKS_DATA', {
+      type: 'related',
+      trackUrn,
+      trackTitle: track.title,
+      artist: track.user?.username || 'Unknown Artist'
+    })
+    
+    // Navigate to the SoundCloud Related Tracks screen using router
+    Router.go('soundcloud-related-tracks')
+  }
+}
 
 // Skip functions
 const skipToPrevious = () => {

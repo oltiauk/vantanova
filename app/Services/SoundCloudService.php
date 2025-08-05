@@ -79,7 +79,7 @@ class SoundCloudService
 
         $searchParams = array_merge([
             'limit' => 20,
-            'access' => 'playable,preview',
+            'access' => 'playable', // Only get fully playable tracks, exclude previews
             'linked_partitioning' => true,
         ], $params);
 
@@ -335,6 +335,108 @@ class SoundCloudService
         ]);
 
         return $embedUrl;
+    }
+
+    /**
+     * Get related tracks for a SoundCloud track using track URN
+     * 
+     * @param string $trackUrn SoundCloud track URN (e.g., soundcloud:tracks:123456)
+     * @return object|null Related tracks collection or null on failure
+     */
+    public function getRelatedTracks(string $trackUrn): ?object
+    {
+        \Log::info('🔥🔥🔥 SOUNDCLOUD SERVICE - FETCHING RELATED TRACKS!!! 🔥🔥🔥', [
+            'track_urn' => $trackUrn,
+            'timestamp' => now()->toISOString(),
+            'service_enabled' => self::enabled(),
+            'has_client_id' => !empty(config('services.soundcloud.client_id')),
+            'has_client_secret' => !empty(config('services.soundcloud.client_secret'))
+        ]);
+
+        if (!self::enabled()) {
+            \Log::warning('❌ SoundCloud integration not enabled - missing credentials');
+            return null;
+        }
+
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            \Log::error('❌ Failed to obtain SoundCloud access token');
+            return null;
+        }
+
+        try {
+            // The related tracks endpoint format: /tracks/{track_urn}/related
+            $endpoint = "/tracks/{$trackUrn}/related";
+            $params = [
+                'limit' => 20,  // Reasonable limit for related tracks
+                'access' => 'playable', // Only get fully playable tracks, exclude previews
+                'linked_partitioning' => true,
+            ];
+
+            \Log::info('🌐 Making HTTP request to SoundCloud related tracks API', [
+                'method' => 'GET',
+                'url' => self::API_BASE_URL . $endpoint,
+                'params' => $params,
+                'track_urn' => $trackUrn,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Accept' => 'application/json',
+                'User-Agent' => 'Koel/' . config('app.version', '1.0.0') . ' (Music Streaming Application)'
+            ])->timeout(30)->get(self::API_BASE_URL . $endpoint, $params);
+
+            \Log::info('📊 SoundCloud Related Tracks API HTTP Response', [
+                'status_code' => $response->status(),
+                'response_size_bytes' => strlen($response->body()),
+                'content_type' => $response->header('Content-Type'),
+                'rate_limit_remaining' => $response->header('X-RateLimit-Remaining')
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->object();
+                
+                // Handle different SoundCloud API response formats
+                if (is_array($data)) {
+                    \Log::info('✅ SoundCloud Related Tracks Response Format: Direct Array', [
+                        'track_count' => count($data),
+                        'first_track_title' => $data[0]->title ?? 'N/A'
+                    ]);
+                    
+                    return (object) ['collection' => $data];
+                } elseif (isset($data->collection)) {
+                    \Log::info('✅ SoundCloud Related Tracks Response Format: Collection Object', [
+                        'track_count' => count($data->collection),
+                        'first_track_title' => $data->collection[0]->title ?? 'N/A',
+                        'next_href' => $data->next_href ?? null
+                    ]);
+                    
+                    return $data;
+                }
+                
+                \Log::warning('⚠️ SoundCloud Related Tracks Response Format: Unknown structure', [
+                    'data_type' => gettype($data),
+                    'data_keys' => is_object($data) ? array_keys((array)$data) : 'N/A'
+                ]);
+                return (object) ['collection' => []];
+            }
+
+            \Log::error('❌ SoundCloud Related Tracks API HTTP Error', [
+                'status_code' => $response->status(),
+                'error_body' => $response->body(),
+                'headers' => $response->headers()
+            ]);
+
+            return null;
+        } catch (Throwable $e) {
+            \Log::error('❌ SoundCloud related tracks request exception', [
+                'track_urn' => $trackUrn,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
     }
 
     /**

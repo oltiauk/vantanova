@@ -238,9 +238,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { faMusic, faHeart, faUserPlus, faUserMinus, faTrash } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
+import { useRouter } from '@/composables/useRouter'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -405,12 +406,31 @@ const getTimeRemaining = (expiresAt: string): string => {
 onMounted(() => {
   loadData()
   
-  // Refresh data every 5 seconds to show new additions
-  const interval = setInterval(loadData, 5000)
+  // Only refresh data when the screen is actually visible to the user
+  // This prevents unnecessary network requests when on other screens
+  let interval: number | null = null
+  
+  const { isCurrentScreen } = useRouter()
+  
+  watch(() => isCurrentScreen('MusicPreferences'), (isVisible) => {
+    if (isVisible) {
+      // Start polling when screen becomes visible
+      loadData()
+      interval = setInterval(loadData, 10000) // Increased to 10 seconds to reduce frequency
+    } else {
+      // Stop polling when screen is not visible
+      if (interval) {
+        clearInterval(interval)
+        interval = null
+      }
+    }
+  }, { immediate: true })
   
   // Clean up interval on unmount
   onUnmounted(() => {
-    clearInterval(interval)
+    if (interval) {
+      clearInterval(interval)
+    }
   })
 })
 </script>
