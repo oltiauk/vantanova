@@ -1,19 +1,9 @@
 <template>
   <tr class="inline-player-row">
-    <td colspan="9" class="p-4 text-center">
-      <div class="flex items-center justify-center gap-4 animate-slide-down w-full">
-        <!-- Previous Track Button -->
-        <button
-          @click="$emit('previous')"
-          :disabled="!hasPreviousTrack"
-          class="w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 flex items-center justify-center text-white transition-colors flex-shrink-0"
-          title="Previous Track"
-        >
-          <Icon :icon="faChevronLeft" class="text-lg" />
-        </button>
-        
+    <td colspan="11" class="p-0">
+      <div class="flex items-center justify-center player-container">
         <!-- SoundCloud Embedded Player -->
-        <div class="w-full max-w-4xl">
+        <div class="w-full max-w-3xl mx-auto px-8 py-4">
           <iframe
             v-if="embedUrl"
             :src="cleanEmbedUrl(embedUrl)"
@@ -29,25 +19,6 @@
             <span class="text-gray-400 ml-2">Loading...</span>
           </div>
         </div>
-        
-        <!-- Next Track Button -->
-        <button
-          @click="$emit('next')"
-          :disabled="!hasNextTrack"
-          class="w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 flex items-center justify-center text-white transition-colors flex-shrink-0"
-          title="Next Track"
-        >
-          <Icon :icon="faChevronRight" class="text-lg" />
-        </button>
-
-        <!-- Close Button -->
-        <button 
-          @click="handleClose"
-          class="w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white transition-colors flex-shrink-0"
-          title="Close Player"
-        >
-          <Icon :icon="faTimes" class="text-lg" />
-        </button>
       </div>
     </td>
   </tr>
@@ -62,11 +33,6 @@
  */
 import { computed } from 'vue'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
-import { 
-  faChevronLeft, 
-  faChevronRight, 
-  faTimes
-} from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 
 interface Props {
@@ -74,29 +40,12 @@ interface Props {
     id: string
     title?: string
   }
-  hasPreviousTrack?: boolean
-  hasNextTrack?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  hasPreviousTrack: false,
-  hasNextTrack: false
-})
-
-const emit = defineEmits<{
-  close: []
-  previous: []
-  next: []
-}>()
+const props = defineProps<Props>()
 
 // Get embed URL from store
 const embedUrl = computed(() => soundcloudPlayerStore.url)
-
-// Close handler
-const handleClose = () => {
-  console.log('🎵 [INLINE] Player closed')
-  emit('close')
-}
 
 // Clean embed URL function (same as footer player)
 const cleanEmbedUrl = (url: string): string => {
@@ -118,29 +67,14 @@ const cleanEmbedUrl = (url: string): string => {
 <style scoped>
 .inline-player-row {
   background: transparent;
+  overflow: hidden;
 }
 
-.inline-soundcloud-player {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.animate-slide-down {
-  animation: slideDown 0.3s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px) scale(0.95);
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    max-height: 300px;
-  }
+.player-container {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Make sure iframe is fully interactive and remove all spacing */
@@ -153,10 +87,11 @@ iframe {
   display: block !important;
   position: relative !important;
   z-index: 10 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Ensure parent containers don't block interactions */
-.inline-soundcloud-player * {
+.player-container * {
   pointer-events: auto !important;
 }
 </style>

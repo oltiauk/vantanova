@@ -7,171 +7,176 @@
     <div class="p-6 space-y-6">
       <!-- Enhanced Search Controls -->
       <div class="bg-white/5 rounded-lg p-4">
-
-        <!-- Search Query Row -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium mb-2 text-white/80">Search Keywords</label>
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="w-full p-3 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-lg"
-            placeholder="Search for artists, tracks, albums..."
-            @keyup.enter="search"
-          />
-          <div class="mt-2 flex flex-wrap gap-1">
-            <button
-              v-for="preset in keywordPresets"
-              :key="preset"
-              @click="addKeywordPreset(preset)"
-              class="px-2 py-1 bg-white/10 hover:bg-k-accent/20 rounded text-xs text-white/70 hover:text-k-accent transition"
-            >
-              {{ preset }}
-            </button>
-          </div>
-          <div class="mt-1 text-xs text-white/50">
-            Press Enter to search or use the search button below
-          </div>
-        </div>
-
-        <!-- Top Row: Genres and Tags -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <!-- Genre Input -->
-          <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Genre</label>
-            <input
-              v-model="selectedGenre"
-              type="text"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-              placeholder="Type genre..."
-            />
-          </div>
-
-          <!-- Tags Input -->
-          <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Tags</label>
-            <input
-              v-model="searchTags"
-              type="text"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-              placeholder="Add another genre, style, or characteristic"
-            />
-          </div>
-        </div>
-
-        <!-- Second Row: Time Period and Content Type -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-          <!-- Time Period -->
-          <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
-            <select
-              v-model="timePeriod"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-            >
-              <option value="" class="bg-gray-800">All Time</option>
-              <option value="1d" class="bg-gray-800">Last Day</option>
-              <option value="1w" class="bg-gray-800">Last Week</option>
-              <option value="1m" class="bg-gray-800">Last Month</option>
-              <option value="3m" class="bg-gray-800">Last 3 Months</option>
-              <option value="6m" class="bg-gray-800">Last 6 Months</option>
-              <option value="1y" class="bg-gray-800">Last Year</option>
-            </select>
-          </div>
-
-          <!-- Content Type -->
-          <div>
-            <label class="block text-sm font-medium mb-3 text-white/80">Content Type</label>
-            <div class="flex gap-3">
-              <label class="flex-1 cursor-pointer">
-                <input
-                  v-model="contentType"
-                  type="radio"
-                  value="tracks"
-                  class="sr-only"
-                />
-                <div class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
-                     :class="contentType === 'tracks' 
-                       ? 'border-k-accent bg-k-accent/20 text-white' 
-                       : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
-                >
-                  Tracks
-                </div>
-              </label>
-              <label class="flex-1 cursor-pointer">
-                <input
-                  v-model="contentType"
-                  type="radio"
-                  value="mixes"
-                  class="sr-only"
-                />
-                <div class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
-                     :class="contentType === 'mixes' 
-                       ? 'border-k-accent bg-k-accent/20 text-white' 
-                       : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
-                >
-                  Mixes
-                </div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-
-        <!-- Advanced Filters -->
-        <div class="mb-4 p-4 bg-white/5 rounded-lg">
-          <div class="flex items-center gap-2 mb-4">
-            <Icon :icon="faFilter" class="text-white/80" />
-            <h3 class="text-sm font-medium text-white/80">Advanced Filters</h3>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Left Side: Min/Max Plays -->
+        <!-- Main Layout: Search Controls Left, Advanced Filters Right -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Left Side: Search Controls (50% width) -->
           <div class="space-y-4">
-            <!-- Minimum Plays -->
+            <!-- Search Query Row -->
             <div>
-              <label class="block text-sm font-medium mb-2 text-white/80">Minimum Plays</label>
+              <label class="block text-sm font-medium mb-2 text-white/80">Search Keywords</label>
               <input
-                v-model="minPlaysFormatted"
+                v-model="searchQuery"
                 type="text"
-                placeholder="e.g. 10,000"
-                @input="handleMinPlaysInput"
-                class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                class="w-full p-3 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-lg"
+                placeholder="Search for artists, tracks, albums..."
+                @keyup.enter="search"
               />
+              <div class="mt-2 flex flex-wrap gap-1">
+                <button
+                  v-for="preset in keywordPresets"
+                  :key="preset"
+                  @click="addKeywordPreset(preset)"
+                  class="px-2 py-1 bg-white/10 hover:bg-k-accent/20 rounded text-xs text-white/70 hover:text-k-accent transition"
+                >
+                  {{ preset }}
+                </button>
+              </div>
+              <div class="mt-1 text-xs text-white/50">
+                Press Enter to search or use the search button below
+              </div>
             </div>
 
-            <!-- Maximum Plays -->
-            <div>
-              <label class="block text-sm font-medium mb-2 text-white/80">Maximum Plays</label>
-              <input
-                v-model="maxPlaysFormatted"
-                type="text"
-                placeholder="e.g. 1,000,000"
-                @input="handleMaxPlaysInput"
-                class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
-              />
+            <!-- Top Row: Genres and Tags -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Genre Input -->
+              <div>
+                <label class="block text-sm font-medium mb-2 text-white/80">Genre</label>
+                <input
+                  v-model="selectedGenre"
+                  type="text"
+                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                  placeholder="Type genre..."
+                />
+              </div>
+
+              <!-- Tags Input -->
+              <div>
+                <label class="block text-sm font-medium mb-2 text-white/80">Tags</label>
+                <input
+                  v-model="searchTags"
+                  type="text"
+                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                  placeholder="Add another genre, style, or characteristic"
+                />
+              </div>
+            </div>
+
+            <!-- Second Row: Time Period and Content Type -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Time Period -->
+              <div>
+                <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
+                <select
+                  v-model="timePeriod"
+                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                >
+                  <option value="" class="bg-gray-800">All Time</option>
+                  <option value="1d" class="bg-gray-800">Last Day</option>
+                  <option value="1w" class="bg-gray-800">Last Week</option>
+                  <option value="1m" class="bg-gray-800">Last Month</option>
+                  <option value="3m" class="bg-gray-800">Last 3 Months</option>
+                  <option value="6m" class="bg-gray-800">Last 6 Months</option>
+                  <option value="1y" class="bg-gray-800">Last Year</option>
+                </select>
+              </div>
+
+              <!-- Content Type -->
+              <div>
+                <label class="block text-sm font-medium mb-3 text-white/80">Content Type</label>
+                <div class="flex gap-3">
+                  <label class="flex-1 cursor-pointer">
+                    <input
+                      v-model="contentType"
+                      type="radio"
+                      value="tracks"
+                      class="sr-only"
+                    />
+                    <div class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
+                         :class="contentType === 'tracks' 
+                           ? 'border-k-accent bg-k-accent/20 text-white' 
+                           : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
+                    >
+                      Tracks
+                    </div>
+                  </label>
+                  <label class="flex-1 cursor-pointer">
+                    <input
+                      v-model="contentType"
+                      type="radio"
+                      value="mixes"
+                      class="sr-only"
+                    />
+                    <div class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
+                         :class="contentType === 'mixes' 
+                           ? 'border-k-accent bg-k-accent/20 text-white' 
+                           : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
+                    >
+                      Mixes
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Right Side: BPM Range -->
+          <!-- Right Side: Advanced Filters (50% width) -->
           <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">
-              BPM Range: {{ bpmFrom }} - {{ bpmTo }}
-            </label>
-            <div class="mt-4">
-              <DualRangeSlider
-                :min="60"
-                :max="200"
-                :from="bpmFrom"
-                :to="bpmTo"
-                @update:from="bpmFrom = $event"
-                @update:to="bpmTo = $event"
-                class="bpm-slider-white"
-              />
+            <div class="p-4 bg-white/5 rounded-lg h-full flex flex-col">
+              <div class="flex items-center gap-2 mb-4">
+                <Icon :icon="faFilter" class="text-white/80" />
+                <h3 class="text-sm font-medium text-white/80">Advanced Filters</h3>
+              </div>
+              
+              <!-- Min/Max Plays -->
+              <div class="grid grid-cols-2 gap-4 mb-auto">
+                <!-- Minimum Plays -->
+                <div>
+                  <label class="block text-sm font-medium mb-2 text-white/80">Minimum Plays</label>
+                  <input
+                    v-model="minPlaysFormatted"
+                    type="text"
+                    placeholder="e.g. 10,000"
+                    @input="handleMinPlaysInput"
+                    class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                  />
+                </div>
+
+                <!-- Maximum Plays -->
+                <div>
+                  <label class="block text-sm font-medium mb-2 text-white/80">Maximum Plays</label>
+                  <input
+                    v-model="maxPlaysFormatted"
+                    type="text"
+                    placeholder="e.g. 1,000,000"
+                    @input="handleMaxPlaysInput"
+                    class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                  />
+                </div>
+              </div>
+
+              <!-- BPM Range - Pushed to bottom -->
+              <div class="mt-auto">
+                <label class="block text-sm font-medium mb-2 text-white/80">
+                  BPM Range: {{ bpmFrom }} - {{ bpmTo }}
+                </label>
+                <div class="mt-4">
+                  <DualRangeSlider
+                    :min="60"
+                    :max="200"
+                    :from="bpmFrom"
+                    :to="bpmTo"
+                    @update:from="bpmFrom = $event"
+                    @update:to="bpmTo = $event"
+                    class="bpm-slider-white"
+                  />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <!-- Search Button -->
-        <div class="flex justify-center gap-3">
+        <div class="flex justify-center gap-3 mt-6">
           <button
             @click="search"
             :disabled="loading || !hasValidFilters"

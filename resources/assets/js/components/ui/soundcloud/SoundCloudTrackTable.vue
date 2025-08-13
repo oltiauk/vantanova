@@ -22,7 +22,7 @@
             <tr
               class="hover:bg-white/5 transition h-16"
               :class="isCurrentTrack(track)
-                ? 'bg-white/5 border-2 border-white/20'
+                ? 'bg-white/5'
                 : 'border-b border-white/5'"
             >
             <!-- Index -->
@@ -116,7 +116,7 @@
               <div class="flex gap-2">
                 <button
                   v-if="props.showRelatedButton"
-                  class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium transition"
+                  class="px-3 py-1.5 bg-[#429488] rounded text-sm font-medium transition"
                   @click="$emit('relatedTracks', track)"
                   title="Find Related Tracks"
                 >
@@ -125,11 +125,11 @@
                 </button>
                 
                 <button
-                  class="px-3 py-1.5 bg-k-accent hover:bg-k-accent/80 rounded text-sm font-medium transition"
+                  class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition"
                   @click="toggleInlinePlayer(track)"
                 >
                   <Icon :icon="expandedTrackId === track.id ? faTimes : faPlay" class="mr-1" />
-                  {{ expandedTrackId === track.id ? 'Close' : 'Play' }}
+                  {{ expandedTrackId === track.id ? 'Close' : 'Preview' }}
                 </button>
               </div>
             </td>
@@ -137,20 +137,15 @@
           
           <!-- Inline Player Row -->
           <transition 
-            name="expand" 
+            name="player-expand"
             @enter="onEnter" 
             @after-enter="onAfterEnter" 
-            @leave="onLeave" 
+            @leave="onLeave"
             @after-leave="onAfterLeave"
           >
             <InlineSoundCloudPlayer 
               v-if="expandedTrackId === track.id"
               :track="track"
-              :has-previous-track="index > 0"
-              :has-next-track="index < tracks.length - 1"
-              @close="closeInlinePlayer"
-              @previous="playPreviousTrack(index)"
-              @next="playNextTrack(index)"
             />
           </transition>
           </template>
@@ -213,6 +208,8 @@ const isCurrentTrack = (track: SoundCloudTrack) => {
 const toggleInlinePlayer = (track: SoundCloudTrack) => {
   if (expandedTrackId.value === track.id) {
     expandedTrackId.value = null
+    // Clear the soundcloud player store when closing the dropdown
+    soundcloudPlayerStore.hide()
   } else {
     expandedTrackId.value = track.id
     // Auto-play when opening inline player
@@ -220,54 +217,51 @@ const toggleInlinePlayer = (track: SoundCloudTrack) => {
   }
 }
 
-
-const playPreviousTrack = (currentIndex: number) => {
-  if (currentIndex > 0) {
-    const previousTrack = props.tracks[currentIndex - 1]
-    expandedTrackId.value = previousTrack.id
-    emit('play', previousTrack)
-  }
-}
-
-const playNextTrack = (currentIndex: number) => {
-  if (currentIndex < props.tracks.length - 1) {
-    const nextTrack = props.tracks[currentIndex + 1]
-    expandedTrackId.value = nextTrack.id
-    emit('play', nextTrack)
-  }
-}
-
-
-const closeInlinePlayer = () => {
-  expandedTrackId.value = null
-}
-
-// Animation methods
+// Enhanced Animation methods for smooth dropdown
 const onEnter = (el: Element) => {
   const htmlEl = el as HTMLElement
   htmlEl.style.height = '0'
+  htmlEl.style.opacity = '0'
   htmlEl.style.overflow = 'hidden'
+  htmlEl.style.transform = 'scaleY(0)'
+  htmlEl.style.transformOrigin = 'top'
 }
 
 const onAfterEnter = (el: Element) => {
   const htmlEl = el as HTMLElement
-  htmlEl.style.height = 'auto'
-  htmlEl.style.overflow = 'visible'
+  htmlEl.style.height = ''
+  htmlEl.style.opacity = ''
+  htmlEl.style.overflow = ''
+  htmlEl.style.transform = ''
+  htmlEl.style.transformOrigin = ''
 }
 
 const onLeave = (el: Element) => {
   const htmlEl = el as HTMLElement
-  htmlEl.style.height = htmlEl.offsetHeight + 'px'
+  const height = htmlEl.offsetHeight
+  htmlEl.style.height = height + 'px'
+  htmlEl.style.opacity = '1'
   htmlEl.style.overflow = 'hidden'
-  setTimeout(() => {
+  htmlEl.style.transform = 'scaleY(1)'
+  htmlEl.style.transformOrigin = 'top'
+  
+  // Force reflow
+  htmlEl.offsetHeight
+  
+  requestAnimationFrame(() => {
     htmlEl.style.height = '0'
-  }, 10)
+    htmlEl.style.opacity = '0'
+    htmlEl.style.transform = 'scaleY(0)'
+  })
 }
 
 const onAfterLeave = (el: Element) => {
   const htmlEl = el as HTMLElement
-  htmlEl.style.height = 'auto'
-  htmlEl.style.overflow = 'visible'
+  htmlEl.style.height = ''
+  htmlEl.style.opacity = ''
+  htmlEl.style.overflow = ''
+  htmlEl.style.transform = ''
+  htmlEl.style.transformOrigin = ''
 }
 
 // Helper function to get user profile URL
@@ -336,31 +330,40 @@ const formatLikesRatio = (likes: number, plays: number): string => {
 </script>
 
 <style scoped>
-/* Transition styles for expanding inline player */
-.expand-enter-active, 
-.expand-leave-active {
-  transition: all 0.3s ease;
+/* Enhanced transition styles for smooth player dropdown */
+.player-expand-enter-active {
+  transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.25s ease-in-out 0.05s,
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.expand-enter-from {
-  opacity: 0;
-  transform: translateY(-10px);
+.player-expand-leave-active {
+  transition: height 0.3s cubic-bezier(0.4, 0, 0.6, 1), 
+              opacity 0.2s ease-in-out,
+              transform 0.3s cubic-bezier(0.4, 0, 0.6, 1);
 }
 
-.expand-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-/* Ensure smooth height transitions */
-tr.expand-enter-active,
-tr.expand-leave-active {
-  transition: height 0.3s ease, opacity 0.3s ease;
-}
-
-tr.expand-enter-from,
-tr.expand-leave-to {
+.player-expand-enter-from {
   height: 0;
   opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+.player-expand-leave-to {
+  height: 0;
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+/* Smooth table row transitions */
+tr {
+  transition: background-color 0.15s ease;
+}
+
+/* Add subtle shadow to playing rows */
+tr.bg-white\/5 {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 </style>

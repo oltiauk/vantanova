@@ -1,8 +1,7 @@
 <template>
   <SidebarSection>
-    <SidebarSectionHeader class="flex items-center">
-      <span class="flex-1">Playlists</span>
-      <CreatePlaylistContextMenuButton />
+    <SidebarSectionHeader>
+      Playlists
     </SidebarSectionHeader>
 
     <ul>
@@ -22,7 +21,6 @@ import { playlistStore } from '@/stores/playlistStore'
 
 import PlaylistSidebarItem from './PlaylistSidebarItem.vue'
 import PlaylistFolderSidebarItem from './PlaylistFolderSidebarItem.vue'
-import CreatePlaylistContextMenuButton from '@/components/playlist/CreatePlaylistContextMenuButton.vue'
 import SidebarSectionHeader from '@/components/layout/main-wrapper/sidebar/SidebarSectionHeader.vue'
 import SidebarSection from '@/components/layout/main-wrapper/sidebar/SidebarSection.vue'
 

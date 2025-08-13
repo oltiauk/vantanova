@@ -13,14 +13,11 @@
       </div>
     </section>
 
-    <section class="home-search-block p-6 flex gap-2">
+    <section class="home-search-block p-6">
       <HomeButton />
-      <SearchForm class="flex-1" />
     </section>
 
     <section v-koel-overflow-fade class="pt-2 pb-10 overflow-y-auto space-y-8">
-      <SidebarYourMusicSection />
-      
       <!-- MUSIC DISCOVERY SECTION - Using proper Koel pattern -->
       <SidebarSection>
         <template #header>
@@ -79,12 +76,10 @@ import { useUpload } from '@/composables/useUpload'
 import { useRouter } from '@/composables/useRouter'
 
 import HomeButton from '@/components/layout/main-wrapper/sidebar/HomeButton.vue'
-import SearchForm from '@/components/ui/SearchForm.vue'
 import SideSheetButton from '@/components/layout/main-wrapper/side-sheet/SideSheetButton.vue'
 import SidebarManageSection from './SidebarManageSection.vue'
 import SidebarPlaylistsSection from './SidebarPlaylistsSection.vue'
 import SidebarToggleButton from '@/components/layout/main-wrapper/sidebar/SidebarToggleButton.vue'
-import SidebarYourMusicSection from './SidebarYourLibrarySection.vue'
 import SidebarSection from '@/components/layout/main-wrapper/sidebar/SidebarSection.vue'
 import SidebarSectionHeader from '@/components/layout/main-wrapper/sidebar/SidebarSectionHeader.vue'
 import SidebarItem from '@/components/layout/main-wrapper/sidebar/SidebarItem.vue'
@@ -166,7 +161,7 @@ nav {
       }
 
       > .home-search-block {
-        @apply flex;
+        @apply block;
       }
     }
   }
