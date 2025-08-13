@@ -59,9 +59,6 @@
       <SidebarManageSection v-if="showManageSection" />
     </section>
 
-    <section v-if="!isPlus && isAdmin" class="p-6 flex-1 flex flex-col-reverse">
-      <BtnUpgradeToPlus />
-    </section>
 
     <SidebarToggleButton
       v-model="expanded"
@@ -81,7 +78,6 @@ import { useLocalStorage } from '@/composables/useLocalStorage'
 import { useUpload } from '@/composables/useUpload'
 import { useRouter } from '@/composables/useRouter'
 
-import BtnUpgradeToPlus from '@/components/koel-plus/BtnUpgradeToPlus.vue'
 import HomeButton from '@/components/layout/main-wrapper/sidebar/HomeButton.vue'
 import SearchForm from '@/components/ui/SearchForm.vue'
 import SideSheetButton from '@/components/layout/main-wrapper/side-sheet/SideSheetButton.vue'

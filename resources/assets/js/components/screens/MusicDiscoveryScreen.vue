@@ -1,5 +1,6 @@
 <template>
-  <ScreenBase>
+  <div class="pb-k-footer-height">
+    <ScreenBase>
     <template #header>
       <ScreenHeader>
         Discover Music - Provider Comparison
@@ -10,103 +11,105 @@
     </template>
 
     <div class="music-discovery-screen">
-      <SeedTrackSelection
-        v-model:selected-track="selectedSeedTrack"
-        @track-selected="onTrackSelected"
-      />
-
-      <!-- Seed Track Key Display -->
-      <div v-if="selectedSeedTrack && seedTrackKey !== null" class="mb-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-        <h3 class="text-blue-300 font-medium mb-4">🎹 Seed Track Analysis</h3>
-        <div class="grid grid-cols-2 gap-6 text-sm">
-          <div>
-            <span class="text-k-text-secondary">Key:</span>
-            <span class="text-k-text-primary ml-2 font-medium">
-              {{ seedTrackKey !== -1 ? keyNames[seedTrackKey] || 'Unknown' : 'No key detected' }}
-            </span>
-          </div>
-          <div>
-            <span class="text-k-text-secondary">Mode:</span>
-            <span class="text-k-text-primary ml-2 font-medium">
-              {{ seedTrackMode === 1 ? 'Major' : seedTrackMode === 0 ? 'Minor' : 'Unknown' }}
-            </span>
-          </div>
-        </div>
-        <div class="mt-4 text-xs text-blue-200">
-          This is the musical key of your selected track. Watch how each provider handles key recommendations.
-        </div>
-      </div>
-
-      <div class="mb-8">
-        <ParameterControls
-          v-if="selectedSeedTrack"
-          v-model:parameters="parameters"
-          v-model:enabled-parameters="enabledParameters"
-          v-model:selected-key-mode="selectedKeyMode"
-          v-model:custom-key="customKey"
-          :has-enabled-parameters="hasEnabledParameters"
-          :seed-track-key="seedTrackKey"
-          :key-names="keyNames"
-          :is-discovering="isDiscovering"
-          :current-provider="currentProvider"
-          @discover-soundstats="discoverMusicSoundStats"
-          @discover-reccobeats="discoverMusicReccoBeats"
-          @discover-rapidapi="discoverMusicRapidApi"
+        <SeedTrackSelection
+          v-model:selected-track="selectedSeedTrack"
+          @track-selected="onTrackSelected"
         />
-      </div>
 
-      <RecommendationsList
-        v-if="selectedSeedTrack && recommendations.length > 0"
-        :recommendations="recommendations"
-        :displayed-count="displayedCount"
-        :has-more-to-load="hasMoreToLoad"
-        :is-discovering="isDiscovering"
-        :is-loading-more="isLoadingMore"
-        :error-message="errorMessage"
-        :current-provider="currentProvider"
-        :seed-track-key="seedTrackKey"
-        :key-names="keyNames"
-        @clear-error="errorMessage = ''"
-        @load-more="loadMoreRecommendations"
-        @analyze-track="analyzeTrack"
-      />
-
-      <!-- Key Analysis Results -->
-      <div v-if="keyAnalysisResults.length > 0" class="mt-6 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
-        <h3 class="text-green-300 font-medium mb-3">🔍 Key Analysis Results</h3>
-        <div class="text-sm space-y-2">
-          <div>
-            <span class="text-k-text-secondary">Provider:</span>
-            <span class="text-k-text-primary ml-2 font-medium">{{ currentProvider }}</span>
-          </div>
-          <div>
-            <span class="text-k-text-secondary">Seed Key:</span>
-            <span class="text-k-text-primary ml-2 font-medium">
-              {{ seedTrackKey !== -1 ? keyNames[seedTrackKey] : 'Unknown' }}
-            </span>
-          </div>
-          <div class="mt-3">
-            <div class="text-k-text-secondary mb-2">Recommended Track Keys:</div>
-            <div class="grid grid-cols-6 gap-2">
-              <div
-                v-for="result in keyAnalysisResults.slice(0, 12)" :key="result.id"
-                class="p-2 rounded text-xs text-center"
-                :class="getKeyMatchClass(result.key)"
-              >
-                <div class="font-medium">{{ keyNames[result.key] || 'Unknown' }}</div>
-                <div class="text-xs opacity-75">{{ result.name.slice(0, 15) }}...</div>
-              </div>
+        <!-- Seed Track Key Display -->
+        <div v-if="selectedSeedTrack && seedTrackKey !== null" class="mb-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+          <h3 class="text-blue-300 font-medium mb-4">🎹 Seed Track Analysis</h3>
+          <div class="grid grid-cols-2 gap-6 text-sm">
+            <div>
+              <span class="text-k-text-secondary">Key:</span>
+              <span class="text-k-text-primary ml-2 font-medium">
+                {{ seedTrackKey !== -1 ? keyNames[seedTrackKey] || 'Unknown' : 'No key detected' }}
+              </span>
+            </div>
+            <div>
+              <span class="text-k-text-secondary">Mode:</span>
+              <span class="text-k-text-primary ml-2 font-medium">
+                {{ seedTrackMode === 1 ? 'Major' : seedTrackMode === 0 ? 'Minor' : 'Unknown' }}
+              </span>
             </div>
           </div>
-          <div class="mt-3 text-xs">
-            <span class="text-green-400">● Same Key</span>
-            <span class="text-yellow-400 ml-4">● Compatible Key</span>
-            <span class="text-red-400 ml-4">● Different Key</span>
+          <div class="mt-4 text-xs text-blue-200">
+            This is the musical key of your selected track. Watch how each provider handles key recommendations.
+          </div>
+        </div>
+
+        <div class="mb-8">
+          <ParameterControls
+            v-if="selectedSeedTrack"
+            v-model:parameters="parameters"
+            v-model:enabled-parameters="enabledParameters"
+            v-model:selected-key-mode="selectedKeyMode"
+            v-model:custom-key="customKey"
+            :has-enabled-parameters="hasEnabledParameters"
+            :seed-track-key="seedTrackKey"
+            :key-names="keyNames"
+            :is-discovering="isDiscovering"
+            :current-provider="currentProvider"
+            @discover-soundstats="discoverMusicSoundStats"
+            @discover-reccobeats="discoverMusicReccoBeats"
+            @discover-rapidapi="discoverMusicRapidApi"
+          />
+        </div>
+
+        <RecommendationsList
+          v-if="selectedSeedTrack && recommendations.length > 0"
+          :recommendations="recommendations"
+          :displayed-count="displayedCount"
+          :has-more-to-load="hasMoreToLoad"
+          :is-discovering="isDiscovering"
+          :is-loading-more="isLoadingMore"
+          :error-message="errorMessage"
+          :current-provider="currentProvider"
+          :seed-track-key="seedTrackKey"
+          :key-names="keyNames"
+          @clear-error="errorMessage = ''"
+          @load-more="loadMoreRecommendations"
+          @analyze-track="analyzeTrack"
+        />
+
+        <!-- Key Analysis Results -->
+        <div v-if="keyAnalysisResults.length > 0" class="mt-6 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+          <h3 class="text-green-300 font-medium mb-3">🔍 Key Analysis Results</h3>
+          <div class="text-sm space-y-2">
+            <div>
+              <span class="text-k-text-secondary">Provider:</span>
+              <span class="text-k-text-primary ml-2 font-medium">{{ currentProvider }}</span>
+            </div>
+            <div>
+              <span class="text-k-text-secondary">Seed Key:</span>
+              <span class="text-k-text-primary ml-2 font-medium">
+                {{ seedTrackKey !== -1 ? keyNames[seedTrackKey] : 'Unknown' }}
+              </span>
+            </div>
+            <div class="mt-3">
+              <div class="text-k-text-secondary mb-2">Recommended Track Keys:</div>
+              <div class="grid grid-cols-6 gap-2">
+                <div
+                  v-for="result in keyAnalysisResults.slice(0, 12)" :key="result.id"
+                  class="p-2 rounded text-xs text-center"
+                  :class="getKeyMatchClass(result.key)"
+                >
+                  <div class="font-medium">{{ keyNames[result.key] || 'Unknown' }}</div>
+                  <div class="text-xs opacity-75">{{ result.name.slice(0, 15) }}...</div>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 text-xs">
+              <span class="text-green-400">● Same Key</span>
+              <span class="text-yellow-400 ml-4">● Compatible Key</span>
+              <span class="text-red-400 ml-4">● Different Key</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </ScreenBase>
+    </ScreenBase>
+    <ComponentFooterPlayer />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -118,6 +121,7 @@ import ScreenHeader from '@/components/ui/ScreenHeader.vue'
 import SeedTrackSelection from '@/components/screens/music-discovery/SeedTrackSelection.vue'
 import ParameterControls from '@/components/screens/music-discovery/ParameterControls.vue'
 import RecommendationsList from '@/components/screens/music-discovery/RecommendationsList.vue'
+import ComponentFooterPlayer from '@/components/layout/ComponentFooterPlayer.vue'
 
 interface Track {
   id: string

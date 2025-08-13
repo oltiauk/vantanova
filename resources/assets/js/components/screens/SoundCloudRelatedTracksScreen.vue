@@ -108,7 +108,9 @@
         
         <SoundCloudTrackTable 
           :tracks="tracks"
-          @play="playTrackAndFindRelated"
+          @play="playTrack"
+          @pause="pauseTrack"
+          @seek="seekTrack"
           @relatedTracks="findRelatedForTrack"
         />
       </div>
@@ -226,7 +228,15 @@ const selectSeedTrack = async (track: SoundCloudTrack) => {
 
 const playTrack = async (track: SoundCloudTrack) => {
   try {
-    console.log('🎵 Related Tracks Screen - Playing track:', track.title)
+    console.log('🎵 [RELATED] Starting playTrack for:', track.title)
+    
+    // Check if this track is already current and just paused
+    const currentTrack = soundcloudPlayerStore.state.currentTrack
+    if (currentTrack && currentTrack.id === track.id) {
+      console.log('🎵 [RELATED] Resuming current track')
+      soundcloudPlayerStore.setPlaying(true)
+      return
+    }
     
     // Show player immediately with loading state
     soundcloudPlayerStore.show(track, '')
@@ -251,6 +261,17 @@ const playTrack = async (track: SoundCloudTrack) => {
     error.value = `Failed to load SoundCloud player: ${err.message || 'Unknown error'}`
     soundcloudPlayerStore.hide() // Close player on error
   }
+}
+
+const pauseTrack = (track?: SoundCloudTrack) => {
+  console.log('🎵 [RELATED] Pausing track:', track?.title || 'current')
+  soundcloudPlayerStore.setPlaying(false)
+}
+
+const seekTrack = (position: number) => {
+  console.log('🎵 [RELATED] Seeking to position:', position + '%')
+  // Here you could implement actual seek functionality if needed
+  // For now, this is just for UI feedback
 }
 
 const playTrackAndFindRelated = async (track: SoundCloudTrack) => {
@@ -280,6 +301,12 @@ const findRelatedForTrack = async (track: SoundCloudTrack) => {
   
   // Load related tracks for this seed
   await loadRelatedTracks(`soundcloud:tracks:${track.id}`)
+  
+  // After loading related tracks, if this track is currently playing, update navigation
+  const currentTrack = soundcloudPlayerStore.state.currentTrack
+  if (currentTrack && currentTrack.id === track.id) {
+    updateNavigationState(track)
+  }
 }
 
 const updateNavigationState = (track: SoundCloudTrack) => {
@@ -294,10 +321,21 @@ const updateNavigationState = (track: SoundCloudTrack) => {
 
 const getCurrentTrackIndex = () => {
   const currentTrack = soundcloudPlayerStore.state.currentTrack
-  if (!currentTrack) return -1
+  if (!currentTrack) {
+    console.log('🎵 [DEBUG] No current track in store')
+    return -1
+  }
   
   const currentTracksList = showingSeedResults.value ? seedSearchResults.value : tracks.value
-  return currentTracksList.findIndex(t => t.id === currentTrack.id)
+  const index = currentTracksList.findIndex(t => t.id === currentTrack.id)
+  console.log('🎵 [DEBUG] getCurrentTrackIndex:', {
+    currentTrackId: currentTrack.id,
+    currentTrackTitle: currentTrack.title,
+    foundIndex: index,
+    totalTracks: currentTracksList.length,
+    showingSeedResults: showingSeedResults.value
+  })
+  return index
 }
 
 const skipToPrevious = () => {
@@ -307,11 +345,10 @@ const skipToPrevious = () => {
   if (currentIndex > 0) {
     const previousTrack = currentTracksList[currentIndex - 1]
     console.log('🎵 Skipping to previous track:', previousTrack.title)
-    if (showingSeedResults.value) {
-      selectSeedTrack(previousTrack)
-    } else {
-      playTrack(previousTrack)
-    }
+    // Always just play the track, don't select it as seed
+    playTrack(previousTrack)
+  } else {
+    console.log('🎵 Cannot skip to previous: already at first track')
   }
 }
 
@@ -322,11 +359,10 @@ const skipToNext = () => {
   if (currentIndex >= 0 && currentIndex < currentTracksList.length - 1) {
     const nextTrack = currentTracksList[currentIndex + 1]
     console.log('🎵 Skipping to next track:', nextTrack.title)
-    if (showingSeedResults.value) {
-      selectSeedTrack(nextTrack)
-    } else {
-      playTrack(nextTrack)
-    }
+    // Always just play the track, don't select it as seed
+    playTrack(nextTrack)
+  } else {
+    console.log('🎵 Cannot skip to next: already at last track')
   }
 }
 

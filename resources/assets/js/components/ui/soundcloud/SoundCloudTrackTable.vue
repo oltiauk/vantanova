@@ -18,16 +18,26 @@
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="(track, index) in tracks"
-            :key="track.id"
-            class="hover:bg-white/5 transition h-16"
-            :class="isCurrentTrack(track)
-              ? 'bg-white/5 border-2 border-white/20'
-              : 'border-b border-white/5'"
-          >
+          <template v-for="(track, index) in tracks" :key="track.id">
+            <tr
+              class="hover:bg-white/5 transition h-16"
+              :class="isCurrentTrack(track)
+                ? 'bg-white/5 border-2 border-white/20'
+                : 'border-b border-white/5'"
+            >
             <!-- Index -->
-            <td class="p-3 text-white/60 align-middle">{{ index + 1 }}</td>
+            <td class="p-3 align-middle">
+              <div class="flex items-center">
+                <Icon 
+                  v-if="isCurrentTrack(track)" 
+                  :icon="faPlay" 
+                  class="text-k-accent mr-2 text-sm animate-pulse" 
+                />
+                <span :class="isCurrentTrack(track) ? 'text-k-accent font-medium' : 'text-white/60'">
+                  {{ index + 1 }}
+                </span>
+              </div>
+            </td>
 
             <!-- Artist -->
             <td class="p-3 align-middle">
@@ -105,14 +115,6 @@
             <td class="p-3 align-middle">
               <div class="flex gap-2">
                 <button
-                  class="px-3 py-1.5 bg-k-accent hover:bg-k-accent/80 rounded text-sm font-medium transition"
-                  @click="$emit('play', track)"
-                >
-                  <Icon :icon="isCurrentTrack(track) ? faPause : faPlay" class="mr-1" />
-                  {{ isCurrentTrack(track) ? 'Stop' : 'Play' }}
-                </button>
-                
-                <button
                   v-if="props.showRelatedButton"
                   class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium transition"
                   @click="$emit('relatedTracks', track)"
@@ -121,9 +123,37 @@
                   <Icon :icon="faMusic" class="mr-1" />
                   Related
                 </button>
+                
+                <button
+                  class="px-3 py-1.5 bg-k-accent hover:bg-k-accent/80 rounded text-sm font-medium transition"
+                  @click="toggleInlinePlayer(track)"
+                >
+                  <Icon :icon="expandedTrackId === track.id ? faTimes : faPlay" class="mr-1" />
+                  {{ expandedTrackId === track.id ? 'Close' : 'Play' }}
+                </button>
               </div>
             </td>
           </tr>
+          
+          <!-- Inline Player Row -->
+          <transition 
+            name="expand" 
+            @enter="onEnter" 
+            @after-enter="onAfterEnter" 
+            @leave="onLeave" 
+            @after-leave="onAfterLeave"
+          >
+            <InlineSoundCloudPlayer 
+              v-if="expandedTrackId === track.id"
+              :track="track"
+              :has-previous-track="index > 0"
+              :has-next-track="index < tracks.length - 1"
+              @close="closeInlinePlayer"
+              @previous="playPreviousTrack(index)"
+              @next="playNextTrack(index)"
+            />
+          </transition>
+          </template>
         </tbody>
       </table>
     </div>
@@ -131,9 +161,10 @@
 </template>
 
 <script lang="ts" setup>
-import { faPause, faPlay, faMusic } from '@fortawesome/free-solid-svg-icons'
+import { faPause, faPlay, faMusic, faTimes } from '@fortawesome/free-solid-svg-icons'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import InlineSoundCloudPlayer from '@/components/ui/soundcloud/InlineSoundCloudPlayer.vue'
 
 interface SoundCloudTrack {
   id: number
@@ -161,18 +192,82 @@ interface Props {
 
 interface Emits {
   (e: 'play', track: SoundCloudTrack): void
+  (e: 'pause', track: SoundCloudTrack): void
+  (e: 'seek', position: number): void
   (e: 'relatedTracks', track: SoundCloudTrack): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showRelatedButton: true
 })
-defineEmits<Emits>()
+const emit = defineEmits<Emits>()
+
+const expandedTrackId = ref<string | null>(null)
 
 // Helper function to check if a track is currently playing
 const isCurrentTrack = (track: SoundCloudTrack) => {
   const currentTrack = soundcloudPlayerStore.track
   return currentTrack && currentTrack.id === track.id
+}
+
+const toggleInlinePlayer = (track: SoundCloudTrack) => {
+  if (expandedTrackId.value === track.id) {
+    expandedTrackId.value = null
+  } else {
+    expandedTrackId.value = track.id
+    // Auto-play when opening inline player
+    emit('play', track)
+  }
+}
+
+
+const playPreviousTrack = (currentIndex: number) => {
+  if (currentIndex > 0) {
+    const previousTrack = props.tracks[currentIndex - 1]
+    expandedTrackId.value = previousTrack.id
+    emit('play', previousTrack)
+  }
+}
+
+const playNextTrack = (currentIndex: number) => {
+  if (currentIndex < props.tracks.length - 1) {
+    const nextTrack = props.tracks[currentIndex + 1]
+    expandedTrackId.value = nextTrack.id
+    emit('play', nextTrack)
+  }
+}
+
+
+const closeInlinePlayer = () => {
+  expandedTrackId.value = null
+}
+
+// Animation methods
+const onEnter = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.height = '0'
+  htmlEl.style.overflow = 'hidden'
+}
+
+const onAfterEnter = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.height = 'auto'
+  htmlEl.style.overflow = 'visible'
+}
+
+const onLeave = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.height = htmlEl.offsetHeight + 'px'
+  htmlEl.style.overflow = 'hidden'
+  setTimeout(() => {
+    htmlEl.style.height = '0'
+  }, 10)
+}
+
+const onAfterLeave = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.height = 'auto'
+  htmlEl.style.overflow = 'visible'
 }
 
 // Helper function to get user profile URL
@@ -239,3 +334,33 @@ const formatLikesRatio = (likes: number, plays: number): string => {
   return `${ratio.toFixed(2)}%`
 }
 </script>
+
+<style scoped>
+/* Transition styles for expanding inline player */
+.expand-enter-active, 
+.expand-leave-active {
+  transition: all 0.3s ease;
+}
+
+.expand-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.expand-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Ensure smooth height transitions */
+tr.expand-enter-active,
+tr.expand-leave-active {
+  transition: height 0.3s ease, opacity 0.3s ease;
+}
+
+tr.expand-enter-from,
+tr.expand-leave-to {
+  height: 0;
+  opacity: 0;
+}
+</style>

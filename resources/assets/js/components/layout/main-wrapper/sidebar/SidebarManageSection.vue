@@ -11,26 +11,25 @@
         </template>
         Settings
       </SidebarItem>
-      <SidebarItem v-if="allowsUpload" :href="url('upload')" screen="Upload">
-        <template #icon>
-          <Icon :icon="faUpload" fixed-width />
-        </template>
-        Upload
-      </SidebarItem>
       <SidebarItem v-if="isAdmin" :href="url('users.index')" screen="Users">
         <template #icon>
           <Icon :icon="faUsers" fixed-width />
         </template>
         Users
       </SidebarItem>
+      <SidebarItem :href="url('profile')" screen="Profile">
+        <template #icon>
+          <Icon :icon="faUser" fixed-width />
+        </template>
+        Profile
+      </SidebarItem>
     </ul>
   </SidebarSection>
 </template>
 
 <script lang="ts" setup>
-import { faTools, faUpload, faUsers } from '@fortawesome/free-solid-svg-icons'
+import { faTools, faUsers, faUser } from '@fortawesome/free-solid-svg-icons'
 import { useAuthorization } from '@/composables/useAuthorization'
-import { useUpload } from '@/composables/useUpload'
 import { useRouter } from '@/composables/useRouter'
 
 import SidebarSection from '@/components/layout/main-wrapper/sidebar/SidebarSection.vue'
@@ -39,5 +38,4 @@ import SidebarItem from '@/components/layout/main-wrapper/sidebar/SidebarItem.vu
 
 const { url } = useRouter()
 const { isAdmin } = useAuthorization()
-const { allowsUpload } = useUpload()
 </script>

@@ -7,7 +7,7 @@
 
   <main
     v-if="layout === 'main' && initialized"
-    class="absolute md:relative top-0 h-full md:h-screen pt-k-header-height md:pt-0 w-full md:w-auto flex flex-col justify-end"
+    class="absolute md:relative top-0 h-full md:h-screen pt-k-header-height md:pt-0 w-full md:w-auto flex flex-col"
     @dragend="onDragEnd"
     @dragleave="onDragLeave"
     @dragover="onDragOver"
@@ -15,7 +15,6 @@
   >
     <Hotkeys />
     <MainWrapper />
-    <AppFooter />
     <SupportKoel />
     <PlayableContextMenu />
     <AlbumContextMenu />
@@ -49,9 +48,6 @@ import MessageToaster from '@/components/ui/message-toaster/MessageToaster.vue'
 import Overlay from '@/components/ui/Overlay.vue'
 import OfflineNotification from '@/components/ui/OfflineNotification.vue'
 
-// Do not dynamic-import app footer, as it contains the <audio> element
-// that is necessary to properly initialize the playService and equalizer.
-import AppFooter from '@/components/layout/app-footer/index.vue'
 
 // GlobalEventListener must NOT be lazy-loaded, so that it can handle LOG_OUT event properly.
 import GlobalEventListeners from '@/components/utils/GlobalEventListeners.vue'

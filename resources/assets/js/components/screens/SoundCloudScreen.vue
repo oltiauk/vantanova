@@ -269,6 +269,8 @@
         <SoundCloudTrackTable 
           :tracks="tracks"
           @play="playTrack"
+          @pause="pauseTrack"
+          @seek="seekTrack"
           @relatedTracks="openRelatedTracks"
         />
         
@@ -321,21 +323,6 @@
         </div>
       </div>
 
-      <!-- Empty State -->
-      <div v-else-if="!searched && !loading" class="text-center p-12">
-        <Icon :icon="faSoundcloud" class="text-6xl text-white/40 mb-4" />
-        <h3 class="text-xl font-semibold text-white mb-2">Enhanced SoundCloud Search</h3>
-        <p class="text-white/60 max-w-md mx-auto mb-4">
-          Search tracks with advanced parallel API calls for higher quality results with actual BPM data - features not available on the official SoundCloud website!
-        </p>
-        <div class="text-sm text-white/50 space-y-1">
-          <div>✅ Parallel API calls for better results</div>
-          <div>✅ BPM filtering with real data</div>
-          <div>✅ Advanced duration & popularity filters</div>
-          <div>✅ Result quality scoring</div>
-        </div>
-      </div>
-
       <!-- No Results -->
       <div v-else-if="searched && tracks.length === 0 && !loading" class="text-center p-12">
         <Icon :icon="faSearch" class="text-4xl text-white/40 mb-4" />
@@ -376,6 +363,7 @@
         </div>
       </div>
     </div>
+
 
 
   </ScreenBase>
@@ -803,9 +791,6 @@ const search = async () => {
 
     searched.value = true
 
-    if (tracks.value.length === 0) {
-      error.value = 'No tracks found with your criteria. Try broadening your filters.'
-    }
   } catch (err: any) {
     error.value = err.message || 'Failed to search SoundCloud. Please try again.'
     tracks.value = []
@@ -868,12 +853,20 @@ const goToPage = async (page: number) => {
 
 const playTrack = async (track: SoundCloudTrack) => {
   try {
-    console.log('🎵 [DEBUG] Starting playTrack for:', track.title)
-    console.log('🎵 [DEBUG] Track ID:', track.id)
+    console.log('🎵 [SCREEN] Starting playTrack for:', track.title)
+    console.log('🎵 [SCREEN] Track ID:', track.id)
+    
+    // Check if this track is already current and just paused
+    const currentTrack = soundcloudPlayerStore.state.currentTrack
+    if (currentTrack && currentTrack.id === track.id) {
+      console.log('🎵 [SCREEN] Resuming current track')
+      soundcloudPlayerStore.setPlaying(true)
+      return
+    }
     
     // Show player immediately with loading state
     soundcloudPlayerStore.show(track, '')
-    console.log('🎵 [DEBUG] Player store shown, isVisible:', soundcloudPlayerStore.isVisible)
+    console.log('🎵 [SCREEN] Player store shown, isVisible:', soundcloudPlayerStore.isVisible)
     
     // Update navigation state based on track position
     updateNavigationState(track)
@@ -930,6 +923,17 @@ const skipToNext = () => {
     console.log('🎵 Skipping to next track:', nextTrack.title)
     playTrack(nextTrack) // This will automatically update navigation state
   }
+}
+
+const pauseTrack = (track?: SoundCloudTrack) => {
+  console.log('🎵 [SCREEN] Pausing track:', track?.title || 'current')
+  soundcloudPlayerStore.setPlaying(false)
+}
+
+const seekTrack = (position: number) => {
+  console.log('🎵 Seeking to position:', position + '%')
+  // Here you could implement actual seek functionality if needed
+  // For now, this is just for UI feedback
 }
 
 const openRelatedTracks = (track: SoundCloudTrack) => {

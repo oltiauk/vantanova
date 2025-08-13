@@ -424,7 +424,7 @@ class SoundCloudService {
     hide_related?: boolean
     show_comments?: boolean
     show_user?: boolean
-    visual?: boolean
+    visual?: boolean 
   } = {}): Promise<string> {
 
     const response = await http.post<{ embed_url: string }>(SoundCloudService.EMBED_API_ENDPOINT, {

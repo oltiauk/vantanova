@@ -39,14 +39,14 @@
     <ProfileScreen v-if="screen === 'Profile'" />
     <PodcastScreen v-if="screen === 'Podcast'" />
     <EpisodeScreen v-if="screen === 'Episode'" />
-    <UserListScreen v="screen === 'Users'" />
+    <UserListScreen v-if="screen === 'Users'" />
     <YouTubeScreen v-if="useYouTube" v-show="screen === 'YouTube'" />
     <NotFoundScreen v-if="screen === '404'" />
   </section>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, toRef } from 'vue'
+import { onMounted, ref, toRef, computed } from 'vue'
 import { isSong } from '@/utils/typeGuards'
 import { defineAsyncComponent, requireInjection } from '@/utils/helpers'
 import { preferenceStore } from '@/stores/preferenceStore'
@@ -88,12 +88,13 @@ const VisualizerScreen = defineAsyncComponent(() => import('@/components/screens
 const MediaBrowser = defineAsyncComponent(() => import('@/components/screens/MediaBrowserScreen.vue'))
 
 const { useYouTube } = useThirdPartyServices()
-const { onRouteChanged, getCurrentScreen } = useRouter()
+const { onRouteChanged, getCurrentScreen, isCurrentScreen } = useRouter()
 
 const currentSong = requireInjection(CurrentPlayableKey, ref(undefined))
 
 const showAlbumArtOverlay = toRef(preferenceStore.state, 'show_album_art_overlay')
 const screen = ref<ScreenName>('Home')
+
 
 onRouteChanged(route => (screen.value = route.screen))
 

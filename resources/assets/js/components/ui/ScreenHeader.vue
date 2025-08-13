@@ -1,7 +1,7 @@
 <template>
   <header
     :class="[layout, disabled ? 'disabled' : '']"
-    class="screen-header min-h-0 md:min-h-full flex items-end flex-shrink-0 relative content-stretch leading-normal p-6
+    class="screen-header min-h-0 md:min-h-full flex items-center flex-shrink-0 relative content-stretch leading-normal pl-10 pr-6 py-6
     border-b border-b-k-bg-secondary"
   >
     <aside v-if="$slots.thumbnail" class="thumbnail-wrapper hidden md:block overflow-hidden w-0 rounded-md">
@@ -85,7 +85,7 @@ header.screen-header {
   }
 
   h1.name {
-    font-size: clamp(1.8rem, 3vw, 4rem);
+    font-size: clamp(1.2rem, 2vw, 2.5rem);
   }
 
   .meta {
