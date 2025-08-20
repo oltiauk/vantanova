@@ -63,6 +63,13 @@ class MusicPreferencesController extends Controller
 
         $userId = Auth::id();
         
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
+        
         try {
             BlacklistedTrack::updateOrCreate(
                 ['user_id' => $userId, 'isrc' => $request->isrc],
@@ -110,6 +117,13 @@ class MusicPreferencesController extends Controller
 
         $userId = Auth::id();
         
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
+        
         try {
             SavedTrack::saveTrack(
                 $userId,
@@ -124,9 +138,16 @@ class MusicPreferencesController extends Controller
                 'message' => 'Track saved successfully (expires in 24 hours)'
             ]);
         } catch (\Exception $e) {
+            \Log::error('Save track failed: ' . $e->getMessage(), [
+                'track_name' => $request->track_name,
+                'artist_name' => $request->artist_name,
+                'isrc' => $request->isrc,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to save track'
+                'error' => 'Failed to save track: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -153,6 +174,13 @@ class MusicPreferencesController extends Controller
         }
 
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         
         try {
             BlacklistedArtist::updateOrCreate(
@@ -195,6 +223,13 @@ class MusicPreferencesController extends Controller
 
         $userId = Auth::id();
         
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
+        
         try {
             SavedArtist::updateOrCreate(
                 ['user_id' => $userId, 'spotify_artist_id' => $request->spotify_artist_id],
@@ -234,6 +269,13 @@ class MusicPreferencesController extends Controller
         }
 
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         $savedIsrcs = SavedTrack::getSavedIsrcs($userId);
         $blacklistedCount = 0;
 
@@ -275,6 +317,13 @@ class MusicPreferencesController extends Controller
     public function getBlacklistedTracks(): JsonResponse
     {
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         $tracks = BlacklistedTrack::where('user_id', $userId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -291,6 +340,13 @@ class MusicPreferencesController extends Controller
     public function getSavedTracks(): JsonResponse
     {
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         $tracks = SavedTrack::where('user_id', $userId)
             ->where('expires_at', '>', now())
             ->orderBy('created_at', 'desc')
@@ -308,6 +364,13 @@ class MusicPreferencesController extends Controller
     public function getBlacklistedArtists(): JsonResponse
     {
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         $artists = BlacklistedArtist::where('user_id', $userId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -324,6 +387,13 @@ class MusicPreferencesController extends Controller
     public function getSavedArtists(): JsonResponse
     {
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         $artists = SavedArtist::where('user_id', $userId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -351,6 +421,13 @@ class MusicPreferencesController extends Controller
         }
 
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         $deleted = BlacklistedTrack::where('user_id', $userId)
             ->where('isrc', $request->isrc)
             ->delete();
@@ -378,6 +455,13 @@ class MusicPreferencesController extends Controller
         }
 
         $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
         $deleted = BlacklistedArtist::where('user_id', $userId)
             ->where('spotify_artist_id', $request->spotify_artist_id)
             ->delete();

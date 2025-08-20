@@ -1,106 +1,92 @@
 <template>
-    <div class="track-card result-item bg-k-bg-secondary border border-k-border rounded-lg p-4 hover:border-k-accent transition-all duration-200">
-      <div class="flex items-center space-x-4">
-        <!-- Album Art -->
-        <div class="shrink-0">
-          <img
-            v-if="track.image"
-            :src="track.image"
-            :alt="`${track.name} by ${track.artist}`"
-            class="w-16 h-16 rounded-lg object-cover"
-          >
-          <div
-            v-else
-            class="w-16 h-16 rounded-lg bg-k-bg-tertiary flex items-center justify-center"
-          >
-            <Icon :icon="faMusic" class="w-6 h-6 text-k-text-secondary" />
-          </div>
+    <div class="track-card group bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-slate-700/50 hover:border-purple-500/50 rounded-2xl p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10">
+      <!-- Album Art -->
+      <div class="relative mb-4">
+        <img
+          v-if="track.image"
+          :src="track.image"
+          :alt="`${track.name} by ${track.artist}`"
+          class="w-full aspect-square rounded-xl object-cover group-hover:scale-105 transition-transform duration-300"
+        >
+        <div
+          v-else
+          class="w-full aspect-square rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center"
+        >
+          <Icon :icon="faMusic" class="w-12 h-12 text-slate-400" />
         </div>
-  
-        <!-- Track Info -->
-        <div class="flex-1 min-w-0">
-          <h3 class="text-k-text-primary font-medium text-lg truncate">
-            {{ track.name }}
-          </h3>
-          <p class="text-k-text-secondary text-base truncate">
-            {{ track.artist }}
-          </p>
-          <p class="text-k-text-tertiary text-sm truncate">
-            {{ track.album }}
-          </p>
-          <div v-if="track.duration_ms" class="text-k-text-tertiary text-xs mt-1">
-            {{ formatDuration(track.duration_ms) }}
-          </div>
+        
+        <!-- Play overlay on hover -->
+        <div class="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+          <button
+            @click="togglePlay"
+            class="p-4 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur-sm transition-all duration-200 transform hover:scale-110"
+          >
+            <Icon :icon="isPlaying ? faPause : faPlay" class="w-6 h-6 text-white" />
+          </button>
         </div>
-  
-        <!-- Actions -->
-        <div class="shrink-0 flex items-center space-x-2">
-          <!-- Preference Buttons (RESTORED) -->
+      </div>
+
+      <!-- Track Info -->
+      <div class="mb-4">
+        <h3 class="text-white font-bold text-lg leading-tight mb-2 group-hover:text-purple-300 transition-colors duration-200">
+          {{ track.name }}
+        </h3>
+        <p class="text-slate-300 font-medium text-base mb-1">
+          {{ track.artist }}
+        </p>
+        <p class="text-slate-500 text-sm mb-2">
+          {{ track.album }}
+        </p>
+        <div v-if="track.duration_ms" class="text-slate-600 text-xs">
+          {{ formatDuration(track.duration_ms) }}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center justify-between">
+        <!-- Left actions -->
+        <div class="flex items-center gap-2">
           <template v-if="!hidePref">
             <!-- Save Track Button -->
-            <Btn
-              size="sm"
-              class="!p-2"
-              title="Save Track (24 hours)"
-              green
+            <button
               @click="saveTrack"
+              title="Save Track (24 hours)"
+              class="p-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg transition-all duration-200 hover:scale-110"
             >
               <Icon :icon="faHeart" class="w-4 h-4" />
-            </Btn>
+            </button>
 
             <!-- Save Artist Button -->
-            <Btn
-              size="sm"
-              class="!p-2"
-              title="Save Artist"
-              blue
+            <button
               @click="saveArtist"
+              title="Save Artist"
+              class="p-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-all duration-200 hover:scale-110"
             >
               <Icon :icon="faUserPlus" class="w-4 h-4" />
-            </Btn>
+            </button>
 
             <!-- Ban Artist Button -->
-            <Btn
-              size="sm"
-              class="!p-2"
-              title="Ban Artist"
-              red
+            <button
               @click="banArtist"
+              title="Ban Artist"
+              class="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-all duration-200 hover:scale-110"
             >
               <Icon :icon="faUserMinus" class="w-4 h-4" />
-            </Btn>
+            </button>
           </template>
-          
-          <!-- Play Button -->
-          <Btn
-            size="sm"
-            class="!p-2"
-            :title="isPlaying ? 'Pause' : 'Play on YouTube'"
-            @click="togglePlay"
-          >
-            <Icon :icon="isPlaying ? faPause : faPlay" class="w-4 h-4" />
-          </Btn>
-  
+        </div>
+        
+        <!-- Right actions -->
+        <div class="flex items-center gap-2">
           <!-- External Link -->
-          <Btn
+          <button
             v-if="track.external_url"
-            size="sm"
-            class="!p-2"
-            title="Open in Spotify"
             @click="openExternal"
+            title="Open in Spotify"
+            class="p-2 bg-slate-600/50 hover:bg-slate-600/70 text-slate-300 rounded-lg transition-all duration-200 hover:scale-110"
           >
             <Icon :icon="faExternalLinkAlt" class="w-4 h-4" />
-          </Btn>
-  
-          <!-- Fallback if no preview but has external -->
-          <Btn
-            v-else-if="!track.preview_url && track.external_url"
-            size="sm"
-            gray
-            @click="openExternal"
-          >
-            Listen
-          </Btn>
+          </button>
         </div>
       </div>
     </div>
@@ -116,7 +102,6 @@
   import { requireInjection } from '@/utils/helpers'
   import { CurrentPlayableKey } from '@/symbols'
   
-  import Btn from '@/components/ui/form/Btn.vue'
   
   // Types
   interface Track {

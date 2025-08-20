@@ -51,7 +51,7 @@ class SavedTrack extends Model
     /**
      * Create a saved track with 24-hour expiration
      */
-    public static function saveTrack(int $userId, string $isrc, string $trackName, string $artistName, ?string $spotifyId = null): static
+    public static function saveTrack(string|int $userId, string $isrc, string $trackName, string $artistName, ?string $spotifyId = null): static
     {
         return static::updateOrCreate(
             ['user_id' => $userId, 'isrc' => $isrc],

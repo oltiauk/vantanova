@@ -247,7 +247,7 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::post('batch-track-features', [MusicDiscoveryController::class, 'getBatchTrackFeatures'])->name('batch-track-features');
         });
 
-        // Music Preferences routes (blacklist/save)
+        // Music Preferences routes (requires authentication)
         Route::prefix('music-preferences')->name('music-preferences.')->group(static function (): void {
             Route::post('blacklist-track', [MusicPreferencesController::class, 'blacklistTrack'])->name('blacklist-track');
             Route::post('save-track', [MusicPreferencesController::class, 'saveTrack'])->name('save-track');
@@ -263,6 +263,7 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::delete('blacklist-track', [MusicPreferencesController::class, 'removeFromBlacklist'])->name('remove-blacklist-track');
             Route::delete('blacklist-artist', [MusicPreferencesController::class, 'removeArtistFromBlacklist'])->name('remove-blacklist-artist');
         });
+
     });
 
     // Object-storage (S3) routes
@@ -272,6 +273,14 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
     });
 
     Route::get('demo/credits', FetchDemoCreditsController::class);
+
+    // Public music discovery routes (no auth required)
+    Route::get('music-discovery/deezer-search', [MusicDiscoveryController::class, 'searchDeezer'])->name('music-discovery.deezer-search');
+    Route::post('music-discovery/seed-recommendations', [MusicDiscoveryController::class, 'getSeedRecommendations'])->name('music-discovery.seed-recommendations');
+    Route::get('music-discovery/related-tracks', [MusicDiscoveryController::class, 'getRelatedTracks'])->name('music-discovery.related-tracks');
+    Route::get('music-discovery/search-spotify', [MusicDiscoveryController::class, 'searchSpotify'])->name('music-discovery.search-spotify');
+    Route::get('music-discovery/search-parallel', [MusicDiscoveryController::class, 'searchParallel'])->name('music-discovery.search-parallel');
+    Route::get('music-discovery/deezer-recommendations', [MusicDiscoveryController::class, 'getDeezerRecommendations'])->name('music-discovery.deezer-recommendations');
 
     Route::get('debug-reccobeats/{trackId}', function($trackId) {
         try {

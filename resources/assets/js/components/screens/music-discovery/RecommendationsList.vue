@@ -1,42 +1,73 @@
 <template>
     <div class="recommendations-section">
-      <!-- Results Header -->
-      <div v-if="recommendations.length > 0 || isDiscovering" class="results-header mb-6">
-        <div class="flex items-center justify-between">
-          <h3 class="text-k-accent font-medium text-xl">
-            {{ isDiscovering ? 'Discovering Music...' : 'Recommendations' }}
-          </h3>
-          <div v-if="recommendations.length > 0" class="flex items-center gap-3">
-            <!-- Blacklist Unsaved Tracks Button -->
-            <!-- <Btn
-              size="sm"
-              red
-              :disabled="isBlacklistingUnsaved"
-              @click="blacklistUnsavedTracks"
-              title="Add all currently displayed tracks that aren't saved to your blacklist"
-            >
-              {{ isBlacklistingUnsaved ? 'Blacklisting...' : 'Blacklist Unsaved Tracks' }}
-            </Btn> -->
-            <span class="text-k-text-secondary text-sm">
-              Showing {{ displayedCount }} tracks
-            </span>
+      <!-- Modern Results Header -->
+      <div v-if="recommendations.length > 0 || isDiscovering" class="results-header mb-8">
+        <div class="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl p-6">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
+                <Icon :icon="faMusic" class="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 class="text-white font-bold text-2xl">
+                  {{ isDiscovering ? 'Discovering Music...' : 'Similar Tracks Found' }}
+                </h3>
+                <p class="text-white/70 text-sm">
+                  {{ isDiscovering ? 'Analyzing your preferences with AI' : `${currentProvider} • ${displayedCount} tracks` }}
+                </p>
+              </div>
+            </div>
+            
+            <div v-if="recommendations.length > 0" class="flex items-center gap-3">
+              <div class="px-4 py-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                <span class="text-white font-medium text-sm">
+                  {{ displayedCount }} tracks
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
   
-      <!-- Loading State -->
+      <!-- Enhanced Loading State -->
       <div v-if="isDiscovering" class="discovering-state">
-        <div class="flex flex-col items-center justify-center py-12">
-          <div class="relative mb-6">
-            <div class="animate-spin rounded-full h-16 w-16 border-4 border-k-bg-tertiary border-t-k-accent"></div>
-            <div class="absolute inset-0 flex items-center justify-center">
-              <Icon :icon="faMusic" class="w-6 h-6 text-k-accent" />
+        <div class="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border border-purple-500/20 rounded-2xl p-12">
+          <div class="flex flex-col items-center justify-center text-center">
+            <div class="relative mb-8">
+              <!-- Outer spinning ring -->
+              <div class="animate-spin rounded-full h-20 w-20 border-4 border-purple-500/20 border-t-purple-500"></div>
+              <!-- Inner pulsing circle -->
+              <div class="absolute inset-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full animate-pulse flex items-center justify-center">
+                <Icon :icon="faMusic" class="w-8 h-8 text-white" />
+              </div>
+              <!-- Floating particles -->
+              <div class="absolute -top-2 -left-2 w-2 h-2 bg-purple-400 rounded-full animate-ping"></div>
+              <div class="absolute -bottom-2 -right-2 w-2 h-2 bg-pink-400 rounded-full animate-ping" style="animation-delay: 0.5s;"></div>
+            </div>
+            
+            <h4 class="text-white text-xl font-bold mb-3">Discovering Similar Tracks</h4>
+            <p class="text-white/70 text-base mb-4 max-w-md">
+              Our AI is analyzing Spotify and Shazam databases to find tracks that match your taste
+            </p>
+            
+            <!-- Progress indicators -->
+            <div class="flex items-center gap-2 text-sm text-white/50">
+              <div class="flex items-center gap-1">
+                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span>Spotify API</span>
+              </div>
+              <span>•</span>
+              <div class="flex items-center gap-1">
+                <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style="animation-delay: 0.3s;"></div>
+                <span>Shazam API</span>
+              </div>
+              <span>•</span>
+              <div class="flex items-center gap-1">
+                <div class="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style="animation-delay: 0.6s;"></div>
+                <span>AI Processing</span>
+              </div>
             </div>
           </div>
-          <p class="text-k-text-primary text-lg font-medium mb-2">Analyzing your preferences...</p>
-          <p class="text-k-text-secondary text-sm text-center max-w-md">
-            Our AI is finding tracks that match your selected parameters and seed track
-          </p>
         </div>
       </div>
   
@@ -60,44 +91,66 @@
         </div>
       </div>
   
-      <!-- Recommendations List -->
+      <!-- Modern Recommendations Grid -->
       <div v-if="recommendations.length > 0 && !isDiscovering" class="recommendations-list">
-        <div class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           <TrackCard
             v-for="(track, index) in recommendations"
             :key="`${track.id}-${index}`"
             :track="track"
+            class="transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
           />
         </div>
   
-        <!-- Load More Loading State -->
-        <div v-if="isLoadingMore" class="load-more-loading mt-6">
-          <div class="flex items-center justify-center py-4">
-            <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-bg-tertiary border-t-k-accent mr-3"></div>
-            <span class="text-k-text-secondary">Loading more tracks...</span>
+        <!-- Enhanced Load More Loading State -->
+        <div v-if="isLoadingMore" class="load-more-loading mt-8">
+          <div class="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-6">
+            <div class="flex items-center justify-center gap-4">
+              <div class="relative">
+                <div class="animate-spin rounded-full h-8 w-8 border-3 border-blue-500/20 border-t-blue-500"></div>
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full opacity-20 animate-pulse"></div>
+              </div>
+              <span class="text-white font-medium text-lg">Loading more amazing tracks...</span>
+            </div>
           </div>
         </div>
   
-        <!-- Results Footer with Load More -->
-        <div class="results-footer mt-8 pt-6 border-t border-k-border">
-          <div class="flex items-center justify-between">
-            <div class="text-k-text-secondary text-sm">
-              Showing {{ displayedCount }} recommendations
-            </div>
-            <div class="flex items-center gap-3">
-              <!-- Load More Button -->
-              <Btn
-                v-if="hasMoreToLoad"
-                :disabled="isLoadingMore"
-                green
-                @click="$emit('loadMore')"
-              >
-                {{ isLoadingMore ? 'Loading...' : 'Load More' }}
-              </Btn>
+        <!-- Modern Results Footer -->
+        <div class="results-footer mt-10">
+          <div class="bg-gradient-to-r from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-xl p-6 backdrop-blur-sm">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  <span class="text-white font-medium">
+                    {{ displayedCount }} tracks discovered
+                  </span>
+                </div>
+                <div class="h-4 w-px bg-gray-600"></div>
+                <div class="text-white/60 text-sm">
+                  Powered by Spotify + Shazam APIs
+                </div>
+              </div>
               
-              <span class="text-k-text-tertiary text-xs">
-                Powered by SoundStats AI
-              </span>
+              <div class="flex items-center gap-4">
+                <!-- Load More Button -->
+                <button
+                  v-if="hasMoreToLoad"
+                  :disabled="isLoadingMore"
+                  @click="$emit('loadMore')"
+                  class="group px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
+                >
+                  <div class="flex items-center gap-2">
+                    <Icon v-if="isLoadingMore" :icon="faSpinner" spin />
+                    <Icon v-else :icon="faPlus" class="group-hover:rotate-90 transition-transform duration-300" />
+                    <span>{{ isLoadingMore ? 'Loading...' : 'Load More' }}</span>
+                  </div>
+                </button>
+                
+                <div v-else class="px-4 py-2 bg-white/10 rounded-lg">
+                  <span class="text-white/70 text-sm font-medium">All tracks loaded</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -143,7 +196,7 @@
   
   <script setup lang="ts">
   import { ref } from 'vue'
-  import { faMusic, faSearch, faExclamationTriangle, faExclamationCircle, faTimes } from '@fortawesome/free-solid-svg-icons'
+  import { faMusic, faSearch, faExclamationTriangle, faExclamationCircle, faTimes, faSpinner, faPlus } from '@fortawesome/free-solid-svg-icons'
   import { http } from '@/services/http'
   
   import Btn from '@/components/ui/form/Btn.vue'

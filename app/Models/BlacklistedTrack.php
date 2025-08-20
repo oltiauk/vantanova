@@ -23,7 +23,7 @@ class BlacklistedTrack extends Model
     /**
      * Check if a track is blacklisted for a user
      */
-    public static function isBlacklisted(int $userId, string $isrc): bool
+    public static function isBlacklisted(string|int $userId, string $isrc): bool
     {
         return static::where('user_id', $userId)
             ->where('isrc', $isrc)

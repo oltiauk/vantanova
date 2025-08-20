@@ -381,68 +381,14 @@
         </div>
       </div> -->
 
-      <!-- Discovery Buttons -->
-      <div class="flex gap-4 mt-6">
-        <!-- COMMENTED OUT FOR TESTING -->
-        <!-- <button
-          @click="$emit('discover-soundstats')"
-          :disabled="!hasEnabledParameters || isDiscovering"
-          class="flex-1 px-6 py-3 rounded-lg font-medium transition-colors"
-          :class="isDiscovering && currentProvider === 'SoundStats'
-            ? 'bg-blue-600 text-white opacity-50 cursor-not-allowed'
-            : hasEnabledParameters
-            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-            : 'bg-gray-600 text-gray-400 cursor-not-allowed'"
-        >
-          <span v-if="isDiscovering && currentProvider === 'SoundStats'">
-            🔄 Testing SoundStats...
-          </span>
-          <span v-else>
-            🎵 Test SoundStats
-          </span>
-        </button>
-
-        <button
-          @click="$emit('discover-reccobeats')"
-          :disabled="!hasEnabledParameters || isDiscovering"
-          class="flex-1 px-6 py-3 rounded-lg font-medium transition-colors"
-          :class="isDiscovering && currentProvider === 'ReccoBeats'
-            ? 'bg-orange-600 text-white opacity-50 cursor-not-allowed'
-            : hasEnabledParameters
-            ? 'bg-orange-600 hover:bg-orange-700 text-white'
-            : 'bg-gray-600 text-gray-400 cursor-not-allowed'"
-        >
-          <span v-if="isDiscovering && currentProvider === 'ReccoBeats'">
-            🔄 Testing ReccoBeats...
-          </span>
-          <span v-else>
-            🎧 Test ReccoBeats
-          </span>
-        </button> -->
-
-        <button
-          @click="$emit('discover-rapidapi')"
-          :disabled="isDiscovering"
-          class="w-full px-6 py-3 rounded-lg font-medium transition-colors"
-          :class="isDiscovering && currentProvider === 'RapidAPI'
-            ? 'bg-purple-600 text-white opacity-50 cursor-not-allowed'
-            : 'bg-purple-600 hover:bg-purple-700 text-white'"
-        >
-          <span v-if="isDiscovering && currentProvider === 'RapidAPI'">
-            🔄 Finding Similar Tracks...
-          </span>
-          <span v-else>
-            🎯 Find Similar Tracks
-          </span>
-        </button>
-      </div>
+      <!-- Note: Related Tracks button moved to individual track actions in the table -->
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick } from 'vue'
-import { faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
+import { faExclamationTriangle, faSpinner, faMusic } from '@fortawesome/free-solid-svg-icons'
 
 import CheckBox from '@/components/ui/form/CheckBox.vue'
 
