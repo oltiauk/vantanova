@@ -15,6 +15,22 @@
           <Icon :icon="faMusic" class="w-12 h-12 text-slate-400" />
         </div>
         
+        <!-- Source Badge - Shazam Indicator -->
+        <div
+          v-if="track.source === 'shazam'"
+          class="absolute top-2 right-2 px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-md shadow-lg animate-pulse"
+          title="Track from Shazam - Test Spotify Preview!"
+        >
+          🎵 SHAZAM
+        </div>
+        <div
+          v-else-if="track.source === 'spotify'"
+          class="absolute top-2 right-2 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-md shadow-lg opacity-70"
+          title="Track from Spotify"
+        >
+          🎧 SPOTIFY
+        </div>
+        
         <!-- Play overlay on hover -->
         <div class="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
           <button
@@ -78,6 +94,16 @@
         
         <!-- Right actions -->
         <div class="flex items-center gap-2">
+          <!-- Preview Button for Shazam tracks -->
+          <button
+            v-if="track.source === 'shazam'"
+            @click="testPreview"
+            title="Test Spotify Preview (Shazam → ISRC → Spotify)"
+            class="p-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition-all duration-200 hover:scale-110 animate-pulse"
+          >
+            <Icon :icon="faEye" class="w-4 h-4" />
+          </button>
+          
           <!-- External Link -->
           <button
             v-if="track.external_url"
@@ -94,7 +120,7 @@
   
   <script setup lang="ts">
   import { ref, onUnmounted, computed } from 'vue'
-  import { faMusic, faPlay, faPause, faExternalLinkAlt, faHeart, faUserPlus, faUserMinus } from '@fortawesome/free-solid-svg-icons'
+  import { faMusic, faPlay, faPause, faExternalLinkAlt, faHeart, faUserPlus, faUserMinus, faEye } from '@fortawesome/free-solid-svg-icons'
   import { http } from '@/services/http'
   import { youTubeService } from '@/services/youTubeService'
   import { playbackService } from '@/services/playbackService'
@@ -120,6 +146,9 @@
       id: string
       name: string
     }>
+    source?: string  // 'shazam' or 'spotify'
+    shazam_id?: string
+    spotify_id?: string
   }
   
   // Props
@@ -231,6 +260,68 @@
   const openExternal = () => {
     if (props.track.external_url) {
       window.open(props.track.external_url, '_blank')
+    }
+  }
+
+  // Test Spotify preview for Shazam tracks
+  const testPreview = async () => {
+    console.log('🎵 Testing Spotify preview for Shazam track:', props.track.name)
+    
+    try {
+      const response = await http.get('music-discovery/track-preview', {
+        params: {
+          artist_name: props.track.artist,
+          track_title: props.track.name,
+          source: 'shazam'
+        }
+      })
+
+      if (response.success && response.data) {
+        console.log('✅ Preview data received:', response.data)
+        
+        // Create a popup or modal to show Spotify embed
+        const popup = window.open('', '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes')
+        if (popup) {
+          popup.document.write(`
+            <html>
+              <head>
+                <title>Spotify Preview: ${props.track.name}</title>
+                <style>
+                  body { 
+                    margin: 0; 
+                    padding: 20px; 
+                    font-family: Arial, sans-serif; 
+                    background: #121212; 
+                    color: white; 
+                  }
+                  .header { margin-bottom: 20px; text-align: center; }
+                  .success { color: #1db954; font-weight: bold; }
+                  .info { color: #ccc; margin-bottom: 10px; }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h2>🎵 Shazam → Spotify Preview Test</h2>
+                  <div class="success">✅ Successfully found on Spotify!</div>
+                </div>
+                <div class="info"><strong>Track:</strong> ${props.track.name}</div>
+                <div class="info"><strong>Artist:</strong> ${props.track.artist}</div>
+                <div class="info"><strong>Source:</strong> Shazam</div>
+                <div class="info"><strong>Spotify ID:</strong> ${response.data.spotify_track_id}</div>
+                <hr style="border-color: #333; margin: 20px 0;">
+                ${response.data.oembed.html}
+              </body>
+            </html>
+          `)
+          popup.document.close()
+        }
+      } else {
+        console.warn('❌ Preview failed:', response.error || 'Unknown error')
+        alert(`Preview failed: ${response.error || 'Could not find track on Spotify'}`)
+      }
+    } catch (error: any) {
+      console.error('❌ Preview request failed:', error)
+      alert(`Preview failed: ${error.response?.data?.error || error.message || 'Network error'}`)
     }
   }
   

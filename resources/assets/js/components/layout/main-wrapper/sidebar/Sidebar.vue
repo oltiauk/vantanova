@@ -29,7 +29,7 @@
             <template #icon>
               <Icon :icon="faSearch" fixed-width />
             </template>
-            Discover Music
+            Related Tracks
           </SidebarItem>
           
           <SidebarItem :href="url('music-preferences')" screen="MusicPreferences">

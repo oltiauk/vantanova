@@ -59,17 +59,43 @@ class SpotifyService
     public function searchTracks(string $query, int $limit = 20): array
     {
         if (!static::enabled()) {
+            Log::warning('🔍 [SPOTIFY SERVICE] Spotify not enabled');
             return ['tracks' => ['items' => []]];
         }
 
         try {
-            $response = $this->client->search($query, 'track', ['limit' => $limit]);
+            // Spotify API limits: min=1, max=50, default=20
+            $spotifyLimit = max(1, min(50, $limit));
+            
+            Log::info('🔍 [SPOTIFY SERVICE] Making Spotify API call', [
+                'query' => $query,
+                'original_limit' => $limit,
+                'spotify_limit' => $spotifyLimit,
+                'search_type' => 'track'
+            ]);
+            
+            $response = $this->client->search($query, 'track', ['limit' => $spotifyLimit]);
+            
+            Log::info('🔍 [SPOTIFY SERVICE] Spotify API response received', [
+                'response_type' => gettype($response),
+                'has_tracks_key' => isset($response['tracks']),
+                'tracks_count' => count($response['tracks']['items'] ?? []),
+                'sample_track_names' => array_slice(
+                    array_map(fn($track) => $track['name'] ?? 'unknown', $response['tracks']['items'] ?? []), 
+                    0, 3
+                )
+            ]);
+            
             return $response ?: ['tracks' => ['items' => []]];
 
         } catch (\Exception $e) {
-            Log::error('Spotify track search error', [
+            Log::error('🔍 [SPOTIFY SERVICE] Spotify track search error', [
                 'message' => $e->getMessage(),
-                'query' => $query
+                'query' => $query,
+                'limit' => $limit,
+                'spotify_limit' => $spotifyLimit ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
             return ['tracks' => ['items' => []]];
         }

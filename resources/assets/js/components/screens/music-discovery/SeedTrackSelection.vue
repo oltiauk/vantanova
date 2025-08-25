@@ -2,18 +2,56 @@
   <div class="seed-selection mb-8">
     <!-- Search Container -->
     <div class="search-container mb-6">
-      <div class="bg-white/5 rounded-lg p-4">
+      <div class="rounded-lg p-4">
         <div class="max-w-4xl mx-auto">
-          <div class="relative">
+          <div class="relative" ref="searchContainer">
+            <!-- Search Icon -->
+            <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
+              <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
+            </div>
+            
             <input
               v-model="searchQuery"
               type="text"
-              class="w-full p-4 bg-white/10 rounded-lg border border-white/20 focus:border-k-accent text-white text-lg pr-12"
+              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg border border-white/20 focus:border-k-accent text-white text-lg"
               placeholder="Search for artists, tracks, albums..."
               @input="onSearchInput"
             />
-            <div v-if="isSearching" class="absolute right-4 top-1/2 transform -translate-y-1/2">
-              <Icon :icon="faSpinner" spin class="text-white/60" />
+            
+            
+            <!-- Search Dropdown -->
+            <div 
+              v-if="searchResults.length > 0" 
+              class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
+            >
+              <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
+                <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
+                  <div 
+                    @click="selectSeedTrack(track)"
+                    class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
+                    :class="{
+                      'bg-k-accent/10': selectedTrack && selectedTrack.id === track.id
+                    }"
+                  >
+                    <!-- Track Info -->
+                    <div class="flex-1 min-w-0">
+                      <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
+                        {{ formatArtists(track) }} - {{ track.name }}
+                      </div>
+                    </div>
+                    
+                    <!-- Duration Badge -->
+                    <div class="bg-k-bg-primary/30 px-2 py-1 rounded text-k-text-tertiary text-xs font-mono ml-3 flex-shrink-0">
+                      {{ formatDuration(track.duration_ms) }}
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="filteredSearchResults.length > 10" class="px-4 py-3 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/20">
+                  <Icon :icon="faMusic" class="mr-1 opacity-50" />
+                  {{ filteredSearchResults.length - 10 }} more tracks found
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -21,13 +59,13 @@
     </div>
 
     <!-- Selected Seed Track Display - Compact -->
-    <div v-if="selectedTrack" class="selected-seed mb-4">
+    <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
+      <div class="text-sm font-medium mb-2" style="color: #1e6880;">Seed Track:</div>
       <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 flex-1 min-w-0">
             <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
-            <span class="text-k-text-primary font-medium truncate">{{ selectedTrack.name }}</span>
-            <span class="text-k-text-secondary text-sm truncate">by {{ selectedTrack.artist }}</span>
+            <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
           </div>
           <button
             @click="clearSeedTrack"
@@ -40,45 +78,7 @@
       </div>
     </div>
 
-    <!-- Search Dropdown Suggestions -->
-    <div v-if="searchResults.length > 0" class="relative">
-      <div class="absolute top-full left-0 right-0 bg-k-bg-secondary/95 backdrop-blur-sm border border-k-border rounded-lg mt-2 max-h-96 overflow-y-auto z-50 shadow-xl">
-        <div class="py-2">
-          <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
-            <div 
-              @click="selectSeedTrack(track)"
-              class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group"
-              :class="{
-                'bg-k-accent/10 border-l-2 border-k-accent': selectedTrack && selectedTrack.id === track.id
-              }"
-            >
-              <!-- Track Info -->
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">{{ track.name }}</div>
-                <div class="text-k-text-secondary text-sm truncate">by {{ track.artist }}</div>
-                <div v-if="track.album" class="text-k-text-tertiary text-xs truncate mt-0.5">{{ track.album }}</div>
-              </div>
-              
-              <!-- Duration Badge -->
-              <div class="bg-k-bg-tertiary px-2 py-1 rounded text-k-text-tertiary text-xs font-mono ml-3">
-                {{ formatDuration(track.duration_ms) }}
-              </div>
-            </div>
-          </div>
-          
-          <div v-if="filteredSearchResults.length > 10" class="px-4 py-2 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/30 mt-1">
-            <Icon :icon="faMusic" class="mr-1 opacity-50" />
-            {{ filteredSearchResults.length - 10 }} more tracks found
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Loading State -->
-    <div v-if="isSearching && searchResults.length === 0" class="text-center p-12">
-      <Icon :icon="faSpinner" spin class="text-4xl text-k-accent mb-4" />
-      <h3 class="text-lg font-semibold text-white mb-2">Searching...</h3>
-    </div>
 
     <!-- Error State -->
     <div v-if="searchError" class="bg-red-500/20 border border-red-500/40 rounded-lg p-4 max-w-2xl mx-auto">
@@ -98,22 +98,23 @@
     </div>
 
     <!-- Instructions -->
-    <div v-if="!selectedTrack && !isSearching && searchResults.length === 0 && !searchQuery.trim()" class="text-center py-12">
+    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="text-center py-12">
       <Icon :icon="faMusic" class="text-6xl text-white/20 mb-6" />
       <h3 class="text-xl font-medium text-white mb-4">Find Your Seed Track</h3>
       <p class="text-white/60 text-lg mb-6">
         Search for a song to use as the starting point for music discovery
       </p>
-      <p class="text-white/40 text-sm">
+      <!-- <p class="text-white/40 text-sm">
         The algorithm will find similar tracks based on your selected parameters
-      </p>
+      </p> -->
     </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { faSearch, faSpinner, faExclamationTriangle, faHeart, faBan, faMusic, faPlay, faTimes, faCheck, faUserPlus, faUserMinus, faRandom } from '@fortawesome/free-solid-svg-icons'
-import { ref, computed, onMounted, watch } from 'vue'
+import { faSearch, faExclamationTriangle, faHeart, faBan, faMusic, faPlay, faTimes, faCheck, faUserPlus, faUserMinus, faRandom } from '@fortawesome/free-solid-svg-icons'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { http } from '@/services/http'
 
 interface Track {
@@ -126,6 +127,10 @@ interface Track {
   preview_url?: string
   image?: string
   uri?: string
+  artists?: Array<{
+    id: string
+    name: string
+  }>
 }
 
 // Props
@@ -145,15 +150,17 @@ const emit = defineEmits<{
   'track-selected': [track: Track]
   'related-tracks': [track: Track]
   'search-results-changed': [hasResults: boolean]
+  'clear-recommendations': []
 }>()
 
 // State
 const searchQuery = ref('')
 const searchResults = ref<Track[]>([])
-const isSearching = ref(false)
 const searchError = ref('')
 const currentPage = ref(1)
+const isSearching = ref(false)
 const expandedTrackId = ref<string | null>(null)
+const searchContainer = ref<HTMLElement | null>(null)
 let searchTimeout: NodeJS.Timeout | null = null
 
 // Music preferences state
@@ -163,8 +170,6 @@ const savedArtists = ref<Set<string>>(new Set())
 const blacklistedArtists = ref<Set<string>>(new Set())
 const processingTrack = ref<string | null>(null)
 
-// YouTube cache
-const youtubeVideoCache = ref<Record<string, string>>({})
 
 // Computed - For seed track selection, show ALL tracks (including blacklisted)
 // Blacklisted artists should appear in search so they can be selected as seed tracks
@@ -211,6 +216,14 @@ const formatDuration = (ms?: number): string => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+const formatArtists = (track: Track): string => {
+  // If track has multiple artists array, use that; otherwise fall back to single artist string
+  if (track.artists && track.artists.length > 0) {
+    return track.artists.map(artist => artist.name).join(', ')
+  }
+  return track.artist
+}
+
 // Auto-search functionality with debouncing
 const onSearchInput = () => {
   // Clear existing timeout
@@ -235,28 +248,40 @@ const onSearchInput = () => {
 
 // Search functionality
 const searchTracks = async () => {
-  if (!searchQuery.value.trim() || isSearching.value) return
+  if (!searchQuery.value.trim()) return
 
+  console.log('🔍 [FRONTEND] Starting search for:', searchQuery.value.trim())
+  
   isSearching.value = true
   searchError.value = ''
   searchResults.value = []
   currentPage.value = 1
 
   try {
+    console.log('🔍 [FRONTEND] Making API call to music-discovery/search-seed')
+    
     // Use the updated search-seed endpoint with Spotify fallback
     const response = await http.post('music-discovery/search-seed', {
       query: searchQuery.value.trim(),
       limit: 100
     })
     
+    console.log('🔍 [FRONTEND] API Response received:', {
+      success: response.success,
+      dataLength: response.data?.length,
+      error: response.error
+    })
+    
     if (response.success && response.data && Array.isArray(response.data)) {
       searchResults.value = response.data
-      console.log(`Found ${response.data.length} tracks from search`)
+      console.log(`🔍 [FRONTEND] Found ${response.data.length} tracks from search`)
+      console.log('🔍 [FRONTEND] Sample track data:', response.data[0]) // Debug the structure
+      console.log('🔍 [FRONTEND] All tracks:', response.data.map(t => `${t.artist} - ${t.name}`))
     } else {
       throw new Error(response.error || 'Invalid response format from backend')
     }
   } catch (err: any) {
-    console.error('Search failed:', err)
+    console.error('🔍 [FRONTEND] Search failed:', err)
     searchError.value = err.message || 'Failed to search tracks. Please try again.'
     searchResults.value = []
   } finally {
@@ -271,12 +296,19 @@ const selectSeedTrack = (track: Track) => {
   // Clear search results after selection
   searchResults.value = []
   searchQuery.value = ''
-  // Automatically find related tracks
-  getRelatedTracks(track)
+  // Only automatically find related tracks if no recommendations exist yet
+  if (!props.hasRecommendations) {
+    getRelatedTracks(track)
+  }
 }
 
 const clearSeedTrack = () => {
   emit('update:selectedTrack', null)
+  // Clear search results to return to initial state
+  searchResults.value = []
+  searchQuery.value = ''
+  // Emit event to clear recommendations
+  emit('clear-recommendations')
 }
 
 const getRelatedTracks = (track: Track) => {
@@ -301,10 +333,12 @@ const saveTrack = async (track: Track) => {
 
     if (isTrackSaved(track)) {
       // Remove from saved (using DELETE request)
-      const response = await http.delete('music-preferences/blacklist-track', {
-        isrc: track.id,
-        track_name: title,
-        artist_name: artist
+      const response = await http.delete('music-preferences/saved-track', {
+        data: {
+          isrc: track.id,
+          track_name: title,
+          artist_name: artist
+        }
       })
 
       if (response.success) {
@@ -352,9 +386,11 @@ const toggleBlacklistTrack = async (track: Track) => {
     if (isTrackBlacklisted(track)) {
       // Unblock track
       const response = await http.delete('music-preferences/blacklist-track', {
-        isrc: track.id,
-        track_name: title,
-        artist_name: artist
+        data: {
+          isrc: track.id,
+          track_name: title,
+          artist_name: artist
+        }
       })
 
       if (response.success) {
@@ -401,9 +437,11 @@ const saveArtist = async (track: Track) => {
 
     if (isArtistSaved(track)) {
       // Remove from saved artists
-      const response = await http.delete('music-preferences/blacklist-artist', {
-        spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
-        artist_name: artistName
+      const response = await http.delete('music-preferences/saved-artist', {
+        data: {
+          spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
+          artist_name: artistName
+        }
       })
 
       if (response.success) {
@@ -449,8 +487,10 @@ const blacklistArtist = async (track: Track) => {
     if (isArtistBlacklisted(track)) {
       // Remove from blacklisted artists
       const response = await http.delete('music-preferences/blacklist-artist', {
-        spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
-        artist_name: artistName
+        data: {
+          spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
+          artist_name: artistName
+        }
       })
 
       if (response.success) {
@@ -485,68 +525,6 @@ const blacklistArtist = async (track: Track) => {
   }
 }
 
-// YouTube functionality
-const toggleYouTubePlayer = async (track: Track) => {
-  const trackKey = getTrackKey(track)
-  
-  if (expandedTrackId.value === trackKey) {
-    expandedTrackId.value = null
-    return
-  }
-
-  expandedTrackId.value = trackKey
-
-  if (!youtubeVideoCache.value[trackKey]) {
-    // Try to get actual YouTube search results for the real song
-    const query = `${track.artist} ${track.name}`
-    
-    try {
-      console.log('🔍 Searching YouTube for:', query)
-      const response = await http.get('youtube/search', {
-        params: {
-          q: query
-        }
-      })
-      
-      console.log('YouTube API response:', response)
-      
-      if (response && response.data && response.items?.length > 0) {
-        // Handle YouTube API response format
-        const video = response.items[0]
-        if (video?.id?.videoId) {
-          youtubeVideoCache.value[trackKey] = video.id.videoId
-          console.log('✅ Found YouTube video (API) for:', query, '| ID:', video.id.videoId)
-          return
-        }
-      } else if (response && response.data && Array.isArray(response.data)) {
-        // Handle scraping response format  
-        const video = response.data[0]
-        if (video?.id) {
-          youtubeVideoCache.value[trackKey] = video.id
-          console.log('✅ Found YouTube video (scraping) for:', query, '| ID:', video.id)
-          return
-        }
-      } else if (response && response.items?.length > 0) {
-        // Handle direct response format
-        const video = response.items[0]
-        if (video?.id?.videoId) {
-          youtubeVideoCache.value[trackKey] = video.id.videoId
-          console.log('✅ Found YouTube video (direct) for:', query, '| ID:', video.id.videoId)
-          return
-        }
-      }
-      
-    } catch (error) {
-      console.error('YouTube search failed for:', query, error)
-    }
-    
-    // If search fails, don't play anything - show error message instead
-    youtubeVideoCache.value[trackKey] = 'NO_VIDEO_FOUND'
-    console.log('❌ No YouTube video found for:', query)
-  }
-}
-
-// No more fallback system - search for the actual song or show error
 
 // Pagination
 const nextPage = () => {
@@ -576,9 +554,22 @@ watch(() => props.hasRecommendations, (hasRecommendations, wasRecommendations) =
   }
 })
 
+// Click outside handler to close dropdown
+const handleClickOutside = (event: MouseEvent) => {
+  if (searchContainer.value && !searchContainer.value.contains(event.target as Node)) {
+    searchResults.value = []
+  }
+}
+
 // Load saved preferences on mount
 onMounted(async () => {
   await loadUserPreferences()
+  document.addEventListener('click', handleClickOutside)
+})
+
+// Clean up event listener
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 
 // Load user's saved tracks and blacklisted items
@@ -633,56 +624,4 @@ const loadUserPreferences = async () => {
   max-width: 100%;
 }
 
-/* YouTube Dropdown Animations - SoundCloud style */
-.youtube-dropdown-enter-active {
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-.youtube-dropdown-leave-active {
-  transition: all 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19);
-}
-
-.youtube-dropdown-enter-from {
-  opacity: 0;
-  transform: translateY(-10px) scaleY(0.8);
-}
-
-.youtube-dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-5px) scaleY(0.9);
-}
-
-.youtube-dropdown-enter-to,
-.youtube-dropdown-leave-from {
-  opacity: 1;
-  transform: translateY(0) scaleY(1);
-}
-
-/* Container animation for smooth height transitions */
-.youtube-player-container {
-  animation: slideDown 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    max-height: 400px;
-  }
-}
-
-/* Enhanced loading and error states */
-.aspect-video {
-  transition: all 0.2s ease;
-}
-
-.aspect-video:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-}
 </style>
