@@ -6,6 +6,7 @@ use App\Http\Integrations\Lastfm\LastfmConnector;
 use App\Http\Integrations\Lastfm\Requests\GetAlbumInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\GetArtistInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\GetSessionKeyRequest;
+use App\Http\Integrations\Lastfm\Requests\GetTrackInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\ScrobbleRequest;
 use App\Http\Integrations\Lastfm\Requests\ToggleLoveTrackRequest;
 use App\Http\Integrations\Lastfm\Requests\UpdateNowPlayingRequest;
@@ -18,6 +19,7 @@ use App\Values\AlbumInformation;
 use App\Values\ArtistInformation;
 use Generator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class LastfmService implements MusicEncyclopedia
 {
@@ -104,5 +106,90 @@ class LastfmService implements MusicEncyclopedia
     {
         $user->preferences->lastFmSessionKey = $sessionKey;
         $user->save();
+    }
+
+    /**
+     * Get track information including play count and listeners from Last.fm
+     */
+    public function getTrackInformation(string $artist, string $track): ?array
+    {
+        if (!static::enabled()) {
+            return null;
+        }
+
+        return rescue(function () use ($artist, $track): ?array {
+            Log::info('🎵 Single LastFM request', ['artist' => $artist, 'track' => $track]);
+            
+            $response = $this->connector->send(new GetTrackInfoRequest($artist, $track));
+            
+            Log::info('🎵 Single LastFM response', [
+                'successful' => $response->successful(),
+                'status' => $response->status(),
+                'body_preview' => substr($response->body(), 0, 300)
+            ]);
+            
+            return $response->dto();
+        });
+    }
+
+    /**
+     * Get track information for multiple tracks in batch
+     * 
+     * @param array<array{artist: string, track: string}> $tracks
+     * @return array<string, array>
+     */
+    public function batchGetTrackInformation(array $tracks): array
+    {
+        Log::info('🎵 LastFM batch service starting', [
+            'enabled' => static::enabled(),
+            'used' => static::used(),
+            'tracks_count' => count($tracks),
+            'config_key_set' => !empty(config('koel.services.lastfm.key')),
+            'config_secret_set' => !empty(config('koel.services.lastfm.secret'))
+        ]);
+
+        if (!static::enabled() || empty($tracks)) {
+            Log::warning('🎵 LastFM service not enabled or no tracks provided', [
+                'enabled' => static::enabled(),
+                'tracks_empty' => empty($tracks)
+            ]);
+            return [];
+        }
+
+        $generatorCallback = static function () use ($tracks): Generator {
+            foreach ($tracks as $track) {
+                Log::info('🎵 Creating LastFM request for', [
+                    'artist' => $track['artist'],
+                    'track' => $track['track']
+                ]);
+                yield new GetTrackInfoRequest($track['artist'], $track['track']);
+            }
+        };
+
+        Log::info('🎵 Using sequential single requests instead of pool for reliability');
+        
+        // Use sequential single requests instead of pool
+        $results = [];
+        foreach ($tracks as $track) {
+            $trackKey = strtolower($track['artist'] . '|' . $track['track']);
+            
+            try {
+                $singleResult = $this->getTrackInformation($track['artist'], $track['track']);
+                if ($singleResult) {
+                    $results[$trackKey] = $singleResult;
+                }
+                
+                // Small delay to respect LastFM rate limits (5 calls per second)
+                usleep(200000); // 0.2 seconds delay
+                
+            } catch (\Exception $e) {
+                Log::warning('🎵 Failed to get LastFM info for track', [
+                    'track' => $track['artist'] . ' - ' . $track['track'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return $results;
     }
 }

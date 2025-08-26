@@ -20,15 +20,20 @@
       <div id="related-tracks-section">
         <RecommendationsTable
           v-if="recommendations.length > 0 || isDiscovering || errorMessage"
-          :recommendations="recommendations"
+          :recommendations="paginatedRecommendations"
           :displayed-count="displayedCount"
           :has-more-to-load="hasMoreToLoad"
           :is-discovering="isDiscovering"
           :is-loading-more="isLoadingMore"
           :error-message="errorMessage"
           :current-provider="currentProvider"
+          :total-tracks="totalTracks"
+          :current-page="currentPage"
+          :tracks-per-page="tracksPerPage"
           @clear-error="errorMessage = ''"
           @load-more="loadMoreRecommendations"
+          @page-change="onPageChange"
+          @per-page-change="onPerPageChange"
           @related-tracks="onRelatedTracksRequested"
           @tracks-blacklisted="onTracksBlacklisted"
         />
@@ -124,6 +129,11 @@ const hasMoreToLoad = ref(true)
 const currentProvider = ref('')
 const hasSearchResults = ref(false)
 
+// Pagination state
+const currentPage = ref(1)
+const tracksPerPage = ref(20)
+const totalTracks = ref(0)
+
 // Blacklisted tracks for filtering
 const blacklistedTracks = ref<Set<string>>(new Set())
 
@@ -181,6 +191,13 @@ const isTrackBlacklisted = (track: Track): boolean => {
 const INITIAL_LOAD = 20
 const LOAD_MORE_BATCH = 20
 
+// Computed property for paginated recommendations
+const paginatedRecommendations = computed(() => {
+  const start = (currentPage.value - 1) * tracksPerPage.value
+  const end = start + tracksPerPage.value
+  return allRecommendations.value.slice(start, end)
+})
+
 const onTrackSelected = async (track: Track) => {
   selectedSeedTrack.value = track
   seedTrackKey.value = null
@@ -204,6 +221,8 @@ const onClearRecommendations = () => {
   recommendations.value = []
   allRecommendations.value = []
   displayedCount.value = 0
+  totalTracks.value = 0
+  currentPage.value = 1
   errorMessage.value = ''
   hasMoreToLoad.value = true
   currentProvider.value = ''
@@ -299,6 +318,8 @@ const discoverMusicSoundStats = async () => {
       console.log(`📋 SoundStats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
       
       allRecommendations.value = filteredTracks
+      totalTracks.value = filteredTracks.length
+      currentPage.value = 1 // Reset to first page
       recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
       displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
       hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
@@ -392,6 +413,8 @@ const discoverMusicReccoBeats = async () => {
       console.log(`📋 ReccoBeats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
       
       allRecommendations.value = filteredTracks
+      totalTracks.value = filteredTracks.length
+      currentPage.value = 1 // Reset to first page
       recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
       displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
       hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
@@ -432,6 +455,8 @@ const discoverMusicRapidApi = async () => {
       console.log(`📋 RapidAPI: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
       
       allRecommendations.value = filteredTracks
+      totalTracks.value = filteredTracks.length
+      currentPage.value = 1 // Reset to first page
       recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
       displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
       hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
@@ -499,6 +524,8 @@ const getRelatedTracks = async (track: Track) => {
       console.log(`📋 Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
       
       allRecommendations.value = filteredTracks
+      totalTracks.value = filteredTracks.length
+      currentPage.value = 1 // Reset to first page
       recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
       displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
       hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
@@ -581,6 +608,16 @@ const onTracksBlacklisted = (trackKeys: string[]) => {
     blacklistedTracks.value.add(trackKey)
   })
   console.log(`📋 Parent: Added ${trackKeys.length} tracks to blacklist state`)
+}
+
+// Pagination event handlers
+const onPageChange = (page: number) => {
+  currentPage.value = page
+}
+
+const onPerPageChange = (perPage: number) => {
+  tracksPerPage.value = perPage
+  currentPage.value = 1 // Reset to first page when changing per-page count
 }
 
 // Load blacklisted tracks on component mount

@@ -69,8 +69,8 @@ class MusicDiscoveryController extends Controller
                 $spotifyTrack = $spotifySearchResults['tracks']['items'][0];
                 $spotifyTrackId = $spotifyTrack['id'];
 
-                // Always get Spotify recommendations - no strict matching
-                $spotifyTracks = $this->getSpotifyRelatedTracks($spotifyTrackId, $limit);
+                // Get Spotify recommendations with genre awareness
+                $spotifyTracks = $this->getSpotifyRelatedTracks($spotifyTrackId, $limit, $spotifyTrack);
                 \Log::info("🎧 Got Spotify tracks", ['count' => count($spotifyTracks)]);
             }
 
@@ -82,7 +82,7 @@ class MusicDiscoveryController extends Controller
 
             // Check if Shazam returned empty due to quota issues  
             if (empty($shazamTracks)) {
-                $shazamQuotaExceeded = $this->checkShazamQuotaStatus();
+                $shazamQuotaExceeded = true; // Assume quota exceeded if no tracks returned
             }
 
             // 4. Combine all tracks
@@ -2094,7 +2094,7 @@ class MusicDiscoveryController extends Controller
     /**
      * Get related tracks from Spotify using the RapidAPI Spotify endpoint
      */
-    private function getSpotifyRelatedTracks(string $spotifyTrackId, int $limit): array
+    private function getSpotifyRelatedTracks(string $spotifyTrackId, int $limit, ?array $seedTrack = null): array
     {
         try {
             // Step 1: Get playlist from track using RapidAPI
@@ -2184,6 +2184,11 @@ class MusicDiscoveryController extends Controller
                 }
             }
 
+            // Apply genre-aware filtering to remove mainstream tracks for underground music
+            if ($seedTrack) {
+                $tracks = $this->filterMainstreamTracks($tracks, $seedTrack);
+            }
+
             return $tracks;
 
         } catch (\Exception $e) {
@@ -2193,26 +2198,107 @@ class MusicDiscoveryController extends Controller
     }
 
     /**
+     * Filter out mainstream commercial tracks when seed track is from underground genres
+     */
+    private function filterMainstreamTracks(array $tracks, array $seedTrack): array
+    {
+        // Get seed track popularity and artist info
+        $seedPopularity = $seedTrack['popularity'] ?? 50;
+        $seedArtist = $seedTrack['artists'][0]['name'] ?? '';
+        
+        \Log::info("🎧 Genre-aware filtering", [
+            'seed_artist' => $seedArtist,
+            'seed_popularity' => $seedPopularity,
+            'total_tracks_before_filter' => count($tracks)
+        ]);
+        
+        // If seed track is underground (low popularity), filter out very popular tracks
+        if ($seedPopularity < 30) {
+            \Log::info("🎧 Underground track detected - filtering mainstream tracks", [
+                'seed_popularity' => $seedPopularity
+            ]);
+            
+            // Define mainstream artists to filter out for underground seed tracks
+            $mainstreamArtists = [
+                'demi lovato', 'the weeknd', 'ariana grande', 'taylor swift', 'drake',
+                'justin bieber', 'ed sheeran', 'bruno mars', 'rihanna', 'beyonce',
+                'kanye west', 'post malone', 'billie eilish', 'dua lipa', 'harry styles',
+                'selena gomez', 'shawn mendes', 'maroon 5', 'imagine dragons',
+                'coldplay', 'calvin harris', 'david guetta', 'martin garrix'
+            ];
+            
+            $filteredTracks = [];
+            foreach ($tracks as $track) {
+                $trackArtist = strtolower($track['artist']['name'] ?? '');
+                
+                // Skip very mainstream artists for underground seed tracks
+                if (in_array($trackArtist, $mainstreamArtists)) {
+                    \Log::debug("🎧 Filtered out mainstream artist: {$track['artist']['name']}");
+                    continue;
+                }
+                
+                $filteredTracks[] = $track;
+            }
+            
+            \Log::info("🎧 Mainstream filtering completed", [
+                'tracks_before' => count($tracks),
+                'tracks_after' => count($filteredTracks),
+                'filtered_out' => count($tracks) - count($filteredTracks)
+            ]);
+            
+            return $filteredTracks;
+        }
+        
+        // For popular seed tracks, return all recommendations
+        return $tracks;
+    }
+
+    /**
      * Get related tracks from Shazam using RapidAPI
      */
     private function getShazamRelatedTracks(string $artistName, string $trackTitle, int $limit): array
     {
         try {
             // Step 1: Search for the track on Shazam to get its ID
-            \Log::info("🎵 Calling Shazam search (artist name only)", [
+            // Try multiple search strategies to improve success rate for underground tracks
+            \Log::info("🎵 Calling Shazam search (multiple strategies)", [
                 'artist' => $artistName,
                 'title' => $trackTitle,
-                'search_term' => $artistName,
-                'strategy' => 'Search by artist name only, then find track by title in results'
+                'strategy' => 'Try full query first, then artist-only if needed'
             ]);
+            
+            $searchResponse = null;
+            $shazamTrackId = null;
+            
+            // Strategy 1: Search by full artist + track query (better for underground tracks)
+            $fullQuery = "$artistName $trackTitle";
+            \Log::info("🎵 Shazam Strategy 1: Full query", ['query' => $fullQuery]);
             
             $searchResponse = Http::withHeaders([
                 'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
                 'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
             ])->get("https://shazam-api6.p.rapidapi.com/shazam/search_track/", [
-                'query' => $artistName, // Search by artist name only
-                'limit' => 10
+                'query' => $fullQuery,
+                'limit' => 15 // Increase limit for better success rate
             ]);
+            
+            if ($searchResponse && $searchResponse->successful()) {
+                $searchData = $searchResponse->json();
+                $shazamTrackId = $this->findMatchingShazamTrack($searchData, $artistName, $trackTitle);
+            }
+            
+            // Strategy 2: If full query failed, try artist name only (original strategy)
+            if (!$shazamTrackId) {
+                \Log::info("🎵 Shazam Strategy 2: Artist name only (fallback)", ['query' => $artistName]);
+                
+                $searchResponse = Http::withHeaders([
+                    'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
+                    'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
+                ])->get("https://shazam-api6.p.rapidapi.com/shazam/search_track/", [
+                    'query' => $artistName,
+                    'limit' => 15 // Increase limit for better success rate
+                ]);
+            }
 
             \Log::info("🎵 Shazam search response", [
                 'status' => $searchResponse->status(),
@@ -2238,43 +2324,10 @@ class MusicDiscoveryController extends Controller
                 return [];
             }
 
-            $searchData = $searchResponse->json();
-            $shazamTrackId = null;
-
-            // Try to find the track ID from search results - search by artist, then find track by title
-            \Log::info("🎵 Processing Shazam search results", [
-                'total_tracks' => isset($searchData['result']['tracks']['hits']) ? count($searchData['result']['tracks']['hits']) : 0,
-                'looking_for_title' => $trackTitle,
-                'looking_for_artist' => $artistName
-            ]);
-            
-            if (isset($searchData['result']['tracks']['hits'])) {
-                foreach ($searchData['result']['tracks']['hits'] as $hitIndex => $track) {
-                    $foundTitle = $track['heading']['title'] ?? '';
-                    $foundArtist = $track['heading']['subtitle'] ?? '';
-                    $trackId = $track['key'] ?? null;
-                    
-                    // Check if this track matches our search title using optimized matching
-                    $matches = false;
-                    if ($trackId) {
-                        $matches = $this->verifyTrackMatch($artistName, $trackTitle, [
-                            'heading' => [
-                                'title' => $foundTitle,
-                                'subtitle' => $foundArtist
-                            ]
-                        ]);
-                    }
-                    
-                    if ($trackId && $matches) {
-                        $shazamTrackId = $trackId;
-                        \Log::info("🎵 ✅ MATCH FOUND - Using Shazam track", [
-                            'track_id' => $shazamTrackId,
-                            'found_title' => $foundTitle,
-                            'found_artist' => $foundArtist
-                        ]);
-                        break;
-                    }
-                }
+            // If we haven't found a track ID from Strategy 1, try Strategy 2 response
+            if (!$shazamTrackId) {
+                $searchData = $searchResponse->json();
+                $shazamTrackId = $this->findMatchingShazamTrack($searchData, $artistName, $trackTitle);
             }
 
             if (!$shazamTrackId) {
@@ -2415,9 +2468,11 @@ class MusicDiscoveryController extends Controller
 
         // Strategy 2: Artist exact match + title similarity (for version differences)
         if ($searchArtistNorm === $trackArtistNorm) {
-            $titleSimilarity = $this->fuzzyMatch($searchTitleNorm, $trackTitleNorm, 0.65);
+            // More lenient threshold for electronic/underground artists
+            $threshold = $this->isElectronicArtist($searchArtist) ? 0.55 : 0.65;
+            $titleSimilarity = $this->fuzzyMatch($searchTitleNorm, $trackTitleNorm, $threshold);
             if ($titleSimilarity) {
-                \Log::info("🎵 Match found: Exact artist + title similarity (0.65)");
+                \Log::info("🎵 Match found: Exact artist + title similarity ($threshold)");
                 return true;
             }
         }
@@ -2491,6 +2546,34 @@ class MusicDiscoveryController extends Controller
             }
         }
 
+        return false;
+    }
+
+    /**
+     * Check if an artist is likely from electronic/underground genre
+     */
+    private function isElectronicArtist(string $artistName): bool
+    {
+        $artistLower = strtolower($artistName);
+        
+        // Known electronic/techno/house artists that might have track variations
+        $electronicArtists = [
+            'paul kalkbrenner', 'k-lone', 'bicep', 'four tet', 'caribou',
+            'bonobo', 'moderat', 'apparat', 'kiara scuro', 'rodhad',
+            'ben klock', 'marcel dettmann', 'nina kraviz', 'charlotte de witte',
+            'amelie lens', 'peggy gou', 'dixon', 'maceo plex', 'tale of us',
+            'adriatique', 'stephan bodzin', 'kollektiv turmstrasse', 'mind against',
+            'recondite', 'max richter', 'nils frahm', 'jon hopkins', 'clark',
+            'burial', 'flying lotus', 'aphex twin', 'boards of canada'
+        ];
+        
+        foreach ($electronicArtists as $electronicArtist) {
+            if (strpos($artistLower, $electronicArtist) !== false || 
+                strpos($electronicArtist, $artistLower) !== false) {
+                return true;
+            }
+        }
+        
         return false;
     }
 

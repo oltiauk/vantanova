@@ -15,6 +15,8 @@ use App\Http\Controllers\API\ExcerptSearchController;
 use App\Http\Controllers\API\FetchAlbumInformationController;
 use App\Http\Controllers\API\FetchAlbumThumbnailController;
 use App\Http\Controllers\API\FetchArtistInformationController;
+use App\Http\Controllers\API\FetchTrackStatsController;
+use App\Http\Controllers\API\TestLastfmController;
 use App\Http\Controllers\API\FetchDemoCreditsController;
 use App\Http\Controllers\API\FetchFavoriteSongsController;
 use App\Http\Controllers\API\FetchInitialDataController;
@@ -175,6 +177,8 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
         // Last.fm-related routes
         Route::post('lastfm/session-key', SetLastfmSessionKeyController::class);
         Route::delete('lastfm/disconnect', DisconnectFromLastfmController::class)->name('lastfm.disconnect');
+        Route::post('lastfm/track-stats', FetchTrackStatsController::class);
+        Route::get('lastfm/test', TestLastfmController::class);
 
         // YouTube-related routes
         if (YouTube::enabled()) {

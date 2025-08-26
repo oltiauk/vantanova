@@ -52,6 +52,45 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
+      <!-- Sort Controls -->
+      <div class="mb-4 flex justify-end">
+        <div class="flex items-center gap-3 bg-white/5 rounded-lg px-4 py-2 backdrop-blur-sm border border-white/10">
+          <span class="text-sm text-white/70 font-medium">Sort by:</span>
+          <div class="relative">
+            <!-- Custom Dropdown Button -->
+            <button
+              @click="dropdownOpen = !dropdownOpen"
+              class="bg-white/10 text-white text-sm rounded-md px-3 py-2 pr-8 border border-white/20 hover:border-[#429488]/50 focus:border-[#429488] focus:outline-none focus:ring-1 focus:ring-[#429488]/30 transition-all duration-200 cursor-pointer min-w-[160px] text-left"
+            >
+              {{ getSortLabel(sortBy) }}
+            </button>
+            
+            <!-- Dropdown Arrow -->
+            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+              <svg class="w-4 h-4 text-white/60 transition-transform duration-200" :class="{ 'rotate-180': dropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+            
+            <!-- Custom Dropdown Options -->
+            <div
+              v-if="dropdownOpen"
+              class="absolute top-full left-0 right-0 mt-1 bg-neutral-800 border border-white/20 rounded-md shadow-lg overflow-hidden z-50 backdrop-blur-sm"
+            >
+              <div
+                v-for="option in sortOptions"
+                :key="option.value"
+                @click="selectSort(option.value)"
+                class="px-3 py-2 text-sm text-white hover:bg-neutral-700 cursor-pointer transition-colors duration-150"
+                :class="{ 'bg-neutral-600 text-white': sortBy === option.value }"
+              >
+                {{ option.label }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="bg-white/5 rounded-lg overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full">
@@ -61,11 +100,14 @@
                 <th class="text-left p-3 font-medium">Artist</th>
                 <th class="text-left p-3 font-medium">Title</th>
                 <th class="text-left p-3 font-medium">Duration</th>
+                <th class="text-left p-3 font-medium">Streams</th>
+                <th class="text-left p-3 font-medium">Listeners</th>
+                <th class="text-left p-3 font-medium">S/L Ratio</th>
                 <th class="text-left p-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <template v-for="(track, index) in recommendations" :key="`related-${track.id}`">
+              <template v-for="(track, index) in displayRecommendations" :key="`related-${track.id}`">
                 <tr class="hover:bg-white/5 transition h-16 border-b border-white/5">
                   <!-- Index -->
                   <td class="p-3 align-middle">
@@ -102,6 +144,51 @@
                   <!-- Duration -->
                   <td class="p-3 align-middle">
                     <span class="text-white/80">{{ formatDuration(track.duration_ms) }}</span>
+                  </td>
+
+                  <!-- Streams (Playcount) -->
+                  <td class="p-3 align-middle">
+                    <div v-if="track.lastfm_stats?.playcount" class="text-white/80">
+                      {{ formatNumber(track.lastfm_stats.playcount) }}
+                    </div>
+                    <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
+                      <svg class="animate-spin h-4 w-4 text-[#429488]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                    <div v-else-if="lastfmError" class="text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
+                    <div v-else class="text-white/30">-</div>
+                  </td>
+
+                  <!-- Listeners -->
+                  <td class="p-3 align-middle">
+                    <div v-if="track.lastfm_stats?.listeners" class="text-white/80">
+                      {{ formatNumber(track.lastfm_stats.listeners) }}
+                    </div>
+                    <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
+                      <svg class="animate-spin h-4 w-4 text-[#429488]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                    <div v-else-if="lastfmError" class="text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
+                    <div v-else class="text-white/30">-</div>
+                  </td>
+
+                  <!-- Streams/Listeners Ratio -->
+                  <td class="p-3 align-middle">
+                    <div v-if="track.lastfm_stats?.playcount && track.lastfm_stats?.listeners" class="text-white/80">
+                      {{ formatRatio(track.lastfm_stats.playcount, track.lastfm_stats.listeners) }}
+                    </div>
+                    <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
+                      <svg class="animate-spin h-4 w-4 text-[#429488]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                    <div v-else-if="lastfmError" class="text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
+                    <div v-else class="text-white/30">-</div>
                   </td>
 
                   <!-- Actions -->
@@ -160,7 +247,7 @@
                 <!-- Spotify Player Dropdown Row with Animation -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${track.id}`" class="border-b border-white/5">
-                    <td colspan="5" class="p-0 overflow-hidden">
+                    <td colspan="8" class="p-0 overflow-hidden">
                       <div class="spotify-player-container bg-green-50/5 p-4">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
@@ -192,22 +279,52 @@
           </table>
         </div>
 
-        <!-- Load More Loading State -->
-        <div v-if="isLoadingMore" class="p-6 border-t border-white/10 text-center">
-          <div class="flex items-center justify-center gap-2">
-            <Icon :icon="faSpinner" spin />
-            <span class="text-white/70">Loading more tracks...</span>
+        <!-- Pagination Controls -->
+        <div v-if="isPaginationMode && currentTotalTracks > currentTracksPerPage" class="p-6 border-t border-white/10">
+          <div class="flex items-center justify-between">
+            <!-- Page Info -->
+            <div class="text-sm text-white/60">
+              Showing {{ (currentPage - 1) * currentTracksPerPage + 1 }}-{{ Math.min(currentPage * currentTracksPerPage, currentTotalTracks) }} of {{ currentTotalTracks }} tracks
+            </div>
+            
+            <!-- Pagination Buttons -->
+            <div class="flex items-center gap-2">
+              <!-- Previous Button -->
+              <button
+                @click="goToPage(currentPage - 1)"
+                :disabled="currentPage === 1"
+                class="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:bg-white/5 disabled:text-white/30 text-white rounded-md font-medium transition disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              
+              <!-- Page Numbers -->
+              <div class="flex items-center gap-1">
+                <template v-for="page in visiblePages" :key="page">
+                  <button
+                    v-if="page !== '...'"
+                    @click="goToPage(page as number)"
+                    :class="currentPage === page 
+                      ? 'bg-[#429488] text-white' 
+                      : 'bg-white/10 hover:bg-white/20 text-white'"
+                    class="w-10 h-10 rounded-md font-medium transition"
+                  >
+                    {{ page }}
+                  </button>
+                  <span v-else class="text-white/40 px-2">...</span>
+                </template>
+              </div>
+              
+              <!-- Next Button -->
+              <button
+                @click="goToPage(currentPage + 1)"
+                :disabled="currentPage === totalPages"
+                class="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:bg-white/5 disabled:text-white/30 text-white rounded-md font-medium transition disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
-
-        <!-- Load More Button -->
-        <div v-if="hasMoreToLoad && !isLoadingMore" class="p-6 border-t border-white/10 text-center">
-          <button
-            @click="$emit('loadMore')"
-            class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition"
-          >
-            Load More Tracks
-          </button>
         </div>
 
       </div>
@@ -216,7 +333,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
 
@@ -240,17 +357,26 @@ interface Track {
   source?: string  // 'shazam' or 'spotify'
   shazam_id?: string
   spotify_id?: string
+  lastfm_stats?: {
+    playcount: number
+    listeners: number
+    url?: string
+  }
 }
 
 // Props
 interface Props {
   recommendations: Track[]
-  displayedCount: number
-  hasMoreToLoad: boolean
   isDiscovering: boolean
-  isLoadingMore: boolean
   errorMessage: string
   currentProvider: string
+  totalTracks?: number
+  currentPage?: number
+  tracksPerPage?: number
+  // Legacy props for backward compatibility
+  displayedCount?: number
+  hasMoreToLoad?: boolean
+  isLoadingMore?: boolean
 }
 
 const props = defineProps<Props>()
@@ -259,6 +385,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'clearError': []
   'loadMore': []
+  'page-change': [page: number]
+  'per-page-change': [perPage: number]
   'related-tracks': [track: Track]
   'tracks-blacklisted': [trackKeys: string[]]
 }>()
@@ -267,6 +395,20 @@ const emit = defineEmits<{
 const expandedTrackId = ref<string | null>(null)
 const processingTrack = ref<string | null>(null)
 const isBlacklisting = ref(false)
+const lastfmStatsLoading = ref(false)
+const lastfmError = ref(false)
+const sortBy = ref<string>('none')
+const sortedRecommendations = ref<Track[]>([])
+const originalRecommendations = ref<Track[]>([])
+const dropdownOpen = ref(false)
+
+// Sort options for the custom dropdown
+const sortOptions = [
+  { value: 'none', label: 'Random (Default)' },
+  { value: 'playcount', label: 'Most Streams' },
+  { value: 'listeners', label: 'Most Listeners' },
+  { value: 'ratio', label: 'Best Ratio (S/L)' }
+]
 
 // Music preferences state
 const savedTracks = ref<Set<string>>(new Set())
@@ -285,6 +427,95 @@ const formatDuration = (ms?: number): string => {
   const seconds = Math.floor((ms % 60000) / 1000)
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
+
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M'
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K'
+  }
+  return num.toString()
+}
+
+const formatRatio = (playcount: number, listeners: number): string => {
+  if (listeners === 0) return '0'
+  const ratio = playcount / listeners
+  return ratio.toFixed(1)
+}
+
+// Helper functions for custom dropdown
+const getSortLabel = (value: string): string => {
+  const option = sortOptions.find(opt => opt.value === value)
+  return option ? option.label : 'Random (Default)'
+}
+
+const selectSort = (value: string): void => {
+  sortBy.value = value
+  dropdownOpen.value = false
+  applySorting()
+}
+
+// Default values for pagination (with fallbacks for legacy mode)
+const currentTotalTracks = computed(() => props.totalTracks ?? props.recommendations.length)
+const currentPage = computed(() => props.currentPage ?? 1)
+const currentTracksPerPage = computed(() => props.tracksPerPage ?? 20)
+const isPaginationMode = computed(() => props.totalTracks !== undefined)
+
+// Pagination computed properties
+const totalPages = computed(() => {
+  return Math.ceil(currentTotalTracks.value / currentTracksPerPage.value)
+})
+
+const visiblePages = computed(() => {
+  const pages: (number | string)[] = []
+  const current = currentPage.value
+  const total = totalPages.value
+  
+  if (total <= 7) {
+    // Show all pages if 7 or fewer
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    // Always show first page
+    pages.push(1)
+    
+    if (current > 3) {
+      pages.push('...')
+    }
+    
+    // Show pages around current
+    const start = Math.max(2, current - 1)
+    const end = Math.min(total - 1, current + 1)
+    
+    for (let i = start; i <= end; i++) {
+      if (i !== 1 && i !== total) {
+        pages.push(i)
+      }
+    }
+    
+    if (current < total - 2) {
+      pages.push('...')
+    }
+    
+    // Always show last page
+    if (total > 1) {
+      pages.push(total)
+    }
+  }
+  
+  return pages
+})
+
+// Computed property for displayed recommendations
+const displayRecommendations = computed(() => {
+  if (sortBy.value === 'none') {
+    // Show tracks in random order when no sorting is applied
+    return originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
+  }
+  return sortedRecommendations.value
+})
 
 const isTrackSaved = (track: Track): boolean => {
   return savedTracks.value.has(getTrackKey(track))
@@ -495,6 +726,17 @@ const getRelatedTracks = (track: Track) => {
   emit('related-tracks', track)
 }
 
+// Pagination methods
+const goToPage = (page: number) => {
+  if (page >= 1 && page <= totalPages.value) {
+    emit('page-change', page)
+  }
+}
+
+const changePerPage = () => {
+  emit('per-page-change', props.tracksPerPage)
+}
+
 // Enhanced notification functions for better UX
 const showTrackNotFoundNotification = (track: Track) => {
   // Create a beautiful notification instead of alert
@@ -658,7 +900,7 @@ const blacklistUnsavedTracks = async () => {
   
   try {
     // Get all currently displayed tracks that are not saved
-    const unsavedTracks = props.recommendations.filter(track => !isTrackSaved(track))
+    const unsavedTracks = displayRecommendations.value.filter(track => !isTrackSaved(track))
     
     if (unsavedTracks.length === 0) {
       console.log('No unsaved tracks to blacklist')
@@ -727,9 +969,131 @@ const blacklistUnsavedTracks = async () => {
 }
 
 // Load user preferences on mount
+// Click outside handler to close dropdown
+const handleClickOutside = (event: Event) => {
+  const target = event.target as Element
+  if (!target.closest('.relative')) {
+    dropdownOpen.value = false
+  }
+}
+
 onMounted(async () => {
   await loadUserPreferences()
+  document.addEventListener('click', handleClickOutside)
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+
+// Fetch LastFM stats for tracks
+const fetchLastFmStats = async (tracks: Track[]) => {
+  if (tracks.length === 0) return
+  
+  console.log('🎵 Fetching LastFM stats for tracks:', tracks.length)
+  lastfmStatsLoading.value = true
+  
+  try {
+    const trackData = tracks.slice(0, 20).map(track => ({
+      artist: track.artist,
+      track: track.name
+    }))
+    
+    console.log('🎵 Sending LastFM stats request:', trackData.slice(0, 3))
+    
+    const response = await http.post('lastfm/track-stats', {
+      tracks: trackData
+    })
+    
+    console.log('🎵 LastFM stats response:', response)
+    
+    if (response.success && response.data) {
+      console.log('🎵 LastFM stats data received:', Object.keys(response.data).length, 'tracks')
+      
+      // Update tracks with LastFM stats
+      tracks.forEach(track => {
+        const trackKey = `${track.artist.toLowerCase()}|${track.name.toLowerCase()}`
+        const stats = response.data[trackKey]
+        
+        if (stats && (stats.playcount > 0 || stats.listeners > 0)) {
+          console.log(`🎵 Adding stats to "${track.name}" by ${track.artist}:`, stats)
+          track.lastfm_stats = {
+            playcount: stats.playcount,
+            listeners: stats.listeners,
+            url: stats.url
+          }
+        }
+      })
+    } else {
+      console.warn('🎵 LastFM stats request failed:', response.error || 'Unknown error')
+      lastfmError.value = true
+    }
+  } catch (error) {
+    console.error('🎵 Failed to fetch LastFM stats:', error)
+    lastfmError.value = true
+  } finally {
+    lastfmStatsLoading.value = false
+  }
+}
+
+// Apply sorting to recommendations
+const applySorting = () => {
+  if (sortBy.value === 'none') {
+    // Random order - use original recommendations
+    return
+  }
+  
+  const baseRecommendations = originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
+  
+  const sorted = [...baseRecommendations].sort((a, b) => {
+    const aStats = a.lastfm_stats
+    const bStats = b.lastfm_stats
+    
+    // Tracks without stats go to the end
+    if (!aStats && !bStats) return 0
+    if (!aStats) return 1
+    if (!bStats) return -1
+    
+    switch (sortBy.value) {
+      case 'playcount':
+        return (bStats.playcount || 0) - (aStats.playcount || 0)
+      case 'listeners':
+        return (bStats.listeners || 0) - (aStats.listeners || 0)
+      case 'ratio':
+        const ratioA = aStats.listeners > 0 ? aStats.playcount / aStats.listeners : 0
+        const ratioB = bStats.listeners > 0 ? bStats.playcount / bStats.listeners : 0
+        return ratioB - ratioA
+      default:
+        return 0
+    }
+  })
+  
+  sortedRecommendations.value = sorted
+}
+
+// Shuffle array function to randomize display
+const shuffleArray = <T>(array: T[]): T[] => {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+// Watch for recommendation changes and fetch stats
+watch(() => props.recommendations, async (newRecommendations) => {
+  if (newRecommendations.length > 0) {
+    // Store original recommendations and shuffle them for random display
+    originalRecommendations.value = shuffleArray(newRecommendations)
+    
+    await fetchLastFmStats(newRecommendations.slice(0, 20)) // Only fetch stats for first 20
+    
+    // Reset sort to random when new recommendations come in
+    sortBy.value = 'none'
+    applySorting()
+  }
+}, { immediate: true })
 
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {

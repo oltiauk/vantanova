@@ -291,15 +291,15 @@ const searchTracks = async () => {
 
 // Seed track management
 const selectSeedTrack = (track: Track) => {
+  // Clear previous recommendations when selecting a new seed track
+  emit('clear-recommendations')
   emit('update:selectedTrack', track)
   emit('track-selected', track)
   // Clear search results after selection
   searchResults.value = []
   searchQuery.value = ''
-  // Only automatically find related tracks if no recommendations exist yet
-  if (!props.hasRecommendations) {
-    getRelatedTracks(track)
-  }
+  // Always get related tracks for the newly selected seed track
+  getRelatedTracks(track)
 }
 
 const clearSeedTrack = () => {
