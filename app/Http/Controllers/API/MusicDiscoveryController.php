@@ -31,7 +31,7 @@ class MusicDiscoveryController extends Controller
     public function getRelatedTracks(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'track_id' => 'required|string',
+            'track_id' => 'sometimes|string',
             'artist_name' => 'required|string',
             'track_title' => 'required|string',
             'limit' => 'sometimes|integer|min:1|max:100'
@@ -44,7 +44,6 @@ class MusicDiscoveryController extends Controller
             ], 422);
         }
 
-        $trackId = $request->input('track_id');
         $artistName = $request->input('artist_name');
         $trackTitle = $request->input('track_title');
         $limit = $request->input('limit', 50);
@@ -65,13 +64,54 @@ class MusicDiscoveryController extends Controller
             ]);
             $spotifyTrackId = null;
 
-            if ($spotifySearchResults && isset($spotifySearchResults['tracks']['items'][0])) {
-                $spotifyTrack = $spotifySearchResults['tracks']['items'][0];
-                $spotifyTrackId = $spotifyTrack['id'];
+            if ($spotifySearchResults && isset($spotifySearchResults['tracks']['items'])) {
+                // Use the search results we already have (not a different search)
+                \Log::info("🔍 Using existing Spotify search results for track matching", [
+                    'total_results' => count($spotifySearchResults['tracks']['items']),
+                    'first_result' => [
+                        'id' => $spotifySearchResults['tracks']['items'][0]['id'] ?? 'unknown',
+                        'artist' => $spotifySearchResults['tracks']['items'][0]['artists'][0]['name'] ?? 'unknown',
+                        'title' => $spotifySearchResults['tracks']['items'][0]['name'] ?? 'unknown'
+                    ]
+                ]);
+                
+                // Log all search results before calling findBestSpotifyMatch
+                \Log::info("🔍 About to call findBestSpotifyMatch with these results:");
+                foreach ($spotifySearchResults['tracks']['items'] as $index => $item) {
+                    \Log::info("🔍 Search Result #{$index}", [
+                        'track_id' => $item['id'] ?? 'unknown',
+                        'artist' => $item['artists'][0]['name'] ?? 'unknown',
+                        'title' => $item['name'] ?? 'unknown',
+                        'album' => $item['album']['name'] ?? 'unknown'
+                    ]);
+                }
+                
+                // Find the best matching track from the SAME search results
+                $spotifyTrack = $this->findBestSpotifyMatch($spotifySearchResults['tracks']['items'], $artistName, $trackTitle);
+                
+                if ($spotifyTrack) {
+                    $spotifyTrackId = $spotifyTrack['id'];
+                    \Log::info("🔍 Selected Spotify track", [
+                        'selected_id' => $spotifyTrackId,
+                        'selected_artist' => $spotifyTrack['artists'][0]['name'] ?? 'Unknown',
+                        'selected_title' => $spotifyTrack['name'] ?? 'Unknown',
+                        'expected_artist' => $artistName,
+                        'expected_title' => $trackTitle
+                    ]);
 
-                // Get Spotify recommendations with genre awareness
-                $spotifyTracks = $this->getSpotifyRelatedTracks($spotifyTrackId, $limit, $spotifyTrack);
-                \Log::info("🎧 Got Spotify tracks", ['count' => count($spotifyTracks)]);
+                    // Also log to response for debugging (temporary)
+                    \Log::info("DEBUG: SELECTED TRACK ID FOR {$artistName} - {$trackTitle}: {$spotifyTrackId}");
+
+                    // Get Spotify recommendations with genre awareness
+                    $spotifyTracks = $this->getSpotifyRelatedTracks($spotifyTrackId, $limit, $spotifyTrack);
+                    \Log::info("🎧 Got Spotify tracks", ['count' => count($spotifyTracks)]);
+                } else {
+                    \Log::warning("🔍 No suitable Spotify track match found", [
+                        'artist' => $artistName,
+                        'title' => $trackTitle,
+                        'search_results_count' => count($spotifySearchResults['tracks']['items'])
+                    ]);
+                }
             }
 
             // 3. Search on Shazam and get related tracks
@@ -143,6 +183,28 @@ class MusicDiscoveryController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to get related tracks: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get track key for a specific Spotify track ID
+     * GET /api/music-discovery/track-key/{trackId}
+     */
+    public function getTrackKey(string $trackId): JsonResponse
+    {
+        try {
+            // Simple endpoint to return track information
+            // This might be used by the frontend for track verification
+            return response()->json([
+                'success' => true,
+                'track_id' => $trackId,
+                'message' => 'Track ID received successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to process track key: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -1936,8 +1998,9 @@ class MusicDiscoveryController extends Controller
         // Convert to lowercase and remove extra whitespace
         $normalized = strtolower(trim($str));
         
-        // Remove common punctuation but keep some structure for better matching
-        $normalized = preg_replace('/[^\p{L}\p{N}\s\-]/u', '', $normalized); // Keep hyphens
+        // Keep ampersands but also create fallback matching
+        // Remove other punctuation but keep structure for better matching
+        $normalized = preg_replace('/[^\p{L}\p{N}\s\-&]/u', '', $normalized); // Keep hyphens and ampersands
         $normalized = preg_replace('/\s+/', ' ', $normalized); // Collapse multiple spaces
         $normalized = trim($normalized);
         
@@ -1945,7 +2008,7 @@ class MusicDiscoveryController extends Controller
     }
 
     /**
-     * Fuzzy match two normalized strings
+     * Fuzzy match two normalized strings with ampersand handling
      */
     private function fuzzyMatch(string $str1, string $str2, float $threshold = 0.8): bool
     {
@@ -1953,16 +2016,30 @@ class MusicDiscoveryController extends Controller
             return true;
         }
         
-        // Check if one string contains the other
-        if (strpos($str1, $str2) !== false || strpos($str2, $str1) !== false) {
+        // Try matching with ampersand variations
+        $str1Alt = str_replace('&', 'and', $str1);
+        $str2Alt = str_replace('&', 'and', $str2);
+        
+        if ($str1 === $str2Alt || $str1Alt === $str2 || $str1Alt === $str2Alt) {
             return true;
         }
         
-        // Simple similarity check
-        $similarity = 0;
-        similar_text($str1, $str2, $similarity);
+        // Check if one string contains the other (original or ampersand variations)
+        if (strpos($str1, $str2) !== false || strpos($str2, $str1) !== false ||
+            strpos($str1Alt, $str2) !== false || strpos($str1, $str2Alt) !== false) {
+            return true;
+        }
         
-        return ($similarity / 100) >= $threshold;
+        // Simple similarity check - use the best match among variations
+        $similarity1 = 0;
+        similar_text($str1, $str2, $similarity1);
+        
+        $similarity2 = 0;
+        similar_text($str1Alt, $str2Alt, $similarity2);
+        
+        $bestSimilarity = max($similarity1, $similarity2);
+        
+        return ($bestSimilarity / 100) >= $threshold;
     }
 
     /**
@@ -2070,18 +2147,38 @@ class MusicDiscoveryController extends Controller
     {
         try {
             $accessToken = $this->getSpotifyAccessToken();
-            $query = urlencode("$artistName $trackTitle");
+            $query = "$artistName $trackTitle";
+            
+            \Log::info("🔍 searchSpotifyForTrack DEBUG", [
+                'raw_artist' => $artistName,
+                'raw_title' => $trackTitle,
+                'raw_query' => $query,
+                'encoded_query' => urlencode($query)
+            ]);
             
             $response = Http::withHeaders([
                 'Authorization' => "Bearer $accessToken",
             ])->get("https://api.spotify.com/v1/search", [
-                'q' => $query,
+                'q' => $query, // Don't double-encode - Http::get() will handle it
                 'type' => 'track',
-                'limit' => 5
+                'limit' => 20 // Increase limit to find more matches
             ]);
 
             if ($response->successful()) {
-                return $response->json();
+                $data = $response->json();
+                \Log::info("🔍 searchSpotifyForTrack RESPONSE", [
+                    'total_tracks' => $data['tracks']['total'] ?? 0,
+                    'returned_tracks' => count($data['tracks']['items'] ?? []),
+                    'first_3_tracks' => array_slice(array_map(function($track) {
+                        return [
+                            'id' => $track['id'],
+                            'artist' => $track['artists'][0]['name'] ?? 'Unknown',
+                            'title' => $track['name'],
+                            'popularity' => $track['popularity'] ?? 0
+                        ];
+                    }, $data['tracks']['items'] ?? []), 0, 3)
+                ]);
+                return $data;
             }
         } catch (\Exception $e) {
             \Log::warning("Spotify search failed: " . $e->getMessage());
@@ -2304,7 +2401,11 @@ class MusicDiscoveryController extends Controller
                 'status' => $searchResponse->status(),
                 'successful' => $searchResponse->successful(),
                 'body_preview' => substr($searchResponse->body(), 0, 500) . '...',
-                'full_body' => $searchResponse->body()
+                'content_type' => $searchResponse->header('Content-Type'),
+                'has_result_section' => isset($searchResponse->json()['result']) ? 'yes' : 'no',
+                'has_tracks_section' => isset($searchResponse->json()['result']['tracks']) ? 'yes' : 'no',
+                'has_hits_section' => isset($searchResponse->json()['result']['tracks']['hits']) ? 'yes' : 'no',
+                'total_hits' => count($searchResponse->json()['result']['tracks']['hits'] ?? [])
             ]);
 
             if (!$searchResponse->successful()) {
@@ -2577,7 +2678,76 @@ class MusicDiscoveryController extends Controller
         return false;
     }
 
+    /**
+     * Find the best matching Spotify track from search results
+     */
+    private function findBestSpotifyMatch(array $tracks, string $expectedArtist, string $expectedTitle): ?array
+    {
+        if (empty($tracks)) {
+            return null;
+        }
 
+        \Log::info("🔍 Finding best Spotify match", [
+            'expected_artist' => $expectedArtist,
+            'expected_title' => $expectedTitle,
+            'search_results_count' => count($tracks)
+        ]);
+
+        // Log all search results for debugging
+        \Log::info("🔍 ALL Spotify search results:");
+        foreach ($tracks as $index => $track) {
+            \Log::info("🔍 Result #{$index}", [
+                'track_id' => $track['id'] ?? 'unknown',
+                'artist' => $track['artists'][0]['name'] ?? 'unknown',
+                'title' => $track['name'] ?? 'unknown',
+                'album' => $track['album']['name'] ?? 'unknown',
+                'popularity' => $track['popularity'] ?? 'unknown'
+            ]);
+        }
+
+        foreach ($tracks as $index => $track) {
+            $trackArtist = $track['artists'][0]['name'] ?? '';
+            $trackTitle = $track['name'] ?? '';
+            $trackId = $track['id'] ?? '';
+            
+            \Log::info("🔍 Evaluating track #{$index}", [
+                'track_id' => $trackId,
+                'track_artist' => $trackArtist,
+                'track_title' => $trackTitle
+            ]);
+            
+            // Use our existing track matching logic
+            $matchData = [
+                'name' => $trackTitle,
+                'artists' => [['name' => $trackArtist]]
+            ];
+            
+            if ($this->verifyTrackMatch($expectedArtist, $expectedTitle, $matchData)) {
+                \Log::info("🔍 ✅ Track matches!", [
+                    'track_id' => $trackId,
+                    'match_reason' => 'verifyTrackMatch passed'
+                ]);
+                
+                // Return the first valid match (they're ordered by popularity/relevance)
+                return $track;
+            } else {
+                \Log::info("🔍 ❌ Track doesn't match", [
+                    'track_id' => $trackId,
+                    'reason' => 'verifyTrackMatch failed'
+                ]);
+            }
+        }
+        
+        // If no track passes our strict matching, return the first one as fallback
+        // (this preserves the original behavior but with logging)
+        \Log::warning("🔍 No exact match found, using first result as fallback", [
+            'fallback_id' => $tracks[0]['id'] ?? 'unknown',
+            'fallback_artist' => $tracks[0]['artists'][0]['name'] ?? 'unknown',
+            'fallback_title' => $tracks[0]['name'] ?? 'unknown'
+        ]);
+        
+        return $tracks[0];
+    }
 
     /**
      * Filter out tracks from the same artist as the seed track
@@ -2869,15 +3039,33 @@ class MusicDiscoveryController extends Controller
      */
     private function findMatchingShazamTrack(array $searchData, string $artistName, string $trackTitle): ?string
     {
+        \Log::info("🎵 findMatchingShazamTrack called", [
+            'looking_for_artist' => $artistName,
+            'looking_for_title' => $trackTitle,
+            'search_data_keys' => array_keys($searchData),
+            'has_result' => isset($searchData['result']),
+            'result_keys' => isset($searchData['result']) ? array_keys($searchData['result']) : []
+        ]);
+
         // Use same parsing logic as working getShazamRelatedTracks function
         if (!isset($searchData['result']['tracks']['hits'])) {
-            \Log::warning("🎵 Preview: No 'result.tracks.hits' section in Shazam response");
+            \Log::warning("🎵 No 'result.tracks.hits' section in Shazam response", [
+                'available_structure' => json_encode($searchData, JSON_PRETTY_PRINT)
+            ]);
             return null;
         }
 
+        \Log::info("🎵 Found Shazam hits to process", [
+            'total_hits' => count($searchData['result']['tracks']['hits']),
+            'first_hit_keys' => !empty($searchData['result']['tracks']['hits']) ? array_keys($searchData['result']['tracks']['hits'][0]) : []
+        ]);
+
         foreach ($searchData['result']['tracks']['hits'] as $hitIndex => $track) {
-            \Log::info("🎵 Preview: Processing track #{$hitIndex}", [
+            \Log::info("🎵 Processing Shazam track #{$hitIndex}", [
                 'track_key' => $track['key'] ?? 'no key',
+                'track_structure' => array_keys($track),
+                'has_heading' => isset($track['heading']),
+                'heading_keys' => isset($track['heading']) ? array_keys($track['heading']) : [],
                 'found_title' => $track['heading']['title'] ?? 'no title',
                 'found_artist' => $track['heading']['subtitle'] ?? 'no artist'
             ]);
@@ -2886,7 +3074,12 @@ class MusicDiscoveryController extends Controller
             $foundArtist = $track['heading']['subtitle'] ?? '';
             $trackId = $track['key'] ?? null;
 
-            \Log::info("🎵 Preview: Checking track match", [
+            if (!$trackId) {
+                \Log::warning("🎵 Skipping track #{$hitIndex} - no track ID found");
+                continue;
+            }
+
+            \Log::info("🎵 About to verify track match for #{$hitIndex}", [
                 'track_id' => $trackId,
                 'found_title' => $foundTitle,
                 'found_artist' => $foundArtist,
@@ -2894,20 +3087,34 @@ class MusicDiscoveryController extends Controller
                 'looking_for_artist' => $artistName
             ]);
 
-            if ($trackId && $this->verifyTrackMatch($artistName, $trackTitle, [
+            $isMatch = $this->verifyTrackMatch($artistName, $trackTitle, [
                 'title' => $foundTitle,
                 'subtitle' => $foundArtist
-            ])) {
-                \Log::info("🎵 Preview: Found matching Shazam track", [
-                    'track_id' => $trackId,
-                    'found_title' => $foundTitle,
-                    'found_artist' => $foundArtist
+            ]);
+
+            \Log::info("🎵 Track match result for #{$hitIndex}", [
+                'track_id' => $trackId,
+                'is_match' => $isMatch ? 'YES' : 'NO'
+            ]);
+
+            if ($isMatch) {
+                \Log::info("🎵 ✅ FOUND MATCHING SHAZAM TRACK!", [
+                    'selected_track_id' => $trackId,
+                    'matched_title' => $foundTitle,
+                    'matched_artist' => $foundArtist,
+                    'hit_index' => $hitIndex
                 ]);
                 return $trackId;
             }
         }
 
-        \Log::warning("🎵 Preview: No matching track found");
+        \Log::warning("🎵 ❌ NO MATCHING SHAZAM TRACK FOUND", [
+            'searched_for_artist' => $artistName,
+            'searched_for_title' => $trackTitle,
+            'total_hits_checked' => count($searchData['result']['tracks']['hits']),
+            'reason' => 'None of the search results passed verifyTrackMatch()',
+            'suggestion' => 'Check if track name/artist differs from what we searched for'
+        ]);
         return null;
     }
 

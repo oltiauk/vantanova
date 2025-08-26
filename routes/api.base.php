@@ -282,6 +282,7 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
     Route::get('music-discovery/deezer-search', [MusicDiscoveryController::class, 'searchDeezer'])->name('music-discovery.deezer-search');
     Route::post('music-discovery/seed-recommendations', [MusicDiscoveryController::class, 'getSeedRecommendations'])->name('music-discovery.seed-recommendations');
     Route::get('music-discovery/related-tracks', [MusicDiscoveryController::class, 'getRelatedTracks'])->name('music-discovery.related-tracks');
+    Route::get('music-discovery/track-key/{trackId}', [MusicDiscoveryController::class, 'getTrackKey'])->name('music-discovery.track-key');
     Route::get('music-discovery/track-preview', [MusicDiscoveryController::class, 'getTrackPreview'])->name('music-discovery.track-preview');
     Route::get('music-discovery/search-spotify', [MusicDiscoveryController::class, 'searchSpotify'])->name('music-discovery.search-spotify');
     Route::get('music-discovery/search-parallel', [MusicDiscoveryController::class, 'searchParallel'])->name('music-discovery.search-parallel');

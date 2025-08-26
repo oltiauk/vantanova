@@ -8,19 +8,6 @@
         </h3> -->
       </div>
       
-      <!-- Blacklist Button - Centered -->
-      <div v-if="!isDiscovering && recommendations.length > 0" class="text-center mb-4">
-        <button
-          @click="blacklistUnsavedTracks"
-          :disabled="isBlacklisting"
-          class="px-4 py-2 bg-[#429488] hover:bg-[#368075] rounded text-sm font-medium transition disabled:opacity-50 text-white"
-        >
-          <div class="flex flex-col items-center">
-            <span>Add to Blacklist</span>
-            <span class="text-xs opacity-80">unsaved tracks from the list</span>
-          </div>
-        </button>
-      </div>
     </div>
 
     <!-- Loading State -->
@@ -52,8 +39,23 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
-      <!-- Sort Controls -->
-      <div class="mb-4 flex justify-end">
+      <!-- Controls -->
+      <div class="mb-4 flex justify-end items-center gap-4">
+        <!-- Blacklist Button -->
+        <div v-if="!isDiscovering && recommendations.length > 0">
+          <button
+            @click="blacklistUnsavedTracks"
+            :disabled="isBlacklisting"
+            class="px-4 py-2 bg-[#429488] hover:bg-[#368075] rounded-lg text-sm font-medium transition disabled:opacity-50 text-white border border-[#429488]/30"
+          >
+            <div class="flex flex-col items-center">
+              <span>Add to Blacklist</span>
+              <span class="text-xs opacity-80">unsaved tracks</span>
+            </div>
+          </button>
+        </div>
+        
+        <!-- Sort Controls -->
         <div class="flex items-center gap-3 bg-white/5 rounded-lg px-4 py-2 backdrop-blur-sm border border-white/10">
           <span class="text-sm text-white/70 font-medium">Sort by:</span>
           <div class="relative">
