@@ -125,21 +125,6 @@
                   <td class="p-3 align-middle">
                     <div class="flex items-center gap-2">
                       <span class="text-white/80">{{ track.name }}</span>
-                      <!-- Source Badge -->
-                      <span
-                        v-if="track.source === 'shazam'"
-                        class="px-2 py-0.5 bg-blue-500/80 text-white text-xs font-medium rounded"
-                        title="Track from Shazam"
-                      >
-                        🎵 SHAZAM
-                      </span>
-                      <span
-                        v-else-if="track.source === 'spotify'"
-                        class="px-2 py-0.5 bg-green-500/80 text-white text-xs font-medium rounded"
-                        title="Track from Spotify"
-                      >
-                        🎧 SPOTIFY
-                      </span>
                     </div>
                   </td>
 
@@ -234,10 +219,9 @@
                       
                       <!-- Preview Button -->
                       <button
-                        @click="track.source === 'shazam' ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
+                        @click="(track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
                         :disabled="processingTrack === getTrackKey(track)"
                         class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50"
-                        :title="track.source === 'shazam' ? 'Preview Shazam track via Spotify' : 'Preview Spotify track'"
                       >
                         <Icon :icon="expandedTrackId === getTrackKey(track) ? faTimes : faPlay" class="mr-1" />
                         {{ expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview' }}
@@ -757,7 +741,7 @@ const showTrackNotFoundNotification = (track: Track) => {
           Could not find "<span class="font-medium">${track.name}</span>" by <span class="font-medium">${track.artist}</span> on Spotify.
         </div>
         <div class="text-xs text-orange-200 mt-2">
-          ${track.source === 'shazam' ? 'Track cleaning and ISRC lookup failed.' : 'Track not available on Spotify.'}
+          Track preview not available.
         </div>
       </div>
       <button onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 text-orange-100 hover:text-white transition-colors">
@@ -850,7 +834,7 @@ const cleanTrackForQuery = (text: string): string => {
     .trim()
 }
 
-// Preview Shazam tracks by converting to Spotify
+// Preview tracks by converting to Spotify
 const previewShazamTrack = async (track: Track) => {
   const trackKey = getTrackKey(track)
   processingTrack.value = trackKey
@@ -860,7 +844,7 @@ const previewShazamTrack = async (track: Track) => {
     const cleanedArtist = cleanTrackForQuery(track.artist)
     const cleanedTitle = cleanTrackForQuery(track.name)
     
-    console.log('🎵 Converting Shazam track to Spotify for preview:', track.name)
+    console.log('🎵 Converting track to Spotify for preview:', track.name)
     console.log('🧹 Original:', `"${track.artist}" - "${track.name}"`)
     console.log('🧹 Cleaned:', `"${cleanedArtist}" - "${cleanedTitle}"`)
     
@@ -883,11 +867,11 @@ const previewShazamTrack = async (track: Track) => {
       // Now open the Spotify player with the converted track
       toggleSpotifyPlayer(track)
     } else {
-      console.warn('❌ Could not find Spotify equivalent for Shazam track')
+      console.warn('❌ Could not find Spotify equivalent for track')
       showTrackNotFoundNotification(track)
     }
   } catch (error: any) {
-    console.error('❌ Failed to convert Shazam track to Spotify:', error)
+    console.error('❌ Failed to convert track to Spotify:', error)
     showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
   } finally {
     processingTrack.value = null

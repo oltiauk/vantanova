@@ -15,22 +15,6 @@
           <Icon :icon="faMusic" class="w-12 h-12 text-slate-400" />
         </div>
         
-        <!-- Source Badge - Shazam Indicator -->
-        <div
-          v-if="track.source === 'shazam'"
-          class="absolute top-2 right-2 px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-md shadow-lg animate-pulse"
-          title="Track from Shazam - Test Spotify Preview!"
-        >
-          🎵 SHAZAM
-        </div>
-        <div
-          v-else-if="track.source === 'spotify'"
-          class="absolute top-2 right-2 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-md shadow-lg opacity-70"
-          title="Track from Spotify"
-        >
-          🎧 SPOTIFY
-        </div>
-        
         <!-- Play overlay on hover -->
         <div class="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
           <button
@@ -94,11 +78,10 @@
         
         <!-- Right actions -->
         <div class="flex items-center gap-2">
-          <!-- Preview Button for Shazam tracks -->
+          <!-- Preview Button -->
           <button
-            v-if="track.source === 'shazam'"
+            v-if="track.source === 'shazam' || track.source === 'shazam_fallback'"
             @click="testPreview"
-            title="Test Spotify Preview (Shazam → ISRC → Spotify)"
             class="p-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition-all duration-200 hover:scale-110 animate-pulse"
           >
             <Icon :icon="faEye" class="w-4 h-4" />
@@ -108,7 +91,6 @@
           <button
             v-if="track.external_url"
             @click="openExternal"
-            title="Open in Spotify"
             class="p-2 bg-slate-600/50 hover:bg-slate-600/70 text-slate-300 rounded-lg transition-all duration-200 hover:scale-110"
           >
             <Icon :icon="faExternalLinkAlt" class="w-4 h-4" />
@@ -263,9 +245,9 @@
     }
   }
 
-  // Test Spotify preview for Shazam tracks
+  // Test preview for tracks
   const testPreview = async () => {
-    console.log('🎵 Testing Spotify preview for Shazam track:', props.track.name)
+    console.log('🎵 Testing preview for track:', props.track.name)
     
     try {
       const response = await http.get('music-discovery/track-preview', {
@@ -301,12 +283,12 @@
               </head>
               <body>
                 <div class="header">
-                  <h2>🎵 Shazam → Spotify Preview Test</h2>
+                  <h2>🎵 Track Preview Test</h2>
                   <div class="success">✅ Successfully found on Spotify!</div>
                 </div>
                 <div class="info"><strong>Track:</strong> ${props.track.name}</div>
                 <div class="info"><strong>Artist:</strong> ${props.track.artist}</div>
-                <div class="info"><strong>Source:</strong> Shazam</div>
+                <div class="info"><strong>Source:</strong> Music Discovery</div>
                 <div class="info"><strong>Spotify ID:</strong> ${response.data.spotify_track_id}</div>
                 <hr style="border-color: #333; margin: 20px 0;">
                 ${response.data.oembed.html}

@@ -47,7 +47,7 @@
             
             <h4 class="text-white text-xl font-bold mb-3">Discovering Similar Tracks</h4>
             <p class="text-white/70 text-base mb-4 max-w-md">
-              Our AI is analyzing Spotify and Shazam databases to find tracks that match your taste
+              Our AI is analyzing music databases to find tracks that match your taste
             </p>
             
             <!-- Progress indicators -->
@@ -59,7 +59,7 @@
               <span>•</span>
               <div class="flex items-center gap-1">
                 <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style="animation-delay: 0.3s;"></div>
-                <span>Shazam API</span>
+                <span>Music API</span>
               </div>
               <span>•</span>
               <div class="flex items-center gap-1">
@@ -128,7 +128,7 @@
                 </div>
                 <div class="h-4 w-px bg-gray-600"></div>
                 <div class="text-white/60 text-sm">
-                  Powered by Spotify + Shazam APIs
+                  Powered by Music APIs
                 </div>
               </div>
               

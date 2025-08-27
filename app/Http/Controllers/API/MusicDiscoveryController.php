@@ -2496,12 +2496,25 @@ class MusicDiscoveryController extends Controller
                 }
             }
 
+            // If no recommendations found, try fallback with artist's most popular track
+            if (empty($tracks)) {
+                \Log::info("🎵 🔄 SHAZAM FALLBACK: Trying artist's most popular track", [
+                    'original_track_id' => $shazamTrackId,
+                    'artist' => $artistName,
+                    'reason' => 'Original track returned 0 recommendations'
+                ]);
+                
+                $fallbackTracks = $this->tryShazamArtistFallback($artistName, $trackTitle, $limit);
+                $tracks = array_merge($tracks, $fallbackTracks);
+            }
+
             \Log::info("🎵 ✅ SHAZAM RECOMMENDATIONS COMPLETE", [
                 'seed_track_id' => $shazamTrackId,
                 'total_tracks_collected' => count($tracks),
                 'limit_requested' => $limit,
                 'limit_applied' => min($limit, 50),
-                'tracks_under_limit' => count($tracks) <= 50
+                'tracks_under_limit' => count($tracks) <= 50,
+                'used_fallback' => empty($relatedData['result']['tracks'])
             ]);
             
             return $tracks;
@@ -3337,6 +3350,143 @@ class MusicDiscoveryController extends Controller
         } catch (\Exception $e) {
             \Log::error('Preview: Spotify oEmbed failed: ' . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Try to get Shazam recommendations from artist's most popular track as fallback
+     */
+    private function tryShazamArtistFallback(string $artistName, string $originalTitle, int $limit): array
+    {
+        try {
+            \Log::info("🎵 🔍 FALLBACK: Searching for artist's tracks", [
+                'artist' => $artistName,
+                'original_title' => $originalTitle
+            ]);
+
+            // Search for artist only to get their track list
+            $response = Http::withHeaders([
+                'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
+                'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
+            ])->get("https://shazam-api6.p.rapidapi.com/shazam/search_track/", [
+                'query' => $artistName,
+                'limit' => 15
+            ]);
+
+            if (!$response->successful()) {
+                \Log::warning("🎵 ❌ FALLBACK: Artist search failed", [
+                    'status' => $response->status(),
+                    'artist' => $artistName
+                ]);
+                return [];
+            }
+
+            $searchData = $response->json();
+            $tracks = $searchData['result']['tracks']['hits'] ?? [];
+
+            if (empty($tracks)) {
+                \Log::warning("🎵 ❌ FALLBACK: No tracks found for artist", [
+                    'artist' => $artistName
+                ]);
+                return [];
+            }
+
+            \Log::info("🎵 ✅ FALLBACK: Found artist tracks", [
+                'artist' => $artistName,
+                'tracks_found' => count($tracks),
+                'first_track_title' => $tracks[0]['heading']['title'] ?? 'Unknown'
+            ]);
+
+            // Get the first track (most popular/relevant) that's NOT the original track
+            $fallbackTrackId = null;
+            $fallbackTrackTitle = null;
+            
+            foreach ($tracks as $track) {
+                $trackTitle = $track['heading']['title'] ?? '';
+                $trackArtist = $track['heading']['subtitle'] ?? '';
+                
+                // Skip if it's the same track we already tried
+                if ($this->normalizeForMatching($trackTitle) === $this->normalizeForMatching($originalTitle)) {
+                    \Log::info("🎵 ⏭️ FALLBACK: Skipping original track", [
+                        'skipped_title' => $trackTitle
+                    ]);
+                    continue;
+                }
+                
+                $fallbackTrackId = $track['key'] ?? null;
+                $fallbackTrackTitle = $trackTitle;
+                break;
+            }
+
+            if (!$fallbackTrackId) {
+                \Log::warning("🎵 ❌ FALLBACK: No alternative tracks found", [
+                    'artist' => $artistName,
+                    'reason' => 'All tracks were the same as original'
+                ]);
+                return [];
+            }
+
+            \Log::info("🎵 🎯 FALLBACK: Trying recommendations from alternative track", [
+                'fallback_track_id' => $fallbackTrackId,
+                'fallback_title' => $fallbackTrackTitle,
+                'original_title' => $originalTitle
+            ]);
+
+            // Get recommendations from the fallback track
+            $relatedResponse = Http::withHeaders([
+                'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
+                'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
+            ])->get("https://shazam-api6.p.rapidapi.com/shazam/similar_tracks", [
+                'track_id' => $fallbackTrackId,
+                'limit' => min($limit, 50)
+            ]);
+
+            if (!$relatedResponse->successful()) {
+                \Log::warning("🎵 ❌ FALLBACK: Recommendations failed", [
+                    'status' => $relatedResponse->status(),
+                    'fallback_track_id' => $fallbackTrackId
+                ]);
+                return [];
+            }
+
+            $relatedData = $relatedResponse->json();
+            $fallbackTracks = [];
+
+            if (isset($relatedData['result']['tracks']) && is_array($relatedData['result']['tracks'])) {
+                foreach ($relatedData['result']['tracks'] as $track) {
+                    $fallbackTracks[] = [
+                        'id' => $track['key'] ?? null,
+                        'key' => $track['key'] ?? null,
+                        'title' => $track['title'] ?? 'Unknown Title',
+                        'duration' => 180,
+                        'artist' => [
+                            'name' => $track['subtitle'] ?? 'Unknown Artist'
+                        ],
+                        'subtitle' => $track['subtitle'] ?? 'Unknown Artist',
+                        'album' => [
+                            'title' => 'Unknown Album',
+                            'release_date' => null
+                        ],
+                        'source' => 'shazam_fallback'
+                    ];
+                }
+            }
+
+            \Log::info("🎵 ✅ FALLBACK: Complete", [
+                'fallback_track_id' => $fallbackTrackId,
+                'fallback_title' => $fallbackTrackTitle,
+                'recommendations_found' => count($fallbackTracks),
+                'success' => count($fallbackTracks) > 0
+            ]);
+
+            return $fallbackTracks;
+
+        } catch (\Exception $e) {
+            \Log::error("🎵 ❌ FALLBACK: Exception occurred", [
+                'error' => $e->getMessage(),
+                'artist' => $artistName
+            ]);
+            return [];
         }
     }
 
