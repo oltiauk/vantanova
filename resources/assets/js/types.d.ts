@@ -410,6 +410,8 @@ declare type ScreenName =
   | 'Password.Reset'
   | 'MusicDiscovery' 
   | 'MusicPreferences'
+  | 'SoundCloudRelatedTracks'
+  | 'SimilarArtists'
   | '404'
 
 declare type ArtistAlbumCardLayout = 'full' | 'compact'

@@ -6,8 +6,11 @@ use App\Http\Integrations\Lastfm\LastfmConnector;
 use App\Http\Integrations\Lastfm\Requests\GetAlbumInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\GetArtistInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\GetSessionKeyRequest;
+use App\Http\Integrations\Lastfm\Requests\GetSimilarArtistsRequest;
 use App\Http\Integrations\Lastfm\Requests\GetTrackInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\ScrobbleRequest;
+use App\Http\Integrations\Lastfm\Requests\SearchArtistsRequest;
+use App\Http\Integrations\Lastfm\Requests\GetArtistInfoByMbidRequest;
 use App\Http\Integrations\Lastfm\Requests\ToggleLoveTrackRequest;
 use App\Http\Integrations\Lastfm\Requests\UpdateNowPlayingRequest;
 use App\Models\Album;
@@ -191,5 +194,87 @@ class LastfmService implements MusicEncyclopedia
         }
 
         return $results;
+    }
+
+    /**
+     * Search for artists by name
+     * 
+     * @param string $query
+     * @return array<mixed>
+     */
+    public function searchArtists(string $query): array
+    {
+        if (!static::enabled() || empty(trim($query))) {
+            return [];
+        }
+
+        try {
+            $request = new SearchArtistsRequest($query);
+            $response = $this->connector->send($request);
+            
+            return $response->dto() ?? [];
+        } catch (\Exception $e) {
+            Log::warning('Failed to search artists on Last.fm', [
+                'query' => $query,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [];
+        }
+    }
+    /**
+     * Get similar artists by MBID
+     * 
+     * @param string $mbid
+     * @return array<mixed>
+     */
+    public function getSimilarArtists(string $mbid): array
+    {
+        if (!static::enabled() || empty($mbid)) {
+            return [];
+        }
+
+        try {
+            $request = new GetSimilarArtistsRequest($mbid);
+            $response = $this->connector->send($request);
+            
+            return $response->dto() ?? [];
+        } catch (\Exception $e) {
+            Log::warning('Failed to get similar artists on Last.fm', [
+                'mbid' => $mbid,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [];
+        }
+    }
+
+    /**
+     * Get artist information with listeners count by MBID
+     * Used to fetch listeners data for similar artists
+     * 
+     * @param string $mbid
+     * @return array<mixed>|null
+     */
+    public function getArtistInfoByMbid(string $mbid): ?array
+    {
+        if (!static::enabled() || empty($mbid)) {
+            return null;
+        }
+
+        try {
+            $request = new GetArtistInfoByMbidRequest($mbid);
+            $response = $this->connector->send($request);
+            
+            // Use the request's DTO creation method
+            return $request->createDtoFromResponse($response);
+        } catch (\Exception $e) {
+            Log::warning('Failed to get artist info by MBID on Last.fm', [
+                'mbid' => $mbid,
+                'error' => $e->getMessage()
+            ]);
+            
+            return null;
+        }
     }
 }

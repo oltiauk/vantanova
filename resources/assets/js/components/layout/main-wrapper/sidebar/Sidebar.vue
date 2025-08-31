@@ -49,6 +49,13 @@
             </template>
             SoundCloud Related Tracks
           </SidebarItem>
+          
+          <SidebarItem :href="url('similar-artists')" screen="SimilarArtists">
+            <template #icon>
+              <Icon :icon="faUsers" fixed-width />
+            </template>
+            Similar Artists
+          </SidebarItem>
         </ul>
       </SidebarSection>
   
@@ -66,7 +73,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faTimes, faSearch, faSliders, faMusic } from '@fortawesome/free-solid-svg-icons'
+import { faTimes, faSearch, faSliders, faMusic, faUsers } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { eventBus } from '@/utils/eventBus'
 import { useAuthorization } from '@/composables/useAuthorization'

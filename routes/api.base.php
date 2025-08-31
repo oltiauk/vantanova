@@ -57,6 +57,7 @@ use App\Http\Controllers\API\ScrobbleController;
 use App\Http\Controllers\API\SearchSoundCloudController;
 use App\Http\Controllers\API\SearchYouTubeController;
 use App\Http\Controllers\API\SetLastfmSessionKeyController;
+use App\Http\Controllers\API\SimilarArtistsController;
 use App\Http\Controllers\API\SettingController;
 use App\Http\Controllers\API\SongController;
 use App\Http\Controllers\API\SongSearchController;
@@ -266,6 +267,22 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             
             Route::delete('blacklist-track', [MusicPreferencesController::class, 'removeFromBlacklist'])->name('remove-blacklist-track');
             Route::delete('blacklist-artist', [MusicPreferencesController::class, 'removeArtistFromBlacklist'])->name('remove-blacklist-artist');
+        });
+
+        // Similar Artists routes
+        Route::prefix('similar-artists')->name('similar-artists.')->group(static function (): void {
+            Route::get('test', function () {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Similar Artists API is working',
+                    'data' => []
+                ]);
+            });
+            Route::get('search', [SimilarArtistsController::class, 'searchArtists'])->name('search');
+            Route::get('similar', [SimilarArtistsController::class, 'getSimilarArtists'])->name('similar');
+            Route::get('info', [SimilarArtistsController::class, 'getArtistInfo'])->name('info');
+            Route::post('batch-listeners', [SimilarArtistsController::class, 'batchGetArtistListeners'])->name('batch-listeners');
+            Route::get('spotify-preview', [SimilarArtistsController::class, 'getSpotifyPreview'])->name('spotify-preview');
         });
 
     });

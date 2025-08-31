@@ -225,4 +225,9 @@ export const routes: Route[] = [
     path: '/soundcloud-related-tracks',
     screen: 'SoundCloudRelatedTracks'
   },
+  {
+    name: 'similar-artists',
+    path: '/similar-artists',
+    screen: 'SimilarArtists'
+  },
 ]
