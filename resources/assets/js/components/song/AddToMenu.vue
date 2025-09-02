@@ -47,7 +47,7 @@
     </section>
 
     <Btn
-      class="!w-full !border !border-solid !border-white/20"
+      class="!w-full !border-0"
       transparent
       @click.prevent="addToNewPlaylist"
     >

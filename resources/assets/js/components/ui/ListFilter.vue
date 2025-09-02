@@ -1,7 +1,7 @@
 <template>
   <OnClickOutside @trigger="maybeHideInput">
     <form
-      class="flex border rounded-md overflow-hidden border-solid border-white/10 focus-within:bg-black/10 focus-within:border-white/40"
+      class="flex border-0 rounded-md overflow-hidden focus-within:bg-black/10"
       @submit.prevent
     >
       <Btn v-koel-tooltip title="Filter" transparent unrounded @click.prevent="showInput">

@@ -5,7 +5,7 @@
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
   >
-    <section class="btn-collapse-block flex md:hidden items-center border-b border-b-white/5 h-k-header-height px-6">
+    <section class="btn-collapse-block flex md:hidden items-center border-b border-b-transparent h-k-header-height px-6">
       <div class="bg-white/5 rounded-full">
         <SideSheetButton @click.prevent="collapseSidebar">
           <Icon :icon="faTimes" fixed-width />
@@ -29,32 +29,25 @@
             <template #icon>
               <Icon :icon="faSearch" fixed-width />
             </template>
-            Related Tracks
-          </SidebarItem>
-          
-          <SidebarItem :href="url('music-preferences')" screen="MusicPreferences">
-            <template #icon>
-              <Icon :icon="faSliders" fixed-width />
-            </template>
-            Music Preferences
-          </SidebarItem>
-          
-          <SoundCloudSidebarItem>
-            SoundCloud
-          </SoundCloudSidebarItem>
-          
-          <SidebarItem :href="url('soundcloud-related-tracks')" screen="SoundCloudRelatedTracks">
-            <template #icon>
-              <Icon :icon="faMusic" fixed-width />
-            </template>
-            SoundCloud Related Tracks
+            LastFm - Related Tracks
           </SidebarItem>
           
           <SidebarItem :href="url('similar-artists')" screen="SimilarArtists">
             <template #icon>
               <Icon :icon="faUsers" fixed-width />
             </template>
-            Similar Artists
+            LastFm - Similar Artists
+          </SidebarItem>
+          
+          <SoundCloudSidebarItem>
+            Soundcloud - Advanced Search
+          </SoundCloudSidebarItem>
+          
+          <SidebarItem :href="url('soundcloud-related-tracks')" screen="SoundCloudRelatedTracks">
+            <template #icon>
+              <Icon :icon="faMusic" fixed-width />
+            </template>
+            Soundcloud - Related Tracks
           </SidebarItem>
         </ul>
       </SidebarSection>

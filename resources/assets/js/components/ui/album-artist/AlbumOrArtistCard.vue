@@ -50,7 +50,7 @@ const onContextMenu = (e: MouseEvent) => emit('contextmenu', e)
 
 <style lang="postcss" scoped>
 article {
-  @apply bg-k-bg-secondary border border-k-border hover:border-white/15;
+  @apply bg-k-bg-secondary border-0;
 
   &.full {
     :deep(.play-icon) {

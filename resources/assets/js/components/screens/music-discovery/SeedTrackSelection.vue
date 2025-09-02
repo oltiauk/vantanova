@@ -13,7 +13,7 @@
             <input
               v-model="searchQuery"
               type="text"
-              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg border border-white/20 focus:border-k-accent text-white text-lg"
+              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg  focus:border-k-accent text-white text-lg"
               placeholder="Search for artists, tracks, albums..."
               @input="onSearchInput"
             />

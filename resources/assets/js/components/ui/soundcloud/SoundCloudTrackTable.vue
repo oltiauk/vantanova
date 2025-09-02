@@ -5,6 +5,7 @@
         <thead>
           <tr class="border-b border-white/10">
             <th class="text-left p-3 font-medium">#</th>
+            <th class="text-left p-3 font-medium w-12">Ban</th>
             <th class="text-left p-3 font-medium">Artist</th>
             <th class="text-left p-3 font-medium">Title</th>
             <th class="text-left p-3 font-medium">Genre</th>
@@ -37,6 +38,17 @@
                   {{ index + 1 }}
                 </span>
               </div>
+            </td>
+
+            <!-- Ban Button -->
+            <td class="p-3 align-middle">
+              <button
+                @click="banArtist(track)"
+                class="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-full transition-colors"
+                title="Ban this artist"
+              >
+                <Icon :icon="faBan" class="w-4 h-4" />
+              </button>
             </td>
 
             <!-- Artist -->
@@ -116,7 +128,7 @@
               <div class="flex gap-2">
                 <button
                   v-if="props.showRelatedButton"
-                  class="px-3 py-1.5 bg-[#429488] rounded text-sm font-medium transition"
+                  class="px-3 py-1.5 bg-[#9d0cc6] rounded text-sm font-medium transition"
                   @click="$emit('relatedTracks', track)"
                   title="Find Related Tracks"
                 >
@@ -156,7 +168,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faPause, faPlay, faMusic, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faPause, faPlay, faMusic, faTimes, faBan } from '@fortawesome/free-solid-svg-icons'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { computed, ref } from 'vue'
 import InlineSoundCloudPlayer from '@/components/ui/soundcloud/InlineSoundCloudPlayer.vue'
@@ -190,6 +202,7 @@ interface Emits {
   (e: 'pause', track: SoundCloudTrack): void
   (e: 'seek', position: number): void
   (e: 'relatedTracks', track: SoundCloudTrack): void
+  (e: 'banArtist', track: SoundCloudTrack): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -215,6 +228,10 @@ const toggleInlinePlayer = (track: SoundCloudTrack) => {
     // Auto-play when opening inline player
     emit('play', track)
   }
+}
+
+const banArtist = (track: SoundCloudTrack) => {
+  emit('banArtist', track)
 }
 
 // Enhanced Animation methods for smooth dropdown

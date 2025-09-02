@@ -35,14 +35,14 @@
           <div class="flex flex-col items-center justify-center text-center">
             <div class="relative mb-8">
               <!-- Outer spinning ring -->
-              <div class="animate-spin rounded-full h-20 w-20 border-4 border-[#429488]/20 border-t-[#429488]"></div>
+              <div class="animate-spin rounded-full h-20 w-20 border-4 border-[#9d0cc6]/20 border-t-[#9d0cc6]"></div>
               <!-- Inner pulsing circle -->
-              <div class="absolute inset-2 bg-gradient-to-br from-[#429488] to-[#368075] rounded-full animate-pulse flex items-center justify-center">
+              <div class="absolute inset-2 bg-gradient-to-br from-[#9d0cc6] to-[#368075] rounded-full animate-pulse flex items-center justify-center">
                 <Icon :icon="faMusic" class="w-8 h-8 text-white" />
               </div>
               <!-- Floating particles -->
-              <div class="absolute -top-2 -left-2 w-2 h-2 bg-[#429488] rounded-full animate-ping"></div>
-              <div class="absolute -bottom-2 -right-2 w-2 h-2 bg-[#429488] rounded-full animate-ping" style="animation-delay: 0.5s;"></div>
+              <div class="absolute -top-2 -left-2 w-2 h-2 bg-[#9d0cc6] rounded-full animate-ping"></div>
+              <div class="absolute -bottom-2 -right-2 w-2 h-2 bg-[#9d0cc6] rounded-full animate-ping" style="animation-delay: 0.5s;"></div>
             </div>
             
             <h4 class="text-white text-xl font-bold mb-3">Discovering Similar Tracks</h4>
@@ -107,8 +107,8 @@
           <div class="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-6">
             <div class="flex items-center justify-center gap-4">
               <div class="relative">
-                <div class="animate-spin rounded-full h-8 w-8 border-3 border-[#429488]/20 border-t-[#429488]"></div>
-                <div class="absolute inset-0 bg-gradient-to-r from-[#429488] to-[#368075] rounded-full opacity-20 animate-pulse"></div>
+                <div class="animate-spin rounded-full h-8 w-8 border-3 border-[#9d0cc6]/20 border-t-[#9d0cc6]"></div>
+                <div class="absolute inset-0 bg-gradient-to-r from-[#9d0cc6] to-[#368075] rounded-full opacity-20 animate-pulse"></div>
               </div>
               <span class="text-white font-medium text-lg">Loading more amazing tracks...</span>
             </div>

@@ -84,6 +84,7 @@
           :tracks="seedSearchResults"
           @play="playTrack"
           @relatedTracks="selectSeedTrack"
+          @banArtist="banArtist"
         />
         
         <div v-else-if="loading" class="flex items-center justify-center py-12">
@@ -112,6 +113,7 @@
           @pause="pauseTrack"
           @seek="seekTrack"
           @relatedTracks="findRelatedForTrack"
+          @banArtist="banArtist"
         />
       </div>
 
@@ -149,6 +151,9 @@ const currentData = ref<any>(null)
 const seedSearchResults = ref<SoundCloudTrack[]>([])
 const showingSeedResults = ref(false)
 
+// Banned artists tracking (shared with Similar Artists)
+const bannedArtists = ref(new Set<string>()) // Store artist names for SoundCloud tracks
+
 const loadRelatedTracks = async (trackUrn: string) => {
   loading.value = true
   error.value = ''
@@ -156,8 +161,8 @@ const loadRelatedTracks = async (trackUrn: string) => {
   try {
     console.log('🎵 Loading related tracks for URN:', trackUrn)
     const relatedTracks = await soundcloudService.getRelatedTracks(trackUrn)
-    tracks.value = relatedTracks
-    console.log('🎵 Loaded', relatedTracks.length, 'related tracks')
+    tracks.value = filterBannedArtists(relatedTracks)
+    console.log('🎵 Loaded', tracks.value.length, 'related tracks (after filtering banned artists)')
   } catch (err: any) {
     error.value = `Failed to load related tracks: ${err.message || 'Unknown error'}`
     console.error('🎵 Related tracks error:', err)
@@ -197,8 +202,8 @@ const searchSeedTracks = async (query: string) => {
       searchQuery: query,
       limit: 50
     })
-    seedSearchResults.value = searchResults
-    console.log('🎵 Found', searchResults.length, 'seed track candidates')
+    seedSearchResults.value = filterBannedArtists(searchResults)
+    console.log('🎵 Found', seedSearchResults.value.length, 'seed track candidates (after filtering banned artists)')
   } catch (err: any) {
     error.value = `Failed to search seed tracks: ${err.message || 'Unknown error'}`
     console.error('🎵 Seed search error:', err)
@@ -424,6 +429,53 @@ const onSeedSearchInput = () => {
   // No auto-search - user must click Search button
 }
 
+// Load banned artists from localStorage
+const loadBannedArtists = () => {
+  try {
+    const savedBanned = localStorage.getItem('koel-banned-artists')
+    if (savedBanned) {
+      const bannedArray = JSON.parse(savedBanned)
+      // For SoundCloud tracks, we'll use artist names instead of MBIDs
+      bannedArtists.value = new Set(bannedArray)
+    }
+  } catch (error) {
+    console.error('Failed to load banned artists:', error)
+  }
+}
+
+const banArtist = async (track: SoundCloudTrack) => {
+  try {
+    const artistName = track.user?.username || 'Unknown Artist'
+    console.log('Banning artist:', artistName)
+    
+    // Add to banned artists set (using artist name for SoundCloud)
+    bannedArtists.value.add(artistName)
+    
+    // Save to localStorage
+    localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+    
+    // Filter from current results
+    const filteredTracks = tracks.value.filter(t => t.user?.username !== artistName)
+    tracks.value = filteredTracks
+    
+    const filteredSeedResults = seedSearchResults.value.filter(t => t.user?.username !== artistName)
+    seedSearchResults.value = filteredSeedResults
+    
+    console.log(`Artist "${artistName}" has been banned`)
+  } catch (error: any) {
+    console.error('Failed to ban artist:', error)
+    error.value = `Failed to ban artist: ${error.message || 'Unknown error'}`
+  }
+}
+
+// Filter function to remove banned artists from tracks
+const filterBannedArtists = (trackList: SoundCloudTrack[]): SoundCloudTrack[] => {
+  return trackList.filter(track => {
+    const artistName = track.user?.username
+    return artistName && !bannedArtists.value.has(artistName)
+  })
+}
+
 onMounted(() => {
   // Listen for related tracks data from other screens
   eventBus.on('SOUNDCLOUD_RELATED_TRACKS_DATA', handleScreenLoad)
@@ -431,6 +483,9 @@ onMounted(() => {
   // Listen for skip events from the SoundCloud player
   eventBus.on('SOUNDCLOUD_SKIP_PREVIOUS', skipToPrevious)
   eventBus.on('SOUNDCLOUD_SKIP_NEXT', skipToNext)
+  
+  // Load banned artists
+  loadBannedArtists()
 })
 
 onUnmounted(() => {

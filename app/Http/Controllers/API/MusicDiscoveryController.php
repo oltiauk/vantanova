@@ -138,9 +138,15 @@ class MusicDiscoveryController extends Controller
             $userId = auth()->id();
             if ($userId) {
                 $beforeCount = count($formattedTracks);
-                $formattedTracks = $this->filterByUserPreferences($formattedTracks, $userId);
+                $formattedTracks = $this->filterByUserPreferences($formattedTracks, $userId, $artistName);
                 $afterCount = count($formattedTracks);
-                \Log::info("🎧 Applied user preference filtering", ['before' => $beforeCount, 'after' => $afterCount]);
+                \Log::info("🎧 Applied user preference filtering", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
+            } else {
+                // Even if no user is authenticated, filter out seed artist tracks
+                $beforeCount = count($formattedTracks);
+                $formattedTracks = $this->filterBySeedArtist($formattedTracks, $artistName);
+                $afterCount = count($formattedTracks);
+                \Log::info("🎧 Applied seed artist filtering (no auth)", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
             }
 
             // 8. Randomize order
@@ -629,7 +635,7 @@ class MusicDiscoveryController extends Controller
             // Apply blacklist/saved filtering
             $userId = auth()->id();
             if ($userId) {
-                $filteredTracks = $this->filterByUserPreferences($filteredTracks, $userId);
+                $filteredTracks = $this->filterByUserPreferences($filteredTracks, $userId, null);
             }
 
             // Apply pagination after all filtering and deduplication
@@ -736,9 +742,9 @@ class MusicDiscoveryController extends Controller
     }
 
     /**
-     * Filter tracks by user preferences (blacklist/saved)
+     * Filter tracks by user preferences (blacklist/saved) and seed artist
      */
-    private function filterByUserPreferences(array $tracks, int $userId): array
+    private function filterByUserPreferences(array $tracks, int $userId, string $seedArtist = null): array
     {
         try {
             // Check if blacklist tables exist - if not, return original tracks
@@ -768,7 +774,7 @@ class MusicDiscoveryController extends Controller
                 \Log::warning('Could not fetch blacklisted artist names: ' . $e->getMessage());
             }
 
-            return array_filter($tracks, function($track) use ($blacklistedIsrcs, $savedIsrcs, $blacklistedArtistIds, $blacklistedArtistNames) {
+            return array_filter($tracks, function($track) use ($blacklistedIsrcs, $savedIsrcs, $blacklistedArtistIds, $blacklistedArtistNames, $seedArtist) {
             // Extract ISRC from track (may be nested in external_ids)
             $isrc = null;
             if (isset($track['external_ids']['isrc'])) {
@@ -816,6 +822,15 @@ class MusicDiscoveryController extends Controller
                 $artistName = $track['artists'][0]['name']; // Formatted structure
             }
             
+            // Filter out tracks from seed artist by default
+            if ($seedArtist && $artistName) {
+                $normalizedArtistName = strtolower(trim($artistName));
+                $normalizedSeedArtist = strtolower(trim($seedArtist));
+                if ($normalizedArtistName === $normalizedSeedArtist) {
+                    return false;
+                }
+            }
+
             if ($artistName && !empty($blacklistedArtistNames)) {
                 $normalizedArtistName = strtolower(trim($artistName));
                 if (in_array($normalizedArtistName, $blacklistedArtistNames)) {
@@ -835,6 +850,42 @@ class MusicDiscoveryController extends Controller
             // Return original tracks if filtering fails
             return $tracks;
         }
+    }
+
+    /**
+     * Filter tracks by seed artist (for unauthenticated users)
+     */
+    private function filterBySeedArtist(array $tracks, string $seedArtist): array
+    {
+        if (!$seedArtist) {
+            return $tracks;
+        }
+
+        $normalizedSeedArtist = strtolower(trim($seedArtist));
+
+        return array_filter($tracks, function($track) use ($normalizedSeedArtist) {
+            // Extract artist name from track
+            $artistName = '';
+            if (isset($track['artist'])) {
+                $artistName = is_string($track['artist']) ? $track['artist'] : '';
+            } elseif (isset($track['artist']['name'])) {
+                $artistName = $track['artist']['name'];
+            } elseif (isset($track['subtitle'])) {
+                $artistName = $track['subtitle']; // Shazam format
+            } elseif (isset($track['artists'][0]['name'])) {
+                $artistName = $track['artists'][0]['name']; // Formatted structure
+            }
+
+            // Filter out tracks from seed artist
+            if ($artistName) {
+                $normalizedArtistName = strtolower(trim($artistName));
+                if ($normalizedArtistName === $normalizedSeedArtist) {
+                    return false;
+                }
+            }
+
+            return true; // Keep track if not from seed artist
+        });
     }
 
     /**

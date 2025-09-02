@@ -33,7 +33,7 @@ onMounted(() => {
 
 <style lang="postcss" scoped>
 button {
-  @apply border border-white/50 text-k-text-primary;
+  @apply border-0 text-k-text-primary;
   bottom: calc(var(--footer-height) + 26px);
 
   &.fade-enter,

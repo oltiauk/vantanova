@@ -51,7 +51,7 @@ span {
 }
 
 .role span {
-  @apply px-2 py-1 rounded-md border border-white/20;
+  @apply px-2 py-1 rounded-md border-0;
 }
 
 &:only-child .actions:not(:has(button)) {

@@ -119,6 +119,6 @@ const removeFailedEntries = () => uploadService.removeFailed()
 
 <style lang="postcss" scoped>
 .droppable {
-  @apply border-2 border-dashed border-white/40 bg-black/20 rounded-3xl;
+  @apply border-2 border-dashed border-transparent bg-black/20 rounded-3xl;
 }
 </style>

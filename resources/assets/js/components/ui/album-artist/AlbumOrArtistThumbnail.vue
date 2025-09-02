@@ -156,7 +156,7 @@ const onDrop = async (event: DragEvent) => {
 
 <style lang="postcss" scoped>
 .droppable {
-  @apply border-2 border-dotted border-white brightness-50;
+  @apply border-2 border-dotted border-transparent brightness-50;
 
   * {
     pointer-events: none;

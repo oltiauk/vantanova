@@ -14,7 +14,7 @@
             <label class="block text-sm font-medium mb-2 text-white/80">Genre</label>
             <select
               v-model="selectedGenre"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+              class="w-full p-2 bg-white/10 rounded focus:border-k-accent text-white scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
               style="scrollbar-color: rgba(255,255,255,0.3) transparent;"
             >
               <option value="" class="bg-gray-800">All Genres</option>
@@ -28,7 +28,7 @@
             <input
               v-model="searchTags"
               type="text"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+              class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
               placeholder="electronic, remix, house..."
             />
             <div class="mt-1 flex flex-wrap gap-1">
@@ -51,7 +51,7 @@
             <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
             <select
               v-model="timePeriod"
-              class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+              class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
             >
               <option value="" class="bg-gray-800">All Time</option>
               <option value="1d" class="bg-gray-800">Last Day</option>

@@ -13,7 +13,7 @@
     <!-- Loading State -->
     <div v-if="isDiscovering" class="text-center p-12">
       <div class="inline-flex flex-col items-center">
-        <svg class="w-8 h-8 animate-spin text-[#429488] mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="w-8 h-8 animate-spin text-[#9d0cc6] mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -46,7 +46,7 @@
           <button
             @click="blacklistUnsavedTracks"
             :disabled="isBlacklisting"
-            class="px-4 py-2 bg-[#429488] hover:bg-[#368075] rounded-lg text-sm font-medium transition disabled:opacity-50 text-white border border-[#429488]/30"
+            class="px-4 py-2 bg-[#9d0cc6] hover:bg-[#368075] rounded-lg text-sm font-medium transition disabled:opacity-50 text-white border border-[#9d0cc6]/30"
           >
             <div class="flex flex-col items-center">
               <span>Add to Blacklist</span>
@@ -62,7 +62,7 @@
             <!-- Custom Dropdown Button -->
             <button
               @click="dropdownOpen = !dropdownOpen"
-              class="bg-white/10 text-white text-sm rounded-md px-3 py-2 pr-8 border border-white/20 hover:border-[#429488]/50 focus:border-[#429488] focus:outline-none focus:ring-1 focus:ring-[#429488]/30 transition-all duration-200 cursor-pointer min-w-[160px] text-left"
+              class="bg-white/10 text-white text-sm rounded-md px-3 py-2 pr-8  hover:border-[#9d0cc6]/50 focus:border-[#9d0cc6] focus:outline-none focus:ring-1 focus:ring-[#9d0cc6]/30 transition-all duration-200 cursor-pointer min-w-[160px] text-left"
             >
               {{ getSortLabel(sortBy) }}
             </button>
@@ -77,7 +77,7 @@
             <!-- Custom Dropdown Options -->
             <div
               v-if="dropdownOpen"
-              class="absolute top-full left-0 right-0 mt-1 bg-neutral-800 border border-white/20 rounded-md shadow-lg overflow-hidden z-50 backdrop-blur-sm"
+              class="absolute top-full left-0 right-0 mt-1 bg-neutral-800  rounded-md shadow-lg overflow-hidden z-50 backdrop-blur-sm"
             >
               <div
                 v-for="option in sortOptions"
@@ -99,6 +99,7 @@
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left p-3 font-medium">#</th>
+                <th class="text-left p-3 font-medium w-12">Ban</th>
                 <th class="text-left p-3 font-medium">Artist</th>
                 <th class="text-left p-3 font-medium">Title</th>
                 <th class="text-left p-3 font-medium">Duration</th>
@@ -114,6 +115,17 @@
                   <!-- Index -->
                   <td class="p-3 align-middle">
                     <span class="text-white/60">{{ index + 1 }}</span>
+                  </td>
+
+                  <!-- Ban Button -->
+                  <td class="p-3 align-middle">
+                    <button
+                      @click="banArtist(track)"
+                      class="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-full transition-colors"
+                      title="Ban this artist"
+                    >
+                      <Icon :icon="faBan" class="w-4 h-4" />
+                    </button>
                   </td>
 
                   <!-- Artist -->
@@ -139,7 +151,7 @@
                       {{ formatNumber(track.lastfm_stats.playcount) }}
                     </div>
                     <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
-                      <svg class="animate-spin h-4 w-4 text-[#429488]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg class="animate-spin h-4 w-4 text-[#9d0cc6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -154,7 +166,7 @@
                       {{ formatNumber(track.lastfm_stats.listeners) }}
                     </div>
                     <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
-                      <svg class="animate-spin h-4 w-4 text-[#429488]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg class="animate-spin h-4 w-4 text-[#9d0cc6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -169,7 +181,7 @@
                       {{ formatRatio(track.lastfm_stats.playcount, track.lastfm_stats.listeners) }}
                     </div>
                     <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
-                      <svg class="animate-spin h-4 w-4 text-[#429488]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg class="animate-spin h-4 w-4 text-[#9d0cc6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -211,7 +223,7 @@
                       <button
                         @click="getRelatedTracks(track)"
                         :disabled="processingTrack === getTrackKey(track)"
-                        class="px-3 py-1.5 bg-[#429488] rounded text-sm font-medium transition disabled:opacity-50"
+                        class="px-3 py-1.5 bg-[#9d0cc6] rounded text-sm font-medium transition disabled:opacity-50"
                         title="Find Related Tracks"
                       >
                         Related
@@ -291,7 +303,7 @@
                     v-if="page !== '...'"
                     @click="goToPage(page as number)"
                     :class="currentPage === page 
-                      ? 'bg-[#429488] text-white' 
+                      ? 'bg-[#9d0cc6] text-white' 
                       : 'bg-white/10 hover:bg-white/20 text-white'"
                     class="w-10 h-10 rounded-md font-medium transition"
                   >
@@ -387,6 +399,9 @@ const sortBy = ref<string>('none')
 const sortedRecommendations = ref<Track[]>([])
 const originalRecommendations = ref<Track[]>([])
 const dropdownOpen = ref(false)
+
+// Banned artists tracking (shared with Similar Artists)
+const bannedArtists = ref(new Set<string>()) // Store artist names
 
 // Sort options for the custom dropdown
 const sortOptions = [
@@ -494,13 +509,19 @@ const visiblePages = computed(() => {
   return pages
 })
 
-// Computed property for displayed recommendations
+// Computed property for displayed recommendations (with banned artists filtering)
 const displayRecommendations = computed(() => {
+  let tracks: Track[]
+  
   if (sortBy.value === 'none') {
     // Show tracks in random order when no sorting is applied
-    return originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
+    tracks = originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
+  } else {
+    tracks = sortedRecommendations.value
   }
-  return sortedRecommendations.value
+  
+  // Filter out banned artists
+  return filterBannedArtists(tracks)
 })
 
 const isTrackSaved = (track: Track): boolean => {
@@ -954,6 +975,43 @@ const blacklistUnsavedTracks = async () => {
   }
 }
 
+// Load banned artists from localStorage (shared with Similar Artists and Related Tracks)
+const loadBannedArtists = () => {
+  try {
+    const stored = localStorage.getItem('koel-banned-artists')
+    if (stored) {
+      const bannedList = JSON.parse(stored)
+      bannedArtists.value = new Set(bannedList)
+      console.log('Loaded banned artists:', bannedList)
+    }
+  } catch (error) {
+    console.warn('Failed to load banned artists from localStorage:', error)
+  }
+}
+
+// Save banned artists to localStorage
+const saveBannedArtists = () => {
+  try {
+    const bannedList = Array.from(bannedArtists.value)
+    localStorage.setItem('koel-banned-artists', JSON.stringify(bannedList))
+  } catch (error) {
+    console.warn('Failed to save banned artists to localStorage:', error)
+  }
+}
+
+// Ban an artist (add to banned list and filter from display)
+const banArtist = (track: Track) => {
+  const artistName = track.artist
+  bannedArtists.value.add(artistName)
+  saveBannedArtists()
+  console.log('Artist banned:', artistName)
+}
+
+// Filter out tracks from banned artists
+const filterBannedArtists = (trackList: Track[]) => {
+  return trackList.filter(track => !bannedArtists.value.has(track.artist))
+}
+
 // Load user preferences on mount
 // Click outside handler to close dropdown
 const handleClickOutside = (event: Event) => {
@@ -964,6 +1022,7 @@ const handleClickOutside = (event: Event) => {
 }
 
 onMounted(async () => {
+  loadBannedArtists()
   await loadUserPreferences()
   document.addEventListener('click', handleClickOutside)
 })
@@ -1070,10 +1129,13 @@ const shuffleArray = <T>(array: T[]): T[] => {
 // Watch for recommendation changes and fetch stats
 watch(() => props.recommendations, async (newRecommendations) => {
   if (newRecommendations.length > 0) {
-    // Store original recommendations and shuffle them for random display
-    originalRecommendations.value = shuffleArray(newRecommendations)
+    // Filter out banned artists before storing
+    const filteredRecommendations = filterBannedArtists(newRecommendations)
     
-    await fetchLastFmStats(newRecommendations.slice(0, 20)) // Only fetch stats for first 20
+    // Store original recommendations and shuffle them for random display
+    originalRecommendations.value = shuffleArray(filteredRecommendations)
+    
+    await fetchLastFmStats(filteredRecommendations.slice(0, 20)) // Only fetch stats for first 20
     
     // Reset sort to random when new recommendations come in
     sortBy.value = 'none'
@@ -1157,7 +1219,6 @@ const loadUserPreferences = async () => {
 .spotify-player-container {
   animation: slideDown 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-
 
 @keyframes slideDown {
   from {

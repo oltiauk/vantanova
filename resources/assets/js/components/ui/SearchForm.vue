@@ -2,7 +2,7 @@
   <form
     id="searchForm"
     class="text-k-text-secondary flex items-stretch border overflow-hidden gap-2 pl-4 pr-0 py-0 rounded-md
-    border-solid border-transparent bg-black/20 focus-within:border-white/20 focus-within:bg-black/50
+    border-solid border-transparent bg-black/20 focus-within:border-transparent focus-within:bg-black/50
     transition-[border,_background-color] duration-200 ease-in-out"
     role="search"
     @submit.prevent="onSubmit"

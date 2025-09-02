@@ -1,6 +1,6 @@
 <template>
   <span
-    class="flex w-[64px] h-9 border border-solid border-white/20 rounded-md overflow-hidden mt-[0.5rem] md:mt-0"
+    class="flex w-[64px] h-9 border-0 rounded-md overflow-hidden mt-[0.5rem] md:mt-0"
   >
     <label
       v-koel-tooltip.top

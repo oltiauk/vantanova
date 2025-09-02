@@ -47,7 +47,7 @@ class SearchSoundCloudController extends Controller
      * - bpm_from/bmp_to: BPM range filtering
      * - duration_from/duration_to: Duration limits in milliseconds
      * - created_from/created_to: Date range filtering
-     * - limit: Maximum results (1-50, default 20)
+     * - limit: Maximum results (1-100, default 20)
      * - offset: Pagination offset
      * - access: Access level filter (default: "playable,preview")
      * 
@@ -138,8 +138,8 @@ class SearchSoundCloudController extends Controller
             \Log::info('📅 Created to filter added', ['created_to' => $createdTo]);
         }
 
-        // Pagination and result limits
-        $params['limit'] = min((int) $request->input('limit', 20), 50);
+        // Pagination and result limits - increased to get more diverse results
+        $params['limit'] = min((int) $request->input('limit', 20), 100);
         
         if ($offset = $request->input('offset')) {
             $params['offset'] = (int) $offset;

@@ -117,7 +117,7 @@ dialog {
     }
 
     > footer {
-      @apply mt-0 bg-black/10 border-t border-white/5 space-x-2;
+      @apply mt-0 bg-black/10 border-t border-transparent space-x-2;
     }
 
     > header {

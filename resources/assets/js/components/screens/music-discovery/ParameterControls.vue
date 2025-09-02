@@ -499,7 +499,7 @@ const updateRangeProgress = () => {
 
 <style scoped>
 .parameter-item {
-  @apply bg-k-bg-secondary border border-k-border rounded-lg p-4;
+  @apply bg-k-bg-secondary border-0 rounded-lg p-4;
 }
 
 .param-range {

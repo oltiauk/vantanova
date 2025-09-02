@@ -23,12 +23,18 @@
         </template>
         Profile
       </SidebarItem>
+      <SidebarItem :href="url('music-preferences')" screen="MusicPreferences">
+        <template #icon>
+          <Icon :icon="faSliders" fixed-width />
+        </template>
+        Preferences
+      </SidebarItem>
     </ul>
   </SidebarSection>
 </template>
 
 <script lang="ts" setup>
-import { faTools, faUsers, faUser } from '@fortawesome/free-solid-svg-icons'
+import { faTools, faUsers, faUser, faSliders } from '@fortawesome/free-solid-svg-icons'
 import { useAuthorization } from '@/composables/useAuthorization'
 import { useRouter } from '@/composables/useRouter'
 

@@ -141,13 +141,14 @@ class SoundCloudService {
         }
       }
       
-      // Popularity filter
-      if (filters.minPlays && track.playback_count < filters.minPlays) {
-        return false
-      }
-      if (filters.maxPlays && track.playback_count > filters.maxPlays) {
-        return false
-      }
+      // Popularity filter - REMOVED: Let frontend handle this for better UX
+      // The frontend filtering allows real-time filter changes without new API calls
+      // if (filters.minPlays && track.playback_count < filters.minPlays) {
+      //   return false
+      // }
+      // if (filters.maxPlays && track.playback_count > filters.maxPlays) {
+      //   return false
+      // }
       
       return true
     })

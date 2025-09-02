@@ -17,7 +17,7 @@
               <input
                 v-model="searchQuery"
                 type="text"
-                class="w-full p-3 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white text-lg"
+                class="w-full p-3 bg-white/10 rounded  focus:border-k-accent text-white text-lg"
                 placeholder="Search for artists, tracks, albums..."
                 @keyup.enter="search"
               />
@@ -44,7 +44,7 @@
                 <input
                   v-model="selectedGenre"
                   type="text"
-                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                  class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
                   placeholder="Type genre..."
                 />
               </div>
@@ -55,7 +55,7 @@
                 <input
                   v-model="searchTags"
                   type="text"
-                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                  class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
                   placeholder="Add another genre, style, or characteristic"
                 />
               </div>
@@ -68,7 +68,7 @@
                 <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
                 <select
                   v-model="timePeriod"
-                  class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                  class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
                 >
                   <option value="" class="bg-gray-800">All Time</option>
                   <option value="1d" class="bg-gray-800">Last Day</option>
@@ -137,7 +137,7 @@
                     type="text"
                     placeholder="e.g. 10,000"
                     @input="handleMinPlaysInput"
-                    class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                    class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
                   />
                 </div>
 
@@ -149,7 +149,7 @@
                     type="text"
                     placeholder="e.g. 1,000,000"
                     @input="handleMaxPlaysInput"
-                    class="w-full p-2 bg-white/10 rounded border border-white/20 focus:border-k-accent text-white"
+                    class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
                   />
                 </div>
               </div>
@@ -238,7 +238,7 @@
           <!-- Dropdown Menu -->
           <div 
             v-if="showLikesRatioDropdown"
-            class="absolute right-0 mt-12 w-52 border border-white/20 rounded-lg shadow-lg z-10"
+            class="absolute right-0 mt-12 w-52  rounded-lg shadow-lg z-10"
             style="background-color: rgb(67,67,67,255);"
           >
             <button
@@ -415,6 +415,7 @@ const showLikesRatioDropdown = ref(false) // Dropdown visibility
 
 // Results state
 const tracks = ref<SoundCloudTrack[]>([])
+const originalTracks = ref<SoundCloudTrack[]>([]) // Store unfiltered tracks
 const loading = ref(false)
 const searched = ref(false)
 const error = ref('')
@@ -555,8 +556,48 @@ const getSortText = () => {
 }
 
 const applyFiltering = () => {
-  let filteredTracks = [...tracks.value]
+  let filteredTracks = [...originalTracks.value]
+  const originalCount = filteredTracks.length
   
+  console.log('🔍 applyFiltering called:', {
+    originalCount,
+    minPlays: minPlays.value,
+    maxPlays: maxPlays.value,
+    hasPlayFilters: !!(minPlays.value || maxPlays.value)
+  })
+  
+  // Apply plays filtering first
+  if (minPlays.value || maxPlays.value) {
+    console.log('🔍 Applying plays filter with tracks:', filteredTracks.slice(0, 3).map(t => ({
+      title: t?.title,
+      plays: t?.playback_count
+    })))
+    
+    filteredTracks = filteredTracks.filter(track => {
+      const playCount = track.playback_count || 0
+      
+      if (minPlays.value && playCount < minPlays.value) {
+        return false
+      }
+      
+      if (maxPlays.value && playCount > maxPlays.value) {
+        return false
+      }
+      
+      return true
+    })
+    
+    console.log('🔍 After filtering:', {
+      originalCount,
+      filteredCount: filteredTracks.length,
+      sampleResults: filteredTracks.slice(0, 3).map(t => ({
+        title: t?.title,
+        plays: t?.playback_count
+      }))
+    })
+  }
+  
+  // Then apply sorting
   if (likesRatioFilter.value === 'highest') {
     // Sort by likes ratio highest to lowest
     filteredTracks.sort((a, b) => {
@@ -699,6 +740,14 @@ const handleBpmToInput = (event: Event) => {
   }, 500) // 500ms debounce
 }
 
+// Watch for plays filter changes to re-apply filtering
+watch([minPlays, maxPlays], () => {
+  // Only re-filter if we have tracks AND a search has been performed
+  if (originalTracks.value.length > 0 && searched.value && !loading.value) {
+    applyFiltering()
+  }
+})
+
 // Watch for slider changes to update input fields (only when not actively typing)
 watch([bpmFrom, bpmTo], ([newFrom, newTo]) => {
   // Only update input fields if they don't already contain the same value
@@ -720,8 +769,10 @@ const search = async () => {
   loading.value = true
   error.value = ''
   tracks.value = []
+  originalTracks.value = []
   searchStats.value = null
   hasMoreResults.value = false
+  
   currentPage.value = 1
 
   const startTime = performance.now()
@@ -756,11 +807,32 @@ const search = async () => {
     // Store filters for pagination
     lastSearchFilters.value = filters
 
+    console.log('🎵 DEBUG: Filters being sent to API:', filters)
+
     const response = await soundcloudService.searchWithPagination(filters)
     const endTime = performance.now()
     
-    // Display ALL tracks from the API call at once
+    // Store original tracks and display them
+    // Store original tracks and display them
+    console.log('🎵 DEBUG: Response received:', {
+      responseTracksCount: response.tracks?.length || 0,
+      firstTrack: response.tracks?.[0] || null,
+      samplePlayCounts: (response.tracks || []).slice(0, 5).map(t => ({ 
+        title: t?.title, 
+        plays: t?.playback_count 
+      }))
+    })
+    
+    originalTracks.value = response.tracks
     tracks.value = response.tracks
+    
+    console.log('🎵 DEBUG: After storing:', {
+      originalTracksCount: originalTracks.value.length,
+      tracksCount: tracks.value.length,
+      minPlays: minPlays.value,
+      maxPlays: maxPlays.value,
+      willFilter: !!(minPlays.value || maxPlays.value)
+    })
     
     // Apply current filtering to all tracks
     applyFiltering()
@@ -799,6 +871,7 @@ const search = async () => {
   } catch (err: any) {
     error.value = err.message || 'Failed to search SoundCloud. Please try again.'
     tracks.value = []
+    originalTracks.value = []
   } finally {
     loading.value = false
   }
@@ -825,6 +898,7 @@ const goToPage = async (page: number) => {
     
     if (response.tracks && response.tracks.length > 0) {
       // Replace current tracks with new page tracks (clean slate)
+      originalTracks.value = response.tracks
       tracks.value = response.tracks
       currentPage.value = page
       
@@ -973,6 +1047,7 @@ const resetFilters = () => {
   likesRatioFilter.value = 'none'
   showLikesRatioDropdown.value = false
   tracks.value = []
+  originalTracks.value = []
   searched.value = false
   error.value = ''
   searchStats.value = null
