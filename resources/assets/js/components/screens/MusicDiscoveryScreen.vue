@@ -46,6 +46,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { http } from '@/services/http'
+import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -134,8 +135,13 @@ const currentPage = ref(1)
 const tracksPerPage = ref(20)
 const totalTracks = ref(0)
 
-// Blacklisted tracks for filtering
-const blacklistedTracks = ref<Set<string>>(new Set())
+// Initialize global blacklist filtering
+const { 
+  filterTracks, 
+  loadBlacklistedItems,
+  addTrackToBlacklist,
+  addArtistToBlacklist 
+} = useBlacklistFiltering()
 
 const seedTrackKey = ref<number | null>(null)
 const seedTrackMode = ref<number | null>(null)
@@ -178,15 +184,7 @@ const hasEnabledParameters = computed(() => {
   return Object.values(enabledParameters.value).some(enabled => enabled)
 })
 
-// Helper function to get track key for blacklist checking
-const getTrackKey = (track: Track): string => {
-  return `${track.artist}-${track.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
-}
-
-// Helper function to check if track is blacklisted
-const isTrackBlacklisted = (track: Track): boolean => {
-  return blacklistedTracks.value.has(getTrackKey(track))
-}
+// Helper functions now handled by useBlacklistFiltering composable
 
 const INITIAL_LOAD = 20
 const LOAD_MORE_BATCH = 20
@@ -311,11 +309,11 @@ const discoverMusicSoundStats = async () => {
     })
 
     if (response.success && response.data) {
-      // Filter out blacklisted tracks
+      // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
-      const filteredTracks = allTracks.filter(track => !isTrackBlacklisted(track))
+      const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 SoundStats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
+      console.log(`📋 SoundStats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
@@ -406,11 +404,11 @@ const discoverMusicReccoBeats = async () => {
     const response: ApiResponse<Track[]> = await http.post('music-discovery/discover-reccobeats', reccoBeatsParams)
 
     if (response.success && response.data) {
-      // Filter out blacklisted tracks
+      // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
-      const filteredTracks = allTracks.filter(track => !isTrackBlacklisted(track))
+      const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 ReccoBeats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
+      console.log(`📋 ReccoBeats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
@@ -448,11 +446,11 @@ const discoverMusicRapidApi = async () => {
     })
 
     if (response.success && response.data) {
-      // Filter out blacklisted tracks
+      // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
-      const filteredTracks = allTracks.filter(track => !isTrackBlacklisted(track))
+      const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 RapidAPI: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
+      console.log(`📋 RapidAPI: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
@@ -517,11 +515,11 @@ const getRelatedTracks = async (track: Track) => {
     })
 
     if (response.success && response.data) {
-      // Filter out blacklisted tracks
+      // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
-      const filteredTracks = allTracks.filter(track => !isTrackBlacklisted(track))
+      const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks`)
+      console.log(`📋 Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
@@ -584,30 +582,24 @@ const loadMoreRecommendations = async () => {
   isLoadingMore.value = false
 }
 
-// Load blacklisted tracks from API
-const loadBlacklistedTracks = async () => {
-  try {
-    const response = await http.get('music-preferences/blacklisted-tracks')
-    if (response.success && response.data) {
-      blacklistedTracks.value.clear()
-      response.data.forEach((track: any) => {
-        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
-        blacklistedTracks.value.add(trackKey)
-      })
-      console.log(`📋 Loaded ${blacklistedTracks.value.size} blacklisted tracks for filtering`)
-    }
-  } catch (error) {
-    console.log('Could not load blacklisted tracks (user may not be logged in)')
-  }
-}
-
 // Handle tracks being blacklisted from child component
 const onTracksBlacklisted = (trackKeys: string[]) => {
-  // Add the newly blacklisted tracks to our blacklist state
-  trackKeys.forEach(trackKey => {
-    blacklistedTracks.value.add(trackKey)
-  })
-  console.log(`📋 Parent: Added ${trackKeys.length} tracks to blacklist state`)
+  // The global blacklist filtering will handle this automatically
+  // We just need to refresh the recommendations to apply the new filter
+  console.log(`📋 Parent: ${trackKeys.length} tracks were blacklisted, re-filtering recommendations`)
+  
+  // Re-filter current recommendations
+  if (allRecommendations.value.length > 0) {
+    const filteredTracks = filterTracks(allRecommendations.value)
+    allRecommendations.value = filteredTracks
+    totalTracks.value = filteredTracks.length
+    
+    // Reset pagination to show filtered results
+    currentPage.value = 1
+    recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
+    displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
+    hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
+  }
 }
 
 // Pagination event handlers
@@ -622,7 +614,7 @@ const onPerPageChange = (perPage: number) => {
 
 // Load blacklisted tracks on component mount
 onMounted(async () => {
-  await loadBlacklistedTracks()
+  await loadBlacklistedItems()
 })
 
 const loadMoreRapidApiRecommendations = async () => {

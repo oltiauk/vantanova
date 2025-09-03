@@ -12,57 +12,67 @@
     </template>
 
     <div class="similar-artists-screen">
-      <!-- Artist Search Section -->
-      <div class="search-section bg-k-bg-secondary rounded-lg p-6 mb-6">
-        <div class="relative">
-          <!-- Search Icon -->
-          <div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/60 pointer-events-none">
-            <Icon :icon="faSearch" class="w-5 h-5" />
-          </div>
+      <!-- Welcome Message - Only show when no results and no search -->
+      <div v-if="!selectedArtist && !similarArtists.length && !searchQuery.trim() && !errorMessage" class="max-w-2xl mx-auto text-center mb-8">
+        <h2 class="text-2xl font-bold mb-2">Similar Artists</h2>
+        <p class="text-k-text-secondary">
+          Search for an artist to find similar artists.
+        </p>
+      </div>
 
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg  focus:border-k-accent text-white text-lg"
-            placeholder="Search for artists..."
-            @input="onSearchInput"
-            @focus="showDropdown = true"
-            @blur="onSearchBlur"
-          >
-
-          <!-- Search Dropdown -->
-          <div
-            v-if="showDropdown && searchResults.length > 0"
-            class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
-          >
-            <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
-              <div v-for="(artist, index) in searchResults.slice(0, 10)" :key="`suggestion-${artist.mbid || artist.name}-${index}`">
-                <div
-                  class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
-                  :class="{
-                    'bg-k-accent/10': selectedArtist && selectedArtist.name === artist.name,
-                  }"
-                  @click="handleArtistClick(artist)"
+      <!-- Search Container -->
+      <div class="seed-selection mb-8">
+        <div class="search-container mb-6">
+          <div class="rounded-lg p-4">
+            <div class="max-w-4xl mx-auto">
+              <div class="relative" ref="searchContainer">
+                <!-- Search Icon -->
+                <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
+                  <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
+                </div>
+                
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg"
+                  placeholder="Search for an artist"
+                  @input="onSearchInput"
+                />
+                
+                <!-- Search Dropdown -->
+                <div 
+                  v-if="searchResults.length > 0" 
+                  class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
                 >
-                  <!-- Artist Info -->
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
-                      {{ artist.name }}
+                  <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
+                    <div v-for="(artist, index) in searchResults.slice(0, 10)" :key="`suggestion-${artist.mbid || artist.name}-${index}`">
+                      <div 
+                        @click="handleArtistClick(artist)"
+                        class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
+                        :class="{
+                          'bg-k-accent/10': selectedArtist && selectedArtist.name === artist.name
+                        }"
+                      >
+                        <!-- Artist Info -->
+                        <div class="flex-1 min-w-0">
+                          <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
+                            {{ artist.name }}
+                          </div>
+                          <div v-if="artist.listeners" class="text-sm text-k-text-tertiary">{{ formatListeners(artist.listeners) }} listeners</div>
+                        </div>
+                      </div>
                     </div>
-                    <div v-if="artist.listeners" class="text-sm text-k-text-tertiary">{{ formatListeners(artist.listeners) }} listeners</div>
+                    
+                    <div v-if="searchResults.length > 10" class="px-4 py-3 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/20">
+                      <Icon :icon="faMusic" class="mr-1 opacity-50" />
+                      {{ searchResults.length - 10 }} more artists found
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div v-if="searchResults.length > 10" class="px-4 py-3 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/20">
-                <Icon :icon="faMusic" class="mr-1 opacity-50" />
-                {{ searchResults.length - 10 }} more artists found
               </div>
             </div>
           </div>
         </div>
-
-        <div v-if="searchLoading" class="mt-2 text-gray-400">Searching artists...</div>
       </div>
 
       <!-- Selected Seed Track Display - Compact -->
@@ -327,10 +337,17 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { http } from '@/services/http'
-import { faBan, faCheck, faMusic, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
+import { faBan, faCheck, faMusic, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
+
+// Initialize blacklist filtering (but Similar Artists section remains UNFILTERED by design)
+const { 
+  addArtistToBlacklist,
+  loadBlacklistedItems 
+} = useBlacklistFiltering()
 
 interface LastfmArtist {
   name: string
@@ -371,8 +388,8 @@ interface SpotifyTrack {
 const searchQuery = ref('')
 const searchResults = ref<LastfmArtist[]>([])
 const searchLoading = ref(false)
-const showDropdown = ref(false)
 const searchTimeout = ref<ReturnType<typeof setTimeout>>()
+const searchContainer = ref<HTMLElement | null>(null)
 
 // Selected artist and results
 const selectedArtist = ref<LastfmArtist | null>(null)
@@ -412,20 +429,23 @@ const sortOptions = [
 
 // Search functionality
 const onSearchInput = () => {
+  // Clear existing timeout
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
   }
 
+  // Clear results immediately if query is empty
   if (!searchQuery.value.trim()) {
     searchResults.value = []
-    showDropdown.value = false
     return
   }
 
+  // Set new timeout for search
   searchTimeout.value = setTimeout(() => {
     searchArtists()
-  }, 1000)
+  }, 500) // Wait 500ms after user stops typing
 }
+
 
 const searchArtists = async () => {
   if (!searchQuery.value.trim()) {
@@ -433,6 +453,7 @@ const searchArtists = async () => {
   }
 
   searchLoading.value = true
+  
   try {
     const response = await http.get('similar-artists/search', {
       params: { query: searchQuery.value },
@@ -484,8 +505,7 @@ const searchArtists = async () => {
         return a.name.localeCompare(b.name)
       })
 
-      searchResults.value = sortedResults.slice(0, 10) // Limit to 10 results
-      showDropdown.value = searchResults.value.length > 0
+      searchResults.value = sortedResults
     } else {
       searchResults.value = []
     }
@@ -497,22 +517,17 @@ const searchArtists = async () => {
   }
 }
 
-const onSearchBlur = () => {
-  // Delay hiding dropdown to allow clicks
-  setTimeout(() => {
-    showDropdown.value = false
-  }, 500)
-}
 
 const handleArtistClick = (artist: LastfmArtist) => {
   selectArtist(artist)
+  // Clear search dropdown after selection
+  searchResults.value = []
 }
 
 const selectArtist = (artist: LastfmArtist) => {
   selectedArtist.value = artist
-  searchQuery.value = artist.name || 'Unknown Artist'
+  searchQuery.value = '' // Clear search box text when launching a search
   searchResults.value = []
-  showDropdown.value = false
 
   // Clear previous results
   similarArtists.value = []
@@ -528,11 +543,11 @@ const selectArtist = (artist: LastfmArtist) => {
   }
 }
 
+
 const clearSeedArtist = () => {
   selectedArtist.value = null
   searchQuery.value = ''
   searchResults.value = []
-  showDropdown.value = false
   similarArtists.value = []
   filteredArtists.value = []
   displayedArtists.value = []
@@ -543,22 +558,38 @@ const clearSeedArtist = () => {
 
 const banArtist = async (artist: LastfmArtist) => {
   try {
-    console.log('Banning artist:', artist.name)
+    console.log('🚫 Banning artist globally:', artist.name)
 
-    // Add to banned artists set
+    // Add to local banned artists set for Similar Artists section
     bannedArtists.value.add(artist.mbid)
 
-    // Save to localStorage for persistence
+    // Add to global blacklist (this will affect ALL other sections)
+    addArtistToBlacklist(artist.name)
+
+    // Save to backend API for persistence across sessions
+    try {
+      const response = await http.post('music-preferences/blacklist-artist', {
+        artist_name: artist.name,
+        spotify_artist_id: artist.mbid || `lastfm:${artist.name}` // Use MBID or create identifier
+      })
+      console.log('✅ Artist saved to global blacklist API:', response)
+    } catch (apiError: any) {
+      console.error('❌ Failed to save to API:', apiError)
+      console.error('❌ API Error details:', apiError.response?.data || apiError.message)
+      // Show error to user so they know it failed
+      errorMessage.value = `Failed to save to preferences: ${apiError.response?.data?.message || apiError.message}`
+    }
+
+    // Save to localStorage for persistence (local Similar Artists filtering)
     localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
 
-    // Remove from current results
+    // Remove from current Similar Artists results (local to this section only)
     const updatedArtists = similarArtists.value.filter(a => a.mbid !== artist.mbid)
     similarArtists.value = updatedArtists
     filteredArtists.value = updatedArtists
     updateDisplayedArtists()
 
-    // Show success message (optional)
-    console.log(`Artist "${artist.name}" has been banned`)
+    console.log(`🚫 Artist "${artist.name}" has been banned globally and locally`)
   } catch (error: any) {
     console.error('Failed to ban artist:', error)
     errorMessage.value = `Failed to ban artist: ${error.message || 'Unknown error'}`
@@ -941,8 +972,15 @@ const selectSort = (value: string) => {
 // Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement
+  
+  // Close sort dropdown if clicking outside of it
   if (!target.closest('.relative')) {
     dropdownOpen.value = false
+  }
+  
+  // Close search dropdown if clicking outside of search container
+  if (searchContainer.value && !searchContainer.value.contains(target)) {
+    searchResults.value = []
   }
 }
 
@@ -962,6 +1000,8 @@ const loadBannedArtists = () => {
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   loadBannedArtists()
+  // Load global blacklisted items (but don't filter Similar Artists results)
+  loadBlacklistedItems()
 })
 
 onUnmounted(() => {

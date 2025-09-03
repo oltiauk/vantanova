@@ -4,34 +4,33 @@
     <div class="search-container mb-6">
       <div class="rounded-lg p-4">
         <div class="max-w-4xl mx-auto">
-          <div class="relative" ref="searchContainer">
+          <div ref="searchContainer" class="relative">
             <!-- Search Icon -->
             <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
               <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
             </div>
-            
+
             <input
               v-model="searchQuery"
               type="text"
-              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg  focus:border-k-accent text-white text-lg"
+              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg"
               placeholder="Search for artists, tracks, albums..."
               @input="onSearchInput"
-            />
-            
-            
+            >
+
             <!-- Search Dropdown -->
-            <div 
-              v-if="searchResults.length > 0" 
+            <div
+              v-if="searchResults.length > 0"
               class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
             >
               <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
                 <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
-                  <div 
-                    @click="selectSeedTrack(track)"
+                  <div
                     class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
                     :class="{
-                      'bg-k-accent/10': selectedTrack && selectedTrack.id === track.id
+                      'bg-k-accent/10': selectedTrack && selectedTrack.id === track.id,
                     }"
+                    @click="selectSeedTrack(track)"
                   >
                     <!-- Track Info -->
                     <div class="flex-1 min-w-0">
@@ -39,14 +38,14 @@
                         {{ formatArtists(track) }} - {{ track.name }}
                       </div>
                     </div>
-                    
+
                     <!-- Duration Badge -->
                     <div class="bg-k-bg-primary/30 px-2 py-1 rounded text-k-text-tertiary text-xs font-mono ml-3 flex-shrink-0">
                       {{ formatDuration(track.duration_ms) }}
                     </div>
                   </div>
                 </div>
-                
+
                 <div v-if="filteredSearchResults.length > 10" class="px-4 py-3 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/20">
                   <Icon :icon="faMusic" class="mr-1 opacity-50" />
                   {{ filteredSearchResults.length - 10 }} more tracks found
@@ -68,17 +67,15 @@
             <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
           </div>
           <button
-            @click="clearSeedTrack"
             class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
             title="Clear seed track"
+            @click="clearSeedTrack"
           >
             <Icon :icon="faTimes" class="w-4 h-4" />
           </button>
         </div>
       </div>
     </div>
-
-
 
     <!-- Error State -->
     <div v-if="searchError" class="bg-red-500/20 border border-red-500/40 rounded-lg p-4 max-w-2xl mx-auto">
@@ -89,8 +86,8 @@
           <p class="text-red-200">{{ searchError }}</p>
         </div>
         <button
-          @click="searchError = ''"
           class="ml-auto text-red-400 hover:text-red-300"
+          @click="searchError = ''"
         >
           <Icon :icon="faTimes" class="w-4 h-4" />
         </button>
@@ -99,7 +96,6 @@
 
     <!-- Instructions -->
     <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="text-center py-12">
-      <Icon :icon="faMusic" class="text-6xl text-white/20 mb-6" />
       <h3 class="text-xl font-medium text-white mb-4">Find Your Seed Track</h3>
       <p class="text-white/60 text-lg mb-6">
         Search for a song to use as the starting point for music discovery
@@ -108,14 +104,14 @@
         The algorithm will find similar tracks based on your selected parameters
       </p> -->
     </div>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { faSearch, faExclamationTriangle, faHeart, faBan, faMusic, faPlay, faTimes, faCheck, faUserPlus, faUserMinus, faRandom } from '@fortawesome/free-solid-svg-icons'
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { faBan, faCheck, faExclamationTriangle, faHeart, faMusic, faPlay, faRandom, faSearch, faTimes, faUserMinus, faUserPlus } from '@fortawesome/free-solid-svg-icons'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { http } from '@/services/http'
+import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 
 interface Track {
   id: string
@@ -141,7 +137,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   selectedTrack: null,
-  hasRecommendations: false
+  hasRecommendations: false,
 })
 
 // Emits
@@ -170,15 +166,30 @@ const savedArtists = ref<Set<string>>(new Set())
 const blacklistedArtists = ref<Set<string>>(new Set())
 const processingTrack = ref<string | null>(null)
 
+// Initialize blacklist filtering composable
+const { 
+  isTrackBlacklisted, 
+  isArtistBlacklisted,
+  isTrackOrArtistBlacklisted, 
+  loadBlacklistedItems 
+} = useBlacklistFiltering()
 
-// Computed - For seed track selection, show ALL tracks (including blacklisted)
-// Blacklisted artists should appear in search so they can be selected as seed tracks
-// But they won't appear in the recommendation results
+// Computed - For seed track selection, filter out blacklisted TRACKS but allow blacklisted ARTISTS
+// This allows users to select tracks by blacklisted artists as seed tracks
+// but prevents blacklisted individual tracks from appearing
 const filteredSearchResults = computed(() => {
-  // For seed track selection, show all search results without filtering
-  // Only filter out tracks that are completely invalid/broken
   return searchResults.value.filter(track => {
-    return track && track.name && track.artist // Basic validation only
+    // Basic validation
+    if (!track || !track.name || !track.artist) {
+      return false
+    }
+    
+    // Filter out blacklisted tracks (but allow tracks by blacklisted artists)
+    if (isTrackBlacklisted(track)) {
+      return false
+    }
+    
+    return true
   })
 })
 
@@ -193,24 +204,21 @@ const getTrackKey = (track: Track): string => {
   return `${track.artist}-${track.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
 }
 
+// Local helper functions for saved tracks/artists (separate from global blacklist)
 const isTrackSaved = (track: Track): boolean => {
   return savedTracks.value.has(getTrackKey(track))
-}
-
-const isTrackBlacklisted = (track: Track): boolean => {
-  return blacklistedTracks.value.has(getTrackKey(track))
 }
 
 const isArtistSaved = (track: Track): boolean => {
   return savedArtists.value.has(track.artist.toLowerCase())
 }
 
-const isArtistBlacklisted = (track: Track): boolean => {
-  return blacklistedArtists.value.has(track.artist.toLowerCase())
-}
+// Note: Using global blacklist functions from composable instead of local ones
 
 const formatDuration = (ms?: number): string => {
-  if (!ms) return '0:00'
+  if (!ms) {
+    return '0:00'
+  }
   const minutes = Math.floor(ms / 60000)
   const seconds = Math.floor((ms % 60000) / 1000)
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
@@ -248,10 +256,12 @@ const onSearchInput = () => {
 
 // Search functionality
 const searchTracks = async () => {
-  if (!searchQuery.value.trim()) return
+  if (!searchQuery.value.trim()) {
+    return
+  }
 
   console.log('🔍 [FRONTEND] Starting search for:', searchQuery.value.trim())
-  
+
   isSearching.value = true
   searchError.value = ''
   searchResults.value = []
@@ -259,19 +269,19 @@ const searchTracks = async () => {
 
   try {
     console.log('🔍 [FRONTEND] Making API call to music-discovery/search-seed')
-    
+
     // Use the updated search-seed endpoint with Spotify fallback
     const response = await http.post('music-discovery/search-seed', {
       query: searchQuery.value.trim(),
-      limit: 100
+      limit: 100,
     })
-    
+
     console.log('🔍 [FRONTEND] API Response received:', {
       success: response.success,
       dataLength: response.data?.length,
-      error: response.error
+      error: response.error,
     })
-    
+
     if (response.success && response.data && Array.isArray(response.data)) {
       searchResults.value = response.data
       console.log(`🔍 [FRONTEND] Found ${response.data.length} tracks from search`)
@@ -315,12 +325,11 @@ const getRelatedTracks = (track: Track) => {
   // Clear search results when getting related tracks to prevent overlay
   searchResults.value = []
   searchQuery.value = ''
-  
+
   // Just emit the related tracks request without setting as seed track
   // (the track should already be set as seed track if called from selectSeedTrack)
   emit('related-tracks', track)
 }
-
 
 // Music preferences
 const saveTrack = async (track: Track) => {
@@ -337,8 +346,8 @@ const saveTrack = async (track: Track) => {
         data: {
           isrc: track.id,
           track_name: title,
-          artist_name: artist
-        }
+          artist_name: artist,
+        },
       })
 
       if (response.success) {
@@ -353,7 +362,7 @@ const saveTrack = async (track: Track) => {
         isrc: track.id,
         track_name: title,
         artist_name: artist,
-        duration: Math.floor((track.duration_ms || 0) / 1000)
+        duration: Math.floor((track.duration_ms || 0) / 1000),
       })
 
       if (response.success) {
@@ -389,8 +398,8 @@ const toggleBlacklistTrack = async (track: Track) => {
         data: {
           isrc: track.id,
           track_name: title,
-          artist_name: artist
-        }
+          artist_name: artist,
+        },
       })
 
       if (response.success) {
@@ -404,7 +413,7 @@ const toggleBlacklistTrack = async (track: Track) => {
       const response = await http.post('music-preferences/blacklist-track', {
         isrc: track.id,
         track_name: title,
-        artist_name: artist
+        artist_name: artist,
       })
 
       if (response.success) {
@@ -440,8 +449,8 @@ const saveArtist = async (track: Track) => {
       const response = await http.delete('music-preferences/saved-artist', {
         data: {
           spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
-          artist_name: artistName
-        }
+          artist_name: artistName,
+        },
       })
 
       if (response.success) {
@@ -453,8 +462,8 @@ const saveArtist = async (track: Track) => {
     } else {
       // Save artist
       const response = await http.post('music-preferences/save-artist', {
-        spotify_artist_id: track.id, // Use track ID as fallback if no artist ID  
-        artist_name: artistName
+        spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
+        artist_name: artistName,
       })
 
       if (response.success) {
@@ -484,13 +493,13 @@ const blacklistArtist = async (track: Track) => {
     const artistName = track.artist
     const artistKey = artistName.toLowerCase()
 
-    if (isArtistBlacklisted(track)) {
+    if (isArtistBlacklisted(track.artist)) {
       // Remove from blacklisted artists
       const response = await http.delete('music-preferences/blacklist-artist', {
         data: {
           spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
-          artist_name: artistName
-        }
+          artist_name: artistName,
+        },
       })
 
       if (response.success) {
@@ -503,7 +512,7 @@ const blacklistArtist = async (track: Track) => {
       // Blacklist artist
       const response = await http.post('music-preferences/blacklist-artist', {
         spotify_artist_id: track.id, // Use track ID as fallback if no artist ID
-        artist_name: artistName
+        artist_name: artistName,
       })
 
       if (response.success) {
@@ -525,7 +534,6 @@ const blacklistArtist = async (track: Track) => {
   }
 }
 
-
 // Pagination
 const nextPage = () => {
   if (currentPage.value * 20 < filteredSearchResults.value.length) {
@@ -540,7 +548,7 @@ const previousPage = () => {
 }
 
 // Watch search results and emit changes to parent
-watch(searchResults, (newResults) => {
+watch(searchResults, newResults => {
   emit('search-results-changed', newResults.length > 0)
 })
 
@@ -575,17 +583,10 @@ onUnmounted(() => {
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {
   try {
-    // Load blacklisted tracks
-    const blacklistedTracksResponse = await http.get('music-preferences/blacklisted-tracks')
-    if (blacklistedTracksResponse.success && blacklistedTracksResponse.data) {
-      blacklistedTracksResponse.data.forEach((track: any) => {
-        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
-        blacklistedTracks.value.add(trackKey)
-      })
-      console.log(`Loaded ${blacklistedTracks.value.size} blacklisted tracks`)
-    }
+    // Load global blacklisted items (tracks + artists)
+    await loadBlacklistedItems()
 
-    // Load saved tracks  
+    // Load saved tracks (local to this component)
     const savedTracksResponse = await http.get('music-preferences/saved-tracks')
     if (savedTracksResponse.success && savedTracksResponse.data) {
       savedTracksResponse.data.forEach((track: any) => {
@@ -595,16 +596,7 @@ const loadUserPreferences = async () => {
       console.log(`Loaded ${savedTracks.value.size} saved tracks`)
     }
 
-    // Load blacklisted artists
-    const blacklistedArtistsResponse = await http.get('music-preferences/blacklisted-artists')
-    if (blacklistedArtistsResponse.success && blacklistedArtistsResponse.data) {
-      blacklistedArtistsResponse.data.forEach((artist: any) => {
-        blacklistedArtists.value.add(artist.artist_name.toLowerCase())
-      })
-      console.log(`Loaded ${blacklistedArtists.value.size} blacklisted artists`)
-    }
-
-    // Load saved artists
+    // Load saved artists (local to this component)  
     const savedArtistsResponse = await http.get('music-preferences/saved-artists')
     if (savedArtistsResponse.success && savedArtistsResponse.data) {
       savedArtistsResponse.data.forEach((artist: any) => {
@@ -612,7 +604,6 @@ const loadUserPreferences = async () => {
       })
       console.log(`Loaded ${savedArtists.value.size} saved artists`)
     }
-
   } catch (error) {
     console.log('Could not load user preferences (user may not be logged in)')
   }
@@ -623,5 +614,4 @@ const loadUserPreferences = async () => {
 .seed-selection {
   max-width: 100%;
 }
-
 </style>

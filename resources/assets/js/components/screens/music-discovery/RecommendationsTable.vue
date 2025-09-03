@@ -334,6 +334,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
+import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 
 // Types
 interface Track {
@@ -402,6 +403,12 @@ const dropdownOpen = ref(false)
 
 // Banned artists tracking (shared with Similar Artists)
 const bannedArtists = ref(new Set<string>()) // Store artist names
+
+// Initialize global blacklist filtering composable
+const { 
+  addArtistToBlacklist,
+  loadBlacklistedItems 
+} = useBlacklistFiltering()
 
 // Sort options for the custom dropdown
 const sortOptions = [
@@ -1000,11 +1007,36 @@ const saveBannedArtists = () => {
 }
 
 // Ban an artist (add to banned list and filter from display)
-const banArtist = (track: Track) => {
-  const artistName = track.artist
-  bannedArtists.value.add(artistName)
-  saveBannedArtists()
-  console.log('Artist banned:', artistName)
+const banArtist = async (track: Track) => {
+  try {
+    const artistName = track.artist
+    console.log('🚫 Banning artist globally:', artistName)
+
+    // Add to local banned artists set for this component
+    bannedArtists.value.add(artistName)
+    saveBannedArtists()
+
+    // Add to global blacklist (this will affect ALL other sections)
+    addArtistToBlacklist(artistName)
+
+    // Save to backend API for persistence across sessions
+    try {
+      const response = await http.post('music-preferences/blacklist-artist', {
+        artist_name: artistName,
+        spotify_artist_id: track.artists?.[0]?.id || track.id // Use track ID as fallback if no artist ID
+      })
+      console.log('✅ Artist saved to global blacklist API:', response)
+    } catch (apiError: any) {
+      console.error('❌ Failed to save to API:', apiError)
+      console.error('❌ API Error details:', apiError.response?.data || apiError.message)
+      // Continue with local operations even if API fails
+      console.warn('Artist banned locally but may not appear in Preferences until page refresh')
+    }
+
+    console.log(`🚫 Artist "${artistName}" has been banned globally and locally`)
+  } catch (error: any) {
+    console.error('Failed to ban artist:', error)
+  }
 }
 
 // Filter out tracks from banned artists
@@ -1024,6 +1056,8 @@ const handleClickOutside = (event: Event) => {
 onMounted(async () => {
   loadBannedArtists()
   await loadUserPreferences()
+  // Load global blacklisted items
+  await loadBlacklistedItems()
   document.addEventListener('click', handleClickOutside)
 })
 

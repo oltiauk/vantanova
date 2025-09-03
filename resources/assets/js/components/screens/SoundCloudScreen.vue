@@ -17,7 +17,7 @@
               <input
                 v-model="searchQuery"
                 type="text"
-                class="w-full p-3 bg-white/10 rounded  focus:border-k-accent text-white text-lg"
+                class="w-full p-3 bg-white/10 rounded focus:outline-none text-white text-lg"
                 placeholder="Search for artists, tracks, albums..."
                 @keyup.enter="search"
               />
@@ -44,7 +44,7 @@
                 <input
                   v-model="selectedGenre"
                   type="text"
-                  class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
+                  class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
                   placeholder="Type genre..."
                 />
               </div>
@@ -55,7 +55,7 @@
                 <input
                   v-model="searchTags"
                   type="text"
-                  class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
+                  class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
                   placeholder="Add another genre, style, or characteristic"
                 />
               </div>
@@ -68,7 +68,7 @@
                 <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
                 <select
                   v-model="timePeriod"
-                  class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
+                  class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
                 >
                   <option value="" class="bg-gray-800">All Time</option>
                   <option value="1d" class="bg-gray-800">Last Day</option>
@@ -137,7 +137,7 @@
                     type="text"
                     placeholder="e.g. 10,000"
                     @input="handleMinPlaysInput"
-                    class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
+                    class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
                   />
                 </div>
 
@@ -149,7 +149,7 @@
                     type="text"
                     placeholder="e.g. 1,000,000"
                     @input="handleMaxPlaysInput"
-                    class="w-full p-2 bg-white/10 rounded  focus:border-k-accent text-white"
+                    class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
                   />
                 </div>
               </div>
