@@ -73,6 +73,10 @@
         </div>
       </div>
 
+      <h3 class="text-lg font-semibold mb-4">
+        Recommendations ({{ filteredRecommendations.length }})
+      </h3>
+      
       <div class="bg-white/5 rounded-lg overflow-hidden">
         <div class="overflow-x-auto scrollbar-hide">
           <table class="w-full">
@@ -559,20 +563,13 @@ const visiblePages = computed(() => {
   return pages
 })
 
-// Computed property for all filtered recommendations (without immediate banned artists filtering)
+// Computed property for all filtered recommendations (without sorting - always returns same tracks)
 const filteredRecommendations = computed(() => {
   console.log('🔄 FILTERED RECOMMENDATIONS COMPUTED CALLED')
   console.log('🔄 Current banned artists:', Array.from(bannedArtists.value))
   
-  let tracks: Track[]
-  
-  if (sortBy.value === 'none') {
-    // Show tracks in random order when explicitly set to none
-    tracks = originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
-  } else {
-    // Use sorted recommendations (including default 'playcount' sorting)
-    tracks = sortedRecommendations.value.length > 0 ? sortedRecommendations.value : props.recommendations
-  }
+  // Always use original recommendations - sorting is handled per-page in displayRecommendations
+  let tracks: Track[] = originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
   
   console.log(`[RECOMMENDATIONS DEBUG] Raw tracks: ${tracks.length}, Props recommendations: ${props.recommendations.length}`)
   console.log(`[RECOMMENDATIONS DEBUG] originalRecommendations: ${originalRecommendations.value.length}, sortedRecommendations: ${sortedRecommendations.value.length}`)
@@ -874,6 +871,8 @@ const getRelatedTracks = (track: Track) => {
 
 // Update current page tracks when page changes
 const updateCurrentPageTracks = () => {
+  // Use original filtered tracks (unsorted) for consistent pagination
+  // Sorting will be applied per-page in displayRecommendations computed
   const allFilteredTracks = filteredRecommendations.value
   const start = (currentPage.value - 1) * currentTracksPerPage.value
   const end = start + currentTracksPerPage.value
