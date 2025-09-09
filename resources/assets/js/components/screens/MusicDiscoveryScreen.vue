@@ -19,11 +19,13 @@
       <!-- Related Tracks Results Table -->
       <div id="related-tracks-section">
         <RecommendationsTable
-          v-if="allRecommendations.length > 0 || isDiscovering || errorMessage"
+          v-if="(allRecommendations.length > 0 || isDiscovering || errorMessage) && selectedSeedTrack"
+          :key="`recommendations-${selectedSeedTrack.id}`"
           :recommendations="allRecommendations"
           :is-discovering="isDiscovering"
           :error-message="errorMessage"
           :current-provider="currentProvider"
+          :seed-track="selectedSeedTrack"
           :total-tracks="totalTracks"
           :current-page="currentPage"
           :tracks-per-page="tracksPerPage"

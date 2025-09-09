@@ -49,7 +49,6 @@
             class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
             style="background-color: rgba(47, 47, 47, 255) !important;"
           >
-            <Icon :icon="getSortIcon()" />
             {{ getSortText() }}
             <Icon :icon="faChevronDown" class="text-xs" />
           </button>
@@ -57,7 +56,7 @@
           <!-- Dropdown Menu -->
           <div 
             v-if="showLikesRatioDropdown"
-            class="absolute right-0 top-full w-52 rounded-lg shadow-lg z-10"
+            class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-50"
             style="background-color: rgb(67,67,67,255);"
           >
             <button
@@ -223,7 +222,7 @@
                         <button
                           @click="getRelatedTracks(track)"
                           :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1"
+                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
                           title="Find Related Tracks"
                         >
                           <Icon :icon="faSearch" class="w-3 h-3" />
@@ -234,16 +233,16 @@
                         <button
                           @click="(track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
                           :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 justify-center"
+                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
                         >
                           <!-- Loading spinner when processing -->
-                          <svg v-if="processingTrack === getTrackKey(track)" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
                           <!-- Regular icon when not processing -->
                           <Icon v-else :icon="expandedTrackId === getTrackKey(track) ? faTimes : faPlay" class="w-3 h-3" />
-                          <span :class="processingTrack === getTrackKey(track) ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
+                          <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
                         </button>
                       </div>
                     </div>
@@ -324,7 +323,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick, withDefaults } from 'vue'
 import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch, faChevronDown, faFilter, faArrowUp, faClock } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
@@ -363,12 +362,15 @@ interface Props {
   isDiscovering: boolean
   errorMessage: string
   currentProvider: string
+  seedTrack: Track | null
   totalTracks?: number
   currentPage?: number
   tracksPerPage?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  seedTrack: null
+})
 
 // Emits
 const emit = defineEmits<{
@@ -385,6 +387,7 @@ const processingTrack = ref<string | null>(null)
 const isBlacklisting = ref(false)
 const lastfmStatsLoading = ref(false)
 const lastfmError = ref(false)
+const isPreviewProcessing = ref(false)
 const sortBy = ref<string>('none')
 const sortedRecommendations = ref<Track[]>([])
 const originalRecommendations = ref<Track[]>([])
@@ -395,6 +398,9 @@ const initialLoadComplete = ref(false)
 const isUpdatingStats = ref(false)
 const lastRecommendationsCount = ref(0)
 const allowAnimations = ref(true)
+
+// Stats fetching tracking - to avoid duplicate API calls
+const tracksWithStatsFetched = ref(new Set<string>()) // Track keys that have had stats fetched
 
 // Banned artists tracking (shared with Similar Artists)
 const bannedArtists = ref(new Set<string>()) // Store artist names
@@ -570,6 +576,15 @@ const filteredRecommendations = computed(() => {
   
   console.log(`[RECOMMENDATIONS DEBUG] Raw tracks: ${tracks.length}, Props recommendations: ${props.recommendations.length}`)
   console.log(`[RECOMMENDATIONS DEBUG] originalRecommendations: ${originalRecommendations.value.length}, sortedRecommendations: ${sortedRecommendations.value.length}`)
+  
+  // Filter out tracks from the same artist as the seed track
+  if (props.seedTrack) {
+    const seedArtist = props.seedTrack.artist.toLowerCase()
+    tracks = tracks.filter(track => track.artist.toLowerCase() !== seedArtist)
+    console.log(`[RECOMMENDATIONS DEBUG] Filtered out seed artist "${props.seedTrack.artist}": ${tracks.length} tracks remaining`)
+  } else {
+    console.log('[RECOMMENDATIONS DEBUG] No seed track provided, skipping artist filtering')
+  }
   
   // Don't filter out banned artists immediately - keep them visible in current results
   // Filtering will only happen when new recommendations arrive
@@ -866,6 +881,25 @@ const updateCurrentPageTracks = () => {
   console.log(`[PAGE TRACKS] Updated current page tracks: ${currentPageTracks.value.length} tracks for page ${currentPage.value}`)
 }
 
+// Fetch stats for current page tracks if they don't have stats yet
+const fetchStatsForCurrentPage = async () => {
+  const currentTracks = displayRecommendations.value
+  if (currentTracks.length === 0) return
+  
+  // Check if any tracks on current page need stats
+  const tracksNeedingStats = currentTracks.filter(track => {
+    const trackKey = getTrackKey(track)
+    return !tracksWithStatsFetched.value.has(trackKey)
+  })
+  
+  if (tracksNeedingStats.length > 0) {
+    console.log(`🎵 LAZY LOADING: Fetching stats for ${tracksNeedingStats.length} tracks on page ${currentPage.value}`)
+    await fetchLastFmStatsOptimized(tracksNeedingStats)
+  } else {
+    console.log(`🎵 LAZY LOADING: All tracks on page ${currentPage.value} already have stats`)
+  }
+}
+
 // Pagination methods
 const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value) {
@@ -1005,6 +1039,7 @@ const cleanTrackForQuery = (text: string): string => {
 const previewShazamTrack = async (track: Track) => {
   const trackKey = getTrackKey(track)
   processingTrack.value = trackKey
+  isPreviewProcessing.value = true
   
   try {
     // Clean track and artist names for better matching
@@ -1042,6 +1077,7 @@ const previewShazamTrack = async (track: Track) => {
     showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
   } finally {
     processingTrack.value = null
+    isPreviewProcessing.value = false
   }
 }
 
@@ -1342,16 +1378,33 @@ const fetchLastFmStats = async (tracks: Track[]) => {
 const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
   if (tracks.length === 0) return
   
-  console.log('🎵 STATS FETCH START - Total tracks:', tracks.length)
-  console.log('🎵 STATS FETCH - Sample tracks:', tracks.slice(0, 3).map(t => `${t.artist} - ${t.name}`))
+  // Filter out tracks that already have stats fetched
+  const tracksNeedingStats = tracks.filter(track => {
+    const trackKey = getTrackKey(track)
+    return !tracksWithStatsFetched.value.has(trackKey)
+  })
+  
+  if (tracksNeedingStats.length === 0) {
+    console.log('🎵 STATS FETCH SKIPPED - All tracks already have stats')
+    return
+  }
+  
+  console.log('🎵 STATS FETCH START - Total tracks needing stats:', tracksNeedingStats.length, 'out of', tracks.length)
+  console.log('🎵 STATS FETCH - Sample tracks:', tracksNeedingStats.slice(0, 3).map(t => `${t.artist} - ${t.name}`))
   isUpdatingStats.value = true
   lastfmStatsLoading.value = true
   lastfmError.value = false
   
+  // Mark tracks as having stats fetched (do this early to prevent duplicate calls)
+  tracksNeedingStats.forEach(track => {
+    const trackKey = getTrackKey(track)
+    tracksWithStatsFetched.value.add(trackKey)
+  })
+  
   try {
     const batchSize = 20
-    const firstBatch = tracks.slice(0, batchSize)
-    const remainingTracks = tracks.slice(batchSize)
+    const firstBatch = tracksNeedingStats.slice(0, batchSize)
+    const remainingTracks = tracksNeedingStats.slice(batchSize)
     
     // Fetch first batch immediately (blocks UI to show initial data quickly)
     if (firstBatch.length > 0) {
@@ -1522,11 +1575,13 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     // Only fetch stats if this is new recommendations
     if (isNewRecommendations) {
       console.log('🎵 FETCHING STATS for new recommendations')
-      // Get the tracks in display order for prioritized stats fetching
-      const tracksInDisplayOrder = filteredRecommendations.value
-      console.log('🎵 Fetching stats for tracks in DISPLAY ORDER, first 5:', tracksInDisplayOrder.slice(0, 5).map(t => `${t.artist} - ${t.name}`))
+      // Clear previously tracked stats for completely new recommendation set
+      tracksWithStatsFetched.value.clear()
+      // Only fetch stats for currently displayed tracks (lazy loading)
+      const currentPageDisplayTracks = displayRecommendations.value
+      console.log('🎵 Fetching stats for CURRENT PAGE only, tracks:', currentPageDisplayTracks.slice(0, 5).map(t => `${t.artist} - ${t.name}`))
       // Optimized stats fetching: Get first batch immediately, rest in background
-      await fetchLastFmStatsOptimized(tracksInDisplayOrder)
+      await fetchLastFmStatsOptimized(currentPageDisplayTracks)
     } else {
       console.log('🎵 SKIPPING STATS FETCH - not new recommendations')
     }
@@ -1536,8 +1591,10 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
 }, { immediate: true })
 
 // Watch for page changes and update current page tracks
-watch([currentPage, currentTracksPerPage], () => {
+watch([currentPage, currentTracksPerPage], async () => {
   updateCurrentPageTracks()
+  // Lazy load stats for new page
+  await fetchStatsForCurrentPage()
 }, { immediate: false })
 
 // Load user's saved tracks and blacklisted items
