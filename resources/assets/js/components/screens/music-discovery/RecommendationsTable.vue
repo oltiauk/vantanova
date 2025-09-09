@@ -257,7 +257,7 @@
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${track.id}`" class="border-b border-white/5 player-row">
                     <td colspan="9" class="p-0 overflow-hidden">
-                      <div class="p-4" style="background-color: rgb(67,67,67);">
+                      <div class="p-4 bg-white/5">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
                           <iframe
@@ -265,7 +265,7 @@
                             :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
                             :title="`${track.artist} - ${track.name}`"
                             class="w-full spotify-embed"
-                            style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);"
+                            style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
                             frameBorder="0"
                             scrolling="no"
                             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -274,7 +274,7 @@
                             @error="() => {}"
                           ></iframe>
                         </div>
-                          <div v-else class="flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);">
+                          <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
                           <div class="text-center text-white/60">
                             <div class="text-sm font-medium">No Spotify preview available</div>
                           </div>
@@ -1741,7 +1741,7 @@ const loadUserPreferences = async () => {
 
 /* Fix iframe white flash and scrollbars */
 .spotify-embed {
-  background-color: rgb(67, 67, 67) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
   border: none;
   overflow: hidden;
   opacity: 0;
@@ -1761,7 +1761,7 @@ const loadUserPreferences = async () => {
 
 /* Additional iframe styling to prevent white flash */
 iframe {
-  background-color: rgb(67, 67, 67);
+  background-color: rgba(255, 255, 255, 0.05);
   border: none;
 }
 </style>

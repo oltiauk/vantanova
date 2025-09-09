@@ -83,20 +83,22 @@
 
     <!-- Selected Seed Track Display - Compact -->
     <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
-      <div class="text-sm font-medium mb-2">Seed Track:</div>
-      <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2 flex-1 min-w-0">
-            <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
-            <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
+      <div class="max-w-4xl mx-auto">
+        <div class="text-sm font-medium mb-2">Seed Track:</div>
+        <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
+              <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
+            </div>
+            <button
+              class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
+              title="Clear seed track"
+              @click="clearSeedTrack"
+            >
+              <Icon :icon="faTimes" class="w-4 h-4" />
+            </button>
           </div>
-          <button
-            class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
-            title="Clear seed track"
-            @click="clearSeedTrack"
-          >
-            <Icon :icon="faTimes" class="w-4 h-4" />
-          </button>
         </div>
       </div>
     </div>
