@@ -23,39 +23,38 @@
         <template #header>
           <SidebarSectionHeader>Discovery</SidebarSectionHeader>
         </template>
-        
+
         <ul class="menu">
           <SidebarItem :href="url('music-discovery')" screen="MusicDiscovery">
             <template #icon>
-              <Icon :icon="faSearch" fixed-width />
+              <img src="/public/img/last-fm-icon.svg" alt="Last.fm" class="w-4 h-4 object-contain">
             </template>
-            LastFm - Related Tracks
+            Last.Fm - Related Tracks
           </SidebarItem>
-          
+
           <SidebarItem :href="url('similar-artists')" screen="SimilarArtists">
             <template #icon>
-              <Icon :icon="faUsers" fixed-width />
+              <img src="/public/img/last-fm-icon.svg" alt="Last.fm" class="w-4 h-4 object-contain">
             </template>
-            LastFm - Similar Artists
+            Last.Fm - Similar Artists
           </SidebarItem>
-          
+
           <SoundCloudSidebarItem>
-            Soundcloud - Advanced Search
+            SoundCloud - Advanced Search
           </SoundCloudSidebarItem>
-          
+
           <SidebarItem :href="url('soundcloud-related-tracks')" screen="SoundCloudRelatedTracks">
             <template #icon>
-              <Icon :icon="faMusic" fixed-width />
+              <img src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-5 h-5 object-contain">
             </template>
-            Soundcloud - Related Tracks
+            SoundCloud - Related Tracks
           </SidebarItem>
         </ul>
       </SidebarSection>
-  
+
       <SidebarPlaylistsSection />
       <SidebarManageSection v-if="showManageSection" />
     </section>
-
 
     <SidebarToggleButton
       v-model="expanded"
@@ -66,7 +65,8 @@
 </template>
 
 <script lang="ts" setup>
-import { faTimes, faSearch, faSliders, faMusic, faUsers } from '@fortawesome/free-solid-svg-icons'
+import { faMusic, faSearch, faSliders, faTimes, faUsers } from '@fortawesome/free-solid-svg-icons'
+import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { eventBus } from '@/utils/eventBus'
 import { useAuthorization } from '@/composables/useAuthorization'

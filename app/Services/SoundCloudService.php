@@ -368,7 +368,7 @@ class SoundCloudService
             // The related tracks endpoint format: /tracks/{track_urn}/related
             $endpoint = "/tracks/{$trackUrn}/related";
             $params = [
-                'limit' => 20,  // Reasonable limit for related tracks
+                'limit' => 100,  // Increased limit for pagination support
                 'access' => 'playable', // Only get fully playable tracks, exclude previews
                 'linked_partitioning' => true,
             ];

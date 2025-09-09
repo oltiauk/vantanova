@@ -1,5 +1,16 @@
 <template>
   <div class="seed-selection mb-8">
+    <!-- Welcome Message with Last.fm Logo -->
+    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="text-center mb-8 -mt-7">
+      <div class="flex justify-center items-center gap-4 mb-4">
+        <img src="/public/img/last-fm.svg" alt="Last.fm" class="w-36 h-auto">
+        <h2 class="text-4xl font-thin mt-2" style="font-weight: 100;">Related Tracks</h2>
+      </div>
+      <p class="text-k-text-secondary pt-2">
+        Search for a seed track to find related tracks
+      </p>
+    </div>
+
     <!-- Search Container -->
     <div class="search-container mb-6">
       <div class="rounded-lg p-4">
@@ -14,13 +25,26 @@
               v-model="searchQuery"
               type="text"
               class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg"
-              placeholder="Search for artists, tracks, albums..."
+              placeholder="Search for a track"
               @input="onSearchInput"
             >
 
+            <!-- Loading Animation -->
+            <div
+              v-if="isSearching && searchQuery.trim()"
+              class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
+            >
+              <div class="flex items-center justify-center py-8">
+                <div class="flex items-center gap-3">
+                  <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
+                  <span class="text-k-text-secondary">Searching for tracks...</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Search Dropdown -->
             <div
-              v-if="searchResults.length > 0"
+              v-if="searchResults.length > 0 && !isSearching"
               class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
             >
               <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
@@ -59,7 +83,7 @@
 
     <!-- Selected Seed Track Display - Compact -->
     <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
-      <div class="text-sm font-medium mb-2" style="color: #1e6880;">Seed Track:</div>
+      <div class="text-sm font-medium mb-2">Seed Track:</div>
       <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 flex-1 min-w-0">
@@ -95,15 +119,15 @@
     </div>
 
     <!-- Instructions -->
-    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="text-center py-12">
-      <h3 class="text-xl font-medium text-white mb-4">Find Your Seed Track</h3>
-      <p class="text-white/60 text-lg mb-6">
+    <!-- <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="text-center py-12">
+      <h3 class="text-lg font-medium text-white mb-4">Find Your Seed Track</h3>
+      <p class="text-white/60 text-md mb-6">
         Search for a song to use as the starting point for music discovery
       </p>
-      <!-- <p class="text-white/40 text-sm">
+      <p class="text-white/40 text-sm">
         The algorithm will find similar tracks based on your selected parameters
-      </p> -->
-    </div>
+      </p>
+    </div> -->
   </div>
 </template>
 
@@ -167,11 +191,11 @@ const blacklistedArtists = ref<Set<string>>(new Set())
 const processingTrack = ref<string | null>(null)
 
 // Initialize blacklist filtering composable
-const { 
-  isTrackBlacklisted, 
+const {
+  isTrackBlacklisted,
   isArtistBlacklisted,
-  isTrackOrArtistBlacklisted, 
-  loadBlacklistedItems 
+  isTrackOrArtistBlacklisted,
+  loadBlacklistedItems,
 } = useBlacklistFiltering()
 
 // Computed - For seed track selection, filter out blacklisted TRACKS but allow blacklisted ARTISTS
@@ -183,12 +207,12 @@ const filteredSearchResults = computed(() => {
     if (!track || !track.name || !track.artist) {
       return false
     }
-    
+
     // Filter out blacklisted tracks (but allow tracks by blacklisted artists)
     if (isTrackBlacklisted(track)) {
       return false
     }
-    
+
     return true
   })
 })
@@ -596,7 +620,7 @@ const loadUserPreferences = async () => {
       console.log(`Loaded ${savedTracks.value.size} saved tracks`)
     }
 
-    // Load saved artists (local to this component)  
+    // Load saved artists (local to this component)
     const savedArtistsResponse = await http.get('music-preferences/saved-artists')
     if (savedArtistsResponse.success && savedArtistsResponse.data) {
       savedArtistsResponse.data.forEach((artist: any) => {

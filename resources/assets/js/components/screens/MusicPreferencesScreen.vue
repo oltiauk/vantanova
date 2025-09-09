@@ -104,7 +104,7 @@
           </div>
         </div>
 
-        <div v-else-if="savedTracks.length === 0" class="empty-state">
+        <div v-else-if="filteredSavedTracks.length === 0" class="empty-state">
           <div class="text-center py-12">
             <Icon :icon="faHeart" class="w-16 h-16 text-k-text-tertiary mx-auto mb-4" />
             <h4 class="text-lg font-medium text-k-text-primary mb-2">No Saved Tracks</h4>
@@ -114,7 +114,7 @@
 
         <div v-else class="tracks-list space-y-3">
           <div
-            v-for="track in savedTracks"
+            v-for="track in filteredSavedTracks"
             :key="track.id"
             class="track-item bg-k-bg-secondary border border-k-border rounded-lg p-4"
           >
@@ -289,6 +289,34 @@ const blacklistedTracks = ref<BlacklistedTrack[]>([])
 const savedTracks = ref<SavedTrack[]>([])
 const blacklistedArtists = ref<BlacklistedArtist[]>([])
 const savedArtists = ref<SavedArtist[]>([])
+const clientUnsavedTracks = ref<Set<string>>(new Set())
+
+// Helper function to generate track key (same as RecommendationsTable)
+const getTrackKey = (track: SavedTrack): string => {
+  return `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+// Load client-side unsaved tracks from localStorage
+const loadClientUnsavedTracks = () => {
+  try {
+    const stored = localStorage.getItem('koel-client-unsaved-tracks')
+    if (stored) {
+      const unsavedList = JSON.parse(stored)
+      clientUnsavedTracks.value = new Set(unsavedList)
+      console.log('MusicPreferences: Loaded client unsaved tracks:', unsavedList)
+    }
+  } catch (error) {
+    console.warn('Failed to load client unsaved tracks from localStorage:', error)
+  }
+}
+
+// Computed property to filter out client-unsaved tracks
+const filteredSavedTracks = computed(() => {
+  return savedTracks.value.filter(track => {
+    const trackKey = getTrackKey(track)
+    return !clientUnsavedTracks.value.has(trackKey)
+  })
+})
 
 // Sections configuration
 const sections = computed(() => [
@@ -300,7 +328,7 @@ const sections = computed(() => [
   {
     key: 'saved-tracks', 
     name: 'Saved Tracks',
-    count: savedTracks.value.length
+    count: filteredSavedTracks.value.length
   },
   {
     key: 'blacklisted-artists',
@@ -451,6 +479,7 @@ const getTimeRemaining = (expiresAt: string): string => {
 
 // Lifecycle
 onMounted(() => {
+  loadClientUnsavedTracks()
   loadData()
   
   // Only refresh data when the screen is actually visible to the user
@@ -463,7 +492,11 @@ onMounted(() => {
     if (isVisible) {
       // Start polling when screen becomes visible
       loadData()
-      interval = setInterval(loadData, 10000) // Increased to 10 seconds to reduce frequency
+      loadClientUnsavedTracks() // Reload client unsaved tracks when screen becomes visible
+      interval = setInterval(() => {
+        loadData()
+        loadClientUnsavedTracks() // Also check for changes in client unsaved tracks
+      }, 10000) // Increased to 10 seconds to reduce frequency
     } else {
       // Stop polling when screen is not visible
       if (interval) {

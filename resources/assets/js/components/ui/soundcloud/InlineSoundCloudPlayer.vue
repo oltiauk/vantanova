@@ -1,6 +1,6 @@
 <template>
-  <tr class="inline-player-row">
-    <td colspan="11" class="p-0">
+  <tr class="inline-player-row player-row">
+    <td colspan="12" class="p-0">
       <div class="flex items-center justify-center player-container">
         <!-- SoundCloud Embedded Player -->
         <div class="w-full max-w-3xl mx-auto px-8 py-4">
@@ -71,8 +71,7 @@ const cleanEmbedUrl = (url: string): string => {
 }
 
 .player-container {
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
+  background: transparent;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }

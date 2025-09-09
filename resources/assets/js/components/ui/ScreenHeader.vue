@@ -10,12 +10,12 @@
 
     <main class="flex flex-1 gap-5 items-center overflow-hidden">
       <div class="w-full flex-1 overflow-hidden">
-        <h1 class="name overflow-hidden whitespace-nowrap text-ellipsis mr-4 font-thin md:font-bold my-0 leading-tight">
+        <!-- <h1 class="name">
           <slot />
         </h1>
         <span v-if="$slots.meta" class="meta text-k-text-secondary hidden text-[0.9rem] leading-loose space-x-2">
           <slot name="meta" />
-        </span>
+        </span> -->
       </div>
 
       <slot name="controls" />
@@ -27,9 +27,11 @@
 withDefaults(defineProps<{
   layout?: ScreenHeaderLayout
   disabled?: boolean
+  showMusicDiscovery?: boolean
 }>(), {
   layout: 'expanded',
   disabled: false,
+  showMusicDiscovery: false,
 })
 </script>
 

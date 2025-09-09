@@ -14,9 +14,12 @@
     <div class="similar-artists-screen">
       <!-- Welcome Message - Only show when no results and no search -->
       <div v-if="!selectedArtist && !similarArtists.length && !searchQuery.trim() && !errorMessage" class="max-w-2xl mx-auto text-center mb-8">
-        <h2 class="text-2xl font-bold mb-2">Similar Artists</h2>
+        <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="flex justify-center items-center gap-4 mb-8 -mt-7">
+          <img src="/public/img/last-fm.svg" alt="Last.fm" class="w-36 h-auto">
+          <h2 class="text-4xl font-thin mt-2" style="font-weight: 100;">Similar Artists</h2>
+        </div>
         <p class="text-k-text-secondary">
-          Search for an artist to find similar artists.
+          Search for a seed artist to find similar artists
         </p>
       </div>
 
@@ -25,33 +28,46 @@
         <div class="search-container mb-6">
           <div class="rounded-lg p-4">
             <div class="max-w-4xl mx-auto">
-              <div class="relative" ref="searchContainer">
+              <div ref="searchContainer" class="relative">
                 <!-- Search Icon -->
                 <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
                   <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
                 </div>
-                
+
                 <input
                   v-model="searchQuery"
                   type="text"
                   class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg"
                   placeholder="Search for an artist"
                   @input="onSearchInput"
-                />
-                
+                >
+
+                <!-- Loading Animation -->
+                <div
+                  v-if="searchLoading && searchQuery.trim()"
+                  class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
+                >
+                  <div class="flex items-center justify-center py-8">
+                    <div class="flex items-center gap-3">
+                      <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
+                      <span class="text-k-text-secondary">Searching for artists...</span>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Search Dropdown -->
-                <div 
-                  v-if="searchResults.length > 0" 
+                <div
+                  v-if="searchResults.length > 0 && !searchLoading"
                   class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
                 >
                   <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
                     <div v-for="(artist, index) in searchResults.slice(0, 10)" :key="`suggestion-${artist.mbid || artist.name}-${index}`">
-                      <div 
-                        @click="handleArtistClick(artist)"
+                      <div
                         class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
                         :class="{
-                          'bg-k-accent/10': selectedArtist && selectedArtist.name === artist.name
+                          'bg-k-accent/10': selectedArtist && selectedArtist.name === artist.name,
                         }"
+                        @click="handleArtistClick(artist)"
                       >
                         <!-- Artist Info -->
                         <div class="flex-1 min-w-0">
@@ -62,7 +78,7 @@
                         </div>
                       </div>
                     </div>
-                    
+
                     <div v-if="searchResults.length > 10" class="px-4 py-3 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/20">
                       <Icon :icon="faMusic" class="mr-1 opacity-50" />
                       {{ searchResults.length - 10 }} more artists found
@@ -77,7 +93,7 @@
 
       <!-- Selected Seed Track Display - Compact -->
       <div v-if="selectedArtist" class="selected-seed mb-8 relative z-20">
-        <div class="text-sm font-medium mb-2" style="color: #1e6880;">Seed Artist:</div>
+        <div class="text-sm font-medium mb-2">Seed Artist:</div>
         <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2 flex-1 min-w-0">
@@ -95,43 +111,36 @@
         </div>
       </div>
 
-      <!-- Sort Controls -->
-      <div v-if="similarArtists.length > 0" class="flex justify-end mb-4 mt-6">
-        <div class="flex items-center gap-3 rounded-lg px-4 py-2 border border-white/10" style="background-color: rgba(47, 47, 47, 255) !important;">
-          <span class="text-sm text-white/70 font-medium">Sort by:</span>
-          <div class="relative z-[99999]">
-            <!-- Custom Dropdown Button -->
-            <button
-              class="bg-white/10 text-white text-sm rounded-md px-3 py-2 pr-8  hover:border-[#9d0cc6]/50 focus:border-[#9d0cc6] focus:outline-none focus:ring-1 focus:ring-[#9d0cc6]/30 transition-all duration-200 cursor-pointer min-w-[160px] text-left"
-              @click="dropdownOpen = !dropdownOpen"
-            >
-              {{ getSortLabel(sortBy) }}
-            </button>
+      <!-- Sort by Dropdown -->
+      <div v-if="similarArtists.length > 0" class="flex justify-end mb-4 relative">
+        <button
+          class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
+          style="background-color: rgba(47, 47, 47, 255) !important;"
+          @click="toggleLikesRatioDropdown"
+          @blur="hideLikesRatioDropdown"
+        >
+          <Icon :icon="getSortIcon()" />
+          {{ getSortText() }}
+          <Icon :icon="faChevronDown" class="text-xs" />
+        </button>
 
-            <!-- Dropdown Arrow -->
-            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-              <svg class="w-4 h-4 text-white/60 transition-transform duration-200" :class="{ 'rotate-180': dropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-
-            <!-- Custom Dropdown Options -->
-            <div
-              v-if="dropdownOpen"
-              class="absolute top-full right-0 mt-1 bg-neutral-800  rounded-md shadow-lg overflow-hidden backdrop-blur-sm min-w-[160px]"
-              style="z-index: 10000 !important;"
-            >
-              <div
-                v-for="option in sortOptions"
-                :key="option.value"
-                class="px-3 py-2 text-sm text-white hover:bg-neutral-700 cursor-pointer transition-colors duration-150"
-                :class="{ 'bg-neutral-600 text-white': sortBy === option.value }"
-                @click="selectSort(option.value)"
-              >
-                {{ option.label }}
-              </div>
-            </div>
-          </div>
+        <!-- Dropdown Menu -->
+        <div
+          v-if="showLikesRatioDropdown"
+          class="absolute right-0 mt-12 w-52 rounded-lg shadow-lg z-50"
+          style="background-color: rgb(67,67,67,255);"
+        >
+          <button
+            v-for="option in sortOptions"
+            :key="option.value"
+            class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+            :class="option.value === 'match' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length - 1].value ? 'rounded-b-lg' : '')"
+            :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
+            @mousedown.prevent="setLikesRatioFilter(option.value)"
+          >
+            <Icon :icon="getSortIconForOption(option.value)" />
+            {{ option.label }}
+          </button>
         </div>
       </div>
 
@@ -177,31 +186,38 @@
               <thead>
                 <tr class="border-b border-white/10">
                   <th class="text-left p-3 font-medium">#</th>
-                  <th class="text-left p-3 font-medium w-12">Ban</th>
-                  <th class="text-left p-3 font-medium">Artist</th>
+                  <th class="text-left p-3 font-medium w-12">Ban Artist</th>
+                  <th class="text-left p-3 font-medium">Name(s)</th>
                   <th class="text-left p-3 font-medium">Listeners</th>
                   <th class="text-left p-3 font-medium">Streams</th>
                   <th class="text-left p-3 font-medium">S/L Ratio</th>
                   <th class="text-left p-3 font-medium">Match</th>
-                  <th class="text-left p-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <template v-for="(artist, index) in displayedArtists" :key="`displayed-${artist.mbid || artist.name}-${index}`">
                   <tr
-                    class="hover:bg-white/5 transition h-16 border-b border-white/5 artist-row"
-                    :style="{ animationDelay: `${index * 50}ms` }"
+                    class="hover:bg-white/5 transition h-16 border-b border-white/5"
+                    :class="[
+                      currentlyPreviewingArtist !== artist.name && allowAnimations ? 'artist-row' : '',
+                      isArtistBanned(artist) ? 'opacity-60 bg-red-500/5' : '',
+                    ]"
+                    :style="currentlyPreviewingArtist !== artist.name && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
                   >
                     <!-- Index -->
                     <td class="p-3 align-middle">
-                      <span class="text-white/60">{{ index + 1 }}</span>
+                      <span class="text-white/60">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</span>
                     </td>
 
                     <!-- Ban Button -->
                     <td class="p-3 align-middle">
                       <button
-                        class="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-full transition-colors"
-                        title="Ban this artist"
+                        class="p-2 rounded-full transition-colors" :class="[
+                          isArtistBanned(artist)
+                            ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
+                            : 'text-[#bcbcbc] hover:text-white hover:bg-white/10',
+                        ]"
+                        :title="isArtistBanned(artist) ? 'Click to unban this artist' : 'Ban this artist'"
                         @click="banArtist(artist)"
                       >
                         <Icon :icon="faBan" class="w-4 h-4" />
@@ -216,14 +232,24 @@
                     <!-- Listeners -->
                     <td class="p-3 align-middle">
                       <span v-if="artist.listeners" class="text-white/80">{{ formatListeners(artist.listeners) }}</span>
-                      <span v-else-if="loadingListeners.has(artist.mbid)" class="loading-dots text-orange-400">Loading<span class="dots" /></span>
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
+                        <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      </div>
                       <span v-else class="text-white/30">-</span>
                     </td>
 
                     <!-- Streams/Playcount -->
                     <td class="p-3 align-middle">
                       <span v-if="artist.playcount" class="text-white/80">{{ formatPlaycount(artist.playcount) }}</span>
-                      <span v-else-if="loadingListeners.has(artist.mbid)" class="loading-dots text-orange-400">Loading<span class="dots" /></span>
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
+                        <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      </div>
                       <span v-else class="text-white/30">-</span>
                     </td>
 
@@ -235,53 +261,67 @@
 
                     <!-- Match Score -->
                     <td class="p-3 align-middle">
-                      <span class="text-k-accent font-medium">{{ Math.round(parseFloat(artist.match) * 100) }}%</span>
+                      <span class="text-white/80 font-medium">{{ Math.round(parseFloat(artist.match) * 100) }}%</span>
                     </td>
 
                     <!-- Actions -->
                     <td class="p-3 align-middle">
                       <div class="flex gap-2 relative z-0">
                         <button
-                          class="px-3 py-1.5 bg-[#9d0cc6] rounded text-sm font-medium transition relative z-0"
+                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition relative z-0 flex items-center gap-1"
                           title="Find Similar Artists"
                           @click="findSimilarArtists(artist)"
                         >
-                          Similars
+                          <Icon :icon="faSearch" class="w-3 h-3" /> Similars
                         </button>
                         <button
                           :disabled="loadingPreviewArtist === artist.name"
-                          :class="{
-                            'bg-red-600 hover:bg-red-700': currentlyPreviewingArtist === artist.name,
-                            'bg-orange-500': loadingPreviewArtist === artist.name,
-                            'bg-gray-600 hover:bg-gray-500': currentlyPreviewingArtist !== artist.name && loadingPreviewArtist !== artist.name,
-                            'opacity-50': loadingPreviewArtist === artist.name,
-                          }"
-                          class="px-3 py-1.5 text-white rounded text-sm font-medium transition flex items-center gap-1 disabled:opacity-50 relative z-0"
+                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-20 justify-center"
                           @click="previewArtist(artist)"
                         >
-                          <span v-if="loadingPreviewArtist === artist.name" class="loading-spinner" />
-                          {{ loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close' : 'Preview') }}
+                          <!-- Loading spinner when processing -->
+                          <svg v-if="loadingPreviewArtist === artist.name" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <!-- Regular icon when not processing -->
+                          <Icon v-else :icon="currentlyPreviewingArtist === artist.name ? faTimes : faPlay" class="w-3 h-3" />
+                          <span :class="loadingPreviewArtist === artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close' : 'Preview') }}</span>
                         </button>
                       </div>
                     </td>
                   </tr>
 
                   <!-- Spotify Preview Section -->
-                  <tr v-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="border-b border-white/5">
-                    <td colspan="8" class="p-0 overflow-hidden">
-                      <div class="spotify-player-container bg-green-50/5 p-4">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <tr v-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="bg-white/5 border-b border-white/5">
+                    <td colspan="8" class="p-0">
+                      <div class="spotify-player-container p-6" style="background-color: rgb(67,67,67);">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                           <div
                             v-for="track in artist.spotifyTracks.slice(0, 3)"
                             :key="track.id"
-                            class="spotify-embed-container"
+                            class="w-full"
                           >
-                            <!-- Spotify oEmbed Player Only -->
-                            <div
-                              v-if="track.oembed && track.oembed.html"
-                              class="spotify-oembed"
-                              v-html="track.oembed.html"
-                            />
+                            <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
+                              <iframe
+                                :key="track.id"
+                                :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
+                                :title="`${track.artists?.[0]?.name || 'Unknown'} - ${track.name}`"
+                                class="w-full spotify-embed"
+                                style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);"
+                                frameBorder="0"
+                                scrolling="no"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                                @load="(event) => { event.target.style.opacity = '1' }"
+                                @error="() => {}"
+                              />
+                            </div>
+                            <div v-else class="flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);">
+                              <div class="text-center text-white/60">
+                                <div class="text-sm font-medium">No Spotify preview available</div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -335,19 +375,22 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
-import { faBan, faCheck, faMusic, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { useRouter } from '@/composables/useRouter'
+import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faMusic, faPlay, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
 
 // Initialize blacklist filtering (but Similar Artists section remains UNFILTERED by design)
-const { 
+const {
   addArtistToBlacklist,
-  loadBlacklistedItems 
+  loadBlacklistedItems,
 } = useBlacklistFiltering()
+
+const { onRouteChanged } = useRouter()
 
 interface LastfmArtist {
   name: string
@@ -390,6 +433,8 @@ const searchResults = ref<LastfmArtist[]>([])
 const searchLoading = ref(false)
 const searchTimeout = ref<ReturnType<typeof setTimeout>>()
 const searchContainer = ref<HTMLElement | null>(null)
+const initialLoadComplete = ref(false)
+const allowAnimations = ref(false)
 
 // Selected artist and results
 const selectedArtist = ref<LastfmArtist | null>(null)
@@ -415,9 +460,15 @@ const loadingPreviewArtist = ref<string | null>(null)
 // Sorting
 const sortBy = ref('match')
 const dropdownOpen = ref(false)
+const showLikesRatioDropdown = ref(false)
 
 // Banned artists tracking
 const bannedArtists = ref(new Set<string>()) // Store MBIDs of banned artists
+
+// Helper function to check if an artist is banned
+const isArtistBanned = (artist: LastfmArtist): boolean => {
+  return bannedArtists.value.has(artist.mbid)
+}
 
 // Sort options
 const sortOptions = [
@@ -446,14 +497,13 @@ const onSearchInput = () => {
   }, 500) // Wait 500ms after user stops typing
 }
 
-
 const searchArtists = async () => {
   if (!searchQuery.value.trim()) {
     return
   }
 
   searchLoading.value = true
-  
+
   try {
     const response = await http.get('similar-artists/search', {
       params: { query: searchQuery.value },
@@ -517,7 +567,6 @@ const searchArtists = async () => {
   }
 }
 
-
 const handleArtistClick = (artist: LastfmArtist) => {
   selectArtist(artist)
   // Clear search dropdown after selection
@@ -537,12 +586,15 @@ const selectArtist = (artist: LastfmArtist) => {
   currentlyPreviewingArtist.value = null
   errorMessage.value = ''
 
+  // Reset animation state (animations will be triggered when data loads)
+  allowAnimations.value = false
+  initialLoadComplete.value = false
+
   // Automatically find similar artists if the artist has an MBID
   if (artist.mbid && artist.mbid.trim()) {
     findSimilarArtists(artist)
   }
 }
-
 
 const clearSeedArtist = () => {
   selectedArtist.value = null
@@ -556,43 +608,70 @@ const clearSeedArtist = () => {
   errorMessage.value = ''
 }
 
+// Ban/Unban an artist (toggle banned state)
 const banArtist = async (artist: LastfmArtist) => {
+  const artistName = artist.name
+  const isCurrentlyBanned = bannedArtists.value.has(artist.mbid)
+
   try {
-    console.log('🚫 Banning artist globally:', artist.name)
+    console.log(`${isCurrentlyBanned ? '✅ Unbanning' : '🚫 Banning'} artist:`, artistName)
 
-    // Add to local banned artists set for Similar Artists section
-    bannedArtists.value.add(artist.mbid)
+    if (isCurrentlyBanned) {
+      // UNBAN ARTIST - immediate UI update, background API removal
+      bannedArtists.value.delete(artist.mbid)
 
-    // Add to global blacklist (this will affect ALL other sections)
-    addArtistToBlacklist(artist.name)
+      // Save to localStorage immediately
+      localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
 
-    // Save to backend API for persistence across sessions
-    try {
-      const response = await http.post('music-preferences/blacklist-artist', {
-        artist_name: artist.name,
-        spotify_artist_id: artist.mbid || `lastfm:${artist.name}` // Use MBID or create identifier
-      })
-      console.log('✅ Artist saved to global blacklist API:', response)
-    } catch (apiError: any) {
-      console.error('❌ Failed to save to API:', apiError)
-      console.error('❌ API Error details:', apiError.response?.data || apiError.message)
-      // Show error to user so they know it failed
-      errorMessage.value = `Failed to save to preferences: ${apiError.response?.data?.message || apiError.message}`
+      // Background API call to remove from blacklist
+      try {
+        const deleteData = {
+          artist_name: artistName,
+          spotify_artist_id: artist.mbid || `lastfm:${artistName}`,
+        }
+        const params = new URLSearchParams(deleteData)
+        const response = await http.delete(`music-preferences/blacklist-artist?${params}`)
+        console.log('✅ Artist removed from global blacklist API:', response)
+      } catch (apiError: any) {
+        console.error('❌ Failed to remove from API:', apiError)
+        // Revert local state if API call fails
+        bannedArtists.value.add(artist.mbid)
+        localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+        errorMessage.value = `Failed to unban artist: ${apiError.response?.data?.message || apiError.message}`
+      }
+    } else {
+      // BAN ARTIST - immediate UI update, background API save
+      bannedArtists.value.add(artist.mbid)
+
+      // Save to localStorage immediately
+      localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+
+      // Add to global blacklist (affects other sections)
+      addArtistToBlacklist(artistName)
+
+      // Background API call to save to blacklist
+      try {
+        const response = await http.post('music-preferences/blacklist-artist', {
+          artist_name: artistName,
+          spotify_artist_id: artist.mbid || `lastfm:${artistName}`,
+        })
+        console.log('✅ Artist saved to global blacklist API:', response)
+      } catch (apiError: any) {
+        console.error('❌ Failed to save to API:', apiError)
+        // Revert local state if API call fails
+        bannedArtists.value.delete(artist.mbid)
+        localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+        errorMessage.value = `Failed to ban artist: ${apiError.response?.data?.message || apiError.message}`
+      }
     }
 
-    // Save to localStorage for persistence (local Similar Artists filtering)
-    localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+    // NOTE: We do NOT remove from current results - artists stay visible until next search
+    // The filtering happens in findSimilarArtists() for new searches
 
-    // Remove from current Similar Artists results (local to this section only)
-    const updatedArtists = similarArtists.value.filter(a => a.mbid !== artist.mbid)
-    similarArtists.value = updatedArtists
-    filteredArtists.value = updatedArtists
-    updateDisplayedArtists()
-
-    console.log(`🚫 Artist "${artist.name}" has been banned globally and locally`)
+    console.log(`${isCurrentlyBanned ? '✅ Unbanned' : '🚫 Banned'} artist "${artistName}" - stays visible in current results`)
   } catch (error: any) {
-    console.error('Failed to ban artist:', error)
-    errorMessage.value = `Failed to ban artist: ${error.message || 'Unknown error'}`
+    console.error(`Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} artist:`, error)
+    errorMessage.value = `Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} artist: ${error.message || 'Unknown error'}`
   }
 }
 
@@ -643,6 +722,17 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
 
       // Load listeners count for the first page only
       await loadPageListenersCounts()
+
+      // Trigger animations AFTER everything is loaded and DOM is updated
+      setTimeout(() => {
+        allowAnimations.value = true
+        initialLoadComplete.value = true
+
+        // Auto-disable animations after 2 seconds
+        setTimeout(() => {
+          allowAnimations.value = false
+        }, 2000)
+      }, 100) // Slightly longer delay to ensure DOM is ready
     } else {
       throw new Error(response.message || 'No similar artists found')
     }
@@ -853,10 +943,26 @@ const goToPage = async (page: number) => {
   }
 
   // Close any open previews when changing pages
+  if (currentlyPreviewingArtist.value) {
+    const currentArtist = displayedArtists.value.find(a => a.name === currentlyPreviewingArtist.value)
+    if (currentArtist) {
+      closePreview(currentArtist)
+    }
+  }
   currentlyPreviewingArtist.value = null
 
   currentPage.value = page
   updateDisplayedArtists()
+
+  // Trigger animations for page change
+  setTimeout(() => {
+    allowAnimations.value = true
+
+    // Auto-disable animations after 2 seconds
+    setTimeout(() => {
+      allowAnimations.value = false
+    }, 2000)
+  }, 50)
 
   // Load listener data for the new page
   await loadPageListenersCounts()
@@ -878,6 +984,13 @@ const updateDisplayedArtists = () => {
   const startIndex = (currentPage.value - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
   displayedArtists.value = filteredArtists.value.slice(startIndex, endIndex)
+
+  // Set initial load complete when artists are first displayed
+  if (displayedArtists.value.length > 0 && !initialLoadComplete.value) {
+    setTimeout(() => {
+      initialLoadComplete.value = true
+    }, 100)
+  }
 }
 
 const getVisiblePages = () => {
@@ -969,15 +1082,59 @@ const selectSort = (value: string) => {
   onSortChange()
 }
 
+// Sort dropdown functions (matching SoundCloudScreen.vue)
+const toggleLikesRatioDropdown = () => {
+  showLikesRatioDropdown.value = !showLikesRatioDropdown.value
+}
+
+const hideLikesRatioDropdown = () => {
+  setTimeout(() => {
+    showLikesRatioDropdown.value = false
+  }, 150) // Small delay to allow click events to register
+}
+
+const setLikesRatioFilter = (type: string) => {
+  sortBy.value = type
+  showLikesRatioDropdown.value = false
+  onSortChange()
+}
+
+const getSortIcon = () => {
+  switch (sortBy.value) {
+    case 'listeners-desc': return faArrowUp
+    case 'listeners-asc': return faArrowUp // Will be rotated in CSS if needed
+    case 'ratio-desc': return faArrowUp
+    default: return faFilter // match (best matches)
+  }
+}
+
+const getSortText = () => {
+  switch (sortBy.value) {
+    case 'listeners-desc': return 'Most Listeners'
+    case 'listeners-asc': return 'Least Listeners'
+    case 'ratio-desc': return 'Best Ratio'
+    default: return 'Best Matches'
+  }
+}
+
+const getSortIconForOption = (optionValue: string) => {
+  switch (optionValue) {
+    case 'listeners-desc': return faArrowUp
+    case 'listeners-asc': return faArrowUp
+    case 'ratio-desc': return faArrowUp
+    default: return faFilter
+  }
+}
+
 // Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement
-  
+
   // Close sort dropdown if clicking outside of it
   if (!target.closest('.relative')) {
     dropdownOpen.value = false
   }
-  
+
   // Close search dropdown if clicking outside of search container
   if (searchContainer.value && !searchContainer.value.contains(target)) {
     searchResults.value = []
@@ -1002,6 +1159,36 @@ onMounted(() => {
   loadBannedArtists()
   // Load global blacklisted items (but don't filter Similar Artists results)
   loadBlacklistedItems()
+})
+
+// Close Spotify previews when navigating away from this screen
+onRouteChanged(route => {
+  if (route.screen !== 'SimilarArtists') {
+    // Close any open preview
+    if (currentlyPreviewingArtist.value) {
+      const currentArtist = displayedArtists.value.find(a => a.name === currentlyPreviewingArtist.value)
+      if (currentArtist) {
+        closePreview(currentArtist)
+      }
+    }
+    currentlyPreviewingArtist.value = null
+  } else {
+    // Enable animations when entering Similar Artists screen
+    console.log('🎵 [SIMILAR] Entering Similar Artists screen with', displayedArtists.value.length, 'artists')
+    if (displayedArtists.value.length > 0) {
+      console.log('🎵 [SIMILAR] Triggering route change animations')
+      allowAnimations.value = true
+      initialLoadComplete.value = false
+
+      // Disable animations after they complete
+      setTimeout(() => {
+        allowAnimations.value = false
+        initialLoadComplete.value = true
+      }, 2000)
+    } else {
+      console.log('🎵 [SIMILAR] No artists to animate on route change')
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -1040,19 +1227,19 @@ onUnmounted(() => {
 
 /* Spotify player container */
 .spotify-player-container {
-  animation: slideDown 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  animation: slideDown 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(-12px);
     max-height: 0;
   }
   to {
     opacity: 1;
     transform: translateY(0);
-    max-height: 400px;
+    max-height: 300px;
   }
 }
 
@@ -1080,33 +1267,31 @@ onUnmounted(() => {
   transform: translateY(-2px);
 }
 
-/* Clean Spotify oembed styling - use native oEmbed height */
+/* Clean Spotify oembed styling - match RecommendationsTable size exactly */
 .spotify-oembed iframe {
-  width: calc(100% + 4px) !important;
-  height: 152px !important;
-  border-radius: 10px !important;
+  width: 100% !important;
+  height: 80px !important;
+  border-radius: 15px !important;
   border: none !important;
   overflow: hidden !important;
   display: block !important;
-  margin: -2px 0 0 -2px !important;
-  transform: scale(1.01) !important;
+  margin: 0 !important;
 }
 
 .spotify-oembed {
   width: 100%;
-  height: 148px;
+  height: 80px;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 15px;
   position: relative;
   background: transparent;
 }
 
 .spotify-embed-container {
-  /* Just a clean container with no visible styling */
   width: 100%;
-  min-height: 148px;
+  min-height: 80px;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 15px;
 }
 
 /* Smooth transitions for images */
@@ -1173,5 +1358,31 @@ img:hover {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Fix iframe white flash and scrollbars */
+.spotify-embed {
+  background-color: rgb(67, 67, 67) !important;
+  border: none;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Show iframe after it loads */
+.spotify-embed:loaded,
+.spotify-embed[data-loaded='true'] {
+  opacity: 1;
+}
+
+/* Ensure iframe content doesn't show scrollbars */
+.spotify-embed::-webkit-scrollbar {
+  display: none;
+}
+
+/* Additional iframe styling to prevent white flash */
+iframe {
+  background-color: rgb(67, 67, 67);
+  border: none;
 }
 </style>

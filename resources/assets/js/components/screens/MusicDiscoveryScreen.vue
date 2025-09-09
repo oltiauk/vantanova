@@ -1,7 +1,7 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader>
+      <ScreenHeader show-music-discovery="true">
         Related Tracks
       </ScreenHeader>
     </template>
@@ -9,7 +9,7 @@
     <div class="music-discovery-screen">
       <SeedTrackSelection
         v-model:selected-track="selectedSeedTrack"
-        :has-recommendations="recommendations.length > 0 || isDiscovering"
+        :has-recommendations="allRecommendations.length > 0 || isDiscovering"
         @track-selected="onTrackSelected"
         @related-tracks="onRelatedTracksRequested"
         @search-results-changed="onSearchResultsChanged"
@@ -19,19 +19,15 @@
       <!-- Related Tracks Results Table -->
       <div id="related-tracks-section">
         <RecommendationsTable
-          v-if="recommendations.length > 0 || isDiscovering || errorMessage"
-          :recommendations="paginatedRecommendations"
-          :displayed-count="displayedCount"
-          :has-more-to-load="hasMoreToLoad"
+          v-if="allRecommendations.length > 0 || isDiscovering || errorMessage"
+          :recommendations="allRecommendations"
           :is-discovering="isDiscovering"
-          :is-loading-more="isLoadingMore"
           :error-message="errorMessage"
           :current-provider="currentProvider"
           :total-tracks="totalTracks"
           :current-page="currentPage"
           :tracks-per-page="tracksPerPage"
           @clear-error="errorMessage = ''"
-          @load-more="loadMoreRecommendations"
           @page-change="onPageChange"
           @per-page-change="onPerPageChange"
           @related-tracks="onRelatedTracksRequested"
@@ -120,13 +116,9 @@ const keyNames = {
 }
 
 const selectedSeedTrack = ref<Track | null>(null)
-const recommendations = ref<Track[]>([])
 const allRecommendations = ref<Track[]>([])
-const displayedCount = ref(0)
 const isDiscovering = ref(false)
-const isLoadingMore = ref(false)
 const errorMessage = ref('')
-const hasMoreToLoad = ref(true)
 const currentProvider = ref('')
 const hasSearchResults = ref(false)
 
@@ -134,6 +126,8 @@ const hasSearchResults = ref(false)
 const currentPage = ref(1)
 const tracksPerPage = ref(20)
 const totalTracks = ref(0)
+
+// Removed force close preview feature
 
 // Initialize global blacklist filtering
 const { 
@@ -184,24 +178,13 @@ const hasEnabledParameters = computed(() => {
   return Object.values(enabledParameters.value).some(enabled => enabled)
 })
 
-// Helper functions now handled by useBlacklistFiltering composable
-
-const INITIAL_LOAD = 20
-const LOAD_MORE_BATCH = 20
-
-// Computed property for paginated recommendations
-const paginatedRecommendations = computed(() => {
-  const start = (currentPage.value - 1) * tracksPerPage.value
-  const end = start + tracksPerPage.value
-  return allRecommendations.value.slice(start, end)
-})
+// Note: Pagination is now handled by the RecommendationsTable component
 
 const onTrackSelected = async (track: Track) => {
   selectedSeedTrack.value = track
   seedTrackKey.value = null
   seedTrackMode.value = null
   keyAnalysisResults.value = []
-  recommendations.value = []
   allRecommendations.value = []
   errorMessage.value = ''
   
@@ -216,21 +199,16 @@ const onSearchResultsChanged = (hasResults: boolean) => {
 
 const onClearRecommendations = () => {
   // Reset all recommendation state to go back to beginning
-  recommendations.value = []
   allRecommendations.value = []
-  displayedCount.value = 0
   totalTracks.value = 0
   currentPage.value = 1
   errorMessage.value = ''
-  hasMoreToLoad.value = true
   currentProvider.value = ''
   isDiscovering.value = false
-  isLoadingMore.value = false
 }
 
 const onRelatedTracksRequested = async (track: Track) => {
   // Clear previous results
-  recommendations.value = []
   allRecommendations.value = []
   errorMessage.value = ''
   
@@ -318,9 +296,6 @@ const discoverMusicSoundStats = async () => {
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
-      recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
-      displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
-      hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
 
 
       // IMPORTANT: Don't block the UI - analyze keys in background
@@ -413,9 +388,6 @@ const discoverMusicReccoBeats = async () => {
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
-      recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
-      displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
-      hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
 
       // Skip key analysis for now to avoid 404 errors
       // await analyzeRecommendationKeys(tracks.slice(0, 12))
@@ -455,9 +427,6 @@ const discoverMusicRapidApi = async () => {
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
-      recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
-      displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
-      hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
 
       // Key analysis removed to avoid 404 errors
     }
@@ -524,9 +493,6 @@ const getRelatedTracks = async (track: Track) => {
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
-      recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
-      displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
-      hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
       
       console.log(`✅ Found ${filteredTracks.length} similar tracks (${allTracks.length} total, ${allTracks.length - filteredTracks.length} blacklisted)`)
 
@@ -559,47 +525,16 @@ const discoverRelatedTracks = async () => {
   await getRelatedTracks(selectedSeedTrack.value)
 }
 
-const loadMoreRecommendations = async () => {
-  if (!hasMoreToLoad.value || isLoadingMore.value) return
-
-  isLoadingMore.value = true
-
-  const startIndex = displayedCount.value
-  const endIndex = Math.min(startIndex + LOAD_MORE_BATCH, allRecommendations.value.length)
-
-  // Check if we've shown all current tracks
-  if (startIndex >= allRecommendations.value.length) {
-    // No more tracks available
-    hasMoreToLoad.value = false
-  } else {
-    // Show more tracks from current batch
-    const newTracks = allRecommendations.value.slice(startIndex, endIndex)
-    recommendations.value.push(...newTracks)
-    displayedCount.value = endIndex
-    hasMoreToLoad.value = endIndex < allRecommendations.value.length
-  }
-
-  isLoadingMore.value = false
-}
+// Removed loadMoreRecommendations - pagination is now handled by RecommendationsTable
 
 // Handle tracks being blacklisted from child component
 const onTracksBlacklisted = (trackKeys: string[]) => {
-  // The global blacklist filtering will handle this automatically
-  // We just need to refresh the recommendations to apply the new filter
-  console.log(`📋 Parent: ${trackKeys.length} tracks were blacklisted, re-filtering recommendations`)
+  // Don't immediately filter - let banned items stay visible until next search
+  // The filtering will only happen when new recommendations are fetched
+  console.log(`📋 Parent: ${trackKeys.length} tracks were blacklisted, but keeping them visible until next search`)
   
-  // Re-filter current recommendations
-  if (allRecommendations.value.length > 0) {
-    const filteredTracks = filterTracks(allRecommendations.value)
-    allRecommendations.value = filteredTracks
-    totalTracks.value = filteredTracks.length
-    
-    // Reset pagination to show filtered results
-    currentPage.value = 1
-    recommendations.value = filteredTracks.slice(0, INITIAL_LOAD)
-    displayedCount.value = Math.min(INITIAL_LOAD, filteredTracks.length)
-    hasMoreToLoad.value = filteredTracks.length > INITIAL_LOAD
-  }
+  // Just log the event, don't re-filter current recommendations
+  // Filtering will happen automatically when getRelatedTracks() or getSimilarTracks() is called next
 }
 
 // Pagination event handlers
@@ -617,51 +552,7 @@ onMounted(async () => {
   await loadBlacklistedItems()
 })
 
-const loadMoreRapidApiRecommendations = async () => {
-  if (!selectedSeedTrack.value) {
-    return
-  }
-
-  try {
-    
-    const response: ApiResponse<Track[]> = await http.post('music-discovery/discover-rapidapi', {
-      seed_track_uri: selectedSeedTrack.value.uri || `spotify:track:${selectedSeedTrack.value.id}`,
-      max_popularity: parameters.value.popularity,
-      apply_popularity_filter: enabledParameters.value.popularity,
-      limit: 50,
-      offset: 0,
-      exclude_track_ids: allRecommendations.value.map(t => t.id)
-    })
-
-    if (response.success && response.data) {
-      const newTracks = response.data || []
-      
-      if (newTracks.length > 0) {
-        // Filter out duplicates based on track ID
-        const existingIds = new Set(allRecommendations.value.map(track => track.id))
-        const uniqueNewTracks = newTracks.filter(track => !existingIds.has(track.id))
-        
-        if (uniqueNewTracks.length > 0) {
-          // Add new unique tracks to the pool
-          allRecommendations.value.push(...uniqueNewTracks)
-          
-          // Show first batch from new unique tracks
-          const tracksToShow = uniqueNewTracks.slice(0, LOAD_MORE_BATCH)
-          recommendations.value.push(...tracksToShow)
-          displayedCount.value += tracksToShow.length
-          
-        } else {
-          hasMoreToLoad.value = false
-        }
-      } else {
-        hasMoreToLoad.value = false
-      }
-    }
-  } catch (error) {
-    errorMessage.value = 'Failed to load more recommendations'
-    hasMoreToLoad.value = false
-  }
-}
+// Removed loadMoreRapidApiRecommendations - no longer needed with proper pagination
 </script>
 
 <style scoped>

@@ -1,14 +1,13 @@
 <template>
   <SidebarItem :href="url('soundcloud')" screen="SoundCloud">
     <template #icon>
-      <Icon :icon="faSoundcloud" fixed-width />
+      <img src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-5 h-5 object-contain" />
     </template>
     <slot />
   </SidebarItem>
 </template>
 
 <script lang="ts" setup>
-import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 import { useRouter } from '@/composables/useRouter'
 
 import SidebarItem from './SidebarItem.vue'
