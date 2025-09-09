@@ -181,7 +181,7 @@
         </h3>
 
         <div class="bg-white/5 rounded-lg overflow-hidden relative z-10">
-          <div class="overflow-x-auto">
+          <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full relative z-10">
               <thead>
                 <tr class="border-b border-white/10">
@@ -200,7 +200,6 @@
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
                       currentlyPreviewingArtist !== artist.name && allowAnimations ? 'artist-row' : '',
-                      isArtistBanned(artist) ? 'opacity-60 bg-red-500/5' : '',
                     ]"
                     :style="currentlyPreviewingArtist !== artist.name && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
                   >
@@ -232,7 +231,7 @@
                     <!-- Listeners -->
                     <td class="p-3 align-middle">
                       <span v-if="artist.listeners" class="text-white/80">{{ formatListeners(artist.listeners) }}</span>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
                         <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -244,7 +243,7 @@
                     <!-- Streams/Playcount -->
                     <td class="p-3 align-middle">
                       <span v-if="artist.playcount" class="text-white/80">{{ formatPlaycount(artist.playcount) }}</span>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
                         <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -276,7 +275,7 @@
                         </button>
                         <button
                           :disabled="loadingPreviewArtist === artist.name"
-                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-20 justify-center"
+                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 justify-center"
                           @click="previewArtist(artist)"
                         >
                           <!-- Loading spinner when processing -->
@@ -441,6 +440,7 @@ const selectedArtist = ref<LastfmArtist | null>(null)
 const similarArtists = ref<LastfmArtist[]>([])
 const filteredArtists = ref<LastfmArtist[]>([])
 const displayedArtists = ref<LastfmArtist[]>([])
+const currentPageArtists = ref<LastfmArtist[]>([])
 
 // Pagination
 const currentPage = ref(1)
@@ -717,6 +717,9 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
       filteredArtists.value = artistsWithMbid
       currentPage.value = 1
 
+      // Update current page artists and apply per-page sorting
+      updateCurrentPageArtists()
+
       // Apply initial sorting first (without listeners data)
       sortArtists()
 
@@ -952,6 +955,7 @@ const goToPage = async (page: number) => {
   currentlyPreviewingArtist.value = null
 
   currentPage.value = page
+  updateCurrentPageArtists()
   updateDisplayedArtists()
 
   // Trigger animations for page change
@@ -980,10 +984,46 @@ const previousPage = () => {
   }
 }
 
-const updateDisplayedArtists = () => {
+const updateCurrentPageArtists = () => {
   const startIndex = (currentPage.value - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  displayedArtists.value = filteredArtists.value.slice(startIndex, endIndex)
+  currentPageArtists.value = filteredArtists.value.slice(startIndex, endIndex)
+  console.log(`[PAGE ARTISTS] Updated current page artists: ${currentPageArtists.value.length} artists for page ${currentPage.value}`)
+}
+
+const updateDisplayedArtists = () => {
+  // Use currentPageArtists for display, applying per-page sorting if needed
+  if (sortBy.value === 'match') {
+    // Default sort - use current page artists in their original order
+    displayedArtists.value = [...currentPageArtists.value]
+    console.log(`[DISPLAY] Page ${currentPage.value}: showing ${displayedArtists.value.length} artists (match order)`)
+  } else {
+    // Sort only the current page's artists
+    const sortedPageArtists = [...currentPageArtists.value].sort((a, b) => {
+      switch (sortBy.value) {
+        case 'listeners-desc':
+          const aListeners = Number.parseInt(a.listeners || '0', 10)
+          const bListeners = Number.parseInt(b.listeners || '0', 10)
+          return bListeners - aListeners
+        case 'listeners-asc':
+          const aListenersAsc = Number.parseInt(a.listeners || '0', 10)
+          const bListenersAsc = Number.parseInt(b.listeners || '0', 10)
+          return aListenersAsc - bListenersAsc
+        case 'ratio-desc':
+          const aRatio = (a.listeners && a.playcount)
+            ? Number.parseInt(a.playcount, 10) / Number.parseInt(a.listeners, 10)
+            : 0
+          const bRatio = (b.listeners && b.playcount)
+            ? Number.parseInt(b.playcount, 10) / Number.parseInt(b.listeners, 10)
+            : 0
+          return bRatio - aRatio
+        default:
+          return 0
+      }
+    })
+    displayedArtists.value = sortedPageArtists
+    console.log(`[DISPLAY] Page ${currentPage.value}: showing ${displayedArtists.value.length} artists (sorted by ${sortBy.value})`)
+  }
 
   // Set initial load complete when artists are first displayed
   if (displayedArtists.value.length > 0 && !initialLoadComplete.value) {
@@ -1024,43 +1064,11 @@ const getVisiblePages = () => {
   return pages
 }
 
-// Sorting and filtering
+// Sorting and filtering (now handled per-page)
 const sortArtists = () => {
-  const sorted = [...filteredArtists.value]
-
-  switch (sortBy.value) {
-    case 'match':
-      sorted.sort((a, b) => Number.parseFloat(b.match || '0') - Number.parseFloat(a.match || '0'))
-      break
-    case 'listeners-desc':
-      sorted.sort((a, b) => {
-        const aListeners = Number.parseInt(a.listeners || '0', 10)
-        const bListeners = Number.parseInt(b.listeners || '0', 10)
-        return bListeners - aListeners
-      })
-      break
-    case 'listeners-asc':
-      sorted.sort((a, b) => {
-        const aListeners = Number.parseInt(a.listeners || '0', 10)
-        const bListeners = Number.parseInt(b.listeners || '0', 10)
-        return aListeners - bListeners
-      })
-      break
-    case 'ratio-desc':
-      sorted.sort((a, b) => {
-        const aRatio = (a.listeners && a.playcount)
-          ? Number.parseInt(a.playcount, 10) / Number.parseInt(a.listeners, 10)
-          : 0
-        const bRatio = (b.listeners && b.playcount)
-          ? Number.parseInt(b.playcount, 10) / Number.parseInt(b.listeners, 10)
-          : 0
-        return bRatio - aRatio
-      })
-      break
-  }
-
-  filteredArtists.value = sorted
-  // Don't reset page when sorting changes - keep current page
+  // Sorting is now handled per-page in updateDisplayedArtists()
+  // This function is kept for compatibility but no longer modifies global state
+  console.log(`[SORTING] Sort changed to: ${sortBy.value} (will apply to current page only)`)
   updateDisplayedArtists()
 }
 
@@ -1096,7 +1104,9 @@ const hideLikesRatioDropdown = () => {
 const setLikesRatioFilter = (type: string) => {
   sortBy.value = type
   showLikesRatioDropdown.value = false
-  onSortChange()
+  // No need to call onSortChange() - sortArtists() will handle per-page sorting
+  sortArtists()
+  console.log(`[SORT] Changed to ${type} - will apply to current page only`)
 }
 
 const getSortIcon = () => {
@@ -1384,5 +1394,26 @@ img:hover {
 iframe {
   background-color: rgb(67, 67, 67);
   border: none;
+}
+
+/* Hide scrollbars */
+.scrollbar-hide {
+  -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+  scrollbar-width: none !important; /* Firefox */
+  overflow: -moz-scrollbars-none !important; /* Old Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important; /* Safari and Chrome */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-track {
+  display: none !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-thumb {
+  display: none !important;
 }
 </style>

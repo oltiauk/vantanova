@@ -95,8 +95,7 @@
                 <tr
                   class="hover:bg-white/5 transition h-16 border-b border-white/5"
                   :class="[
-                    expandedTrackId !== getTrackKey(track) && allowAnimations ? 'track-row' : '',
-                    isArtistBanned(track) ? 'opacity-60 bg-red-500/5' : ''
+                    expandedTrackId !== getTrackKey(track) && allowAnimations ? 'track-row' : ''
                   ]"
                   :style="expandedTrackId !== getTrackKey(track) && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
                 >
@@ -195,7 +194,7 @@
                           :class="isTrackSaved(track) 
                             ? 'bg-green-600 hover:bg-green-700 text-white' 
                             : 'bg-gray-600 hover:bg-gray-500 text-white'"
-                          class="px-2 py-1.5 text-sm font-medium transition disabled:opacity-50"
+                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                           :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
                         >
                           <Icon :icon="faHeart" class="text-xs" />
@@ -208,7 +207,7 @@
                           :class="isTrackBlacklisted(track) 
                             ? 'bg-orange-600 hover:bg-orange-700 text-white' 
                             : 'bg-gray-600 hover:bg-gray-500 text-white'"
-                          class="px-2 py-1.5 text-sm font-medium transition disabled:opacity-50"
+                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                           :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Block track'"
                         >
                           <Icon :icon="faBan" class="text-xs" />
@@ -235,7 +234,7 @@
                         <button
                           @click="(track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
                           :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-20 justify-center"
+                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 justify-center"
                         >
                           <!-- Loading spinner when processing -->
                           <svg v-if="processingTrack === getTrackKey(track)" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -389,6 +388,7 @@ const lastfmError = ref(false)
 const sortBy = ref<string>('none')
 const sortedRecommendations = ref<Track[]>([])
 const originalRecommendations = ref<Track[]>([])
+const currentPageTracks = ref<Track[]>([])
 const dropdownOpen = ref(false)
 const showLikesRatioDropdown = ref(false)
 const initialLoadComplete = ref(false)
@@ -478,7 +478,8 @@ const setLikesRatioFilter = (type: string) => {
   
   sortBy.value = type
   showLikesRatioDropdown.value = false
-  applySorting()
+  // No need to call applySorting() - displayRecommendations computed will handle per-page sorting
+  console.log(`[SORT] Changed to ${type} - will apply to current page only`)
 }
 
 const getSortIcon = () => {
@@ -577,20 +578,46 @@ const filteredRecommendations = computed(() => {
   return tracks
 })
 
-// Computed property for displayed recommendations (paginated subset)
+// Computed property for displayed recommendations (current page tracks with per-page sorting)
 const displayRecommendations = computed(() => {
-  const allFilteredTracks = filteredRecommendations.value
-  
   if (!isPaginationMode.value) {
     // Legacy mode - show all filtered tracks
-    return allFilteredTracks
+    return filteredRecommendations.value
   }
   
-  // Pagination mode - show only current page's tracks
-  const start = (currentPage.value - 1) * currentTracksPerPage.value
-  const end = start + currentTracksPerPage.value
-  console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing tracks ${start + 1}-${Math.min(end, allFilteredTracks.length)} of ${allFilteredTracks.length}`)
-  return allFilteredTracks.slice(start, end)
+  // Use the stored current page tracks and apply sorting only to them
+  if (sortBy.value === 'none') {
+    // No sorting - return current page tracks in their original order
+    console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${currentPageTracks.value.length} tracks (unsorted)`)
+    return currentPageTracks.value
+  } else {
+    // Sort only the current page's tracks
+    const sortedPageTracks = [...currentPageTracks.value].sort((a, b) => {
+      const aStats = a.lastfm_stats
+      const bStats = b.lastfm_stats
+      
+      // Tracks without stats go to the end
+      if (!aStats && !bStats) return 0
+      if (!aStats) return 1
+      if (!bStats) return -1
+      
+      switch (sortBy.value) {
+        case 'playcount':
+          return (bStats.playcount || 0) - (aStats.playcount || 0)
+        case 'listeners':
+          return (bStats.listeners || 0) - (aStats.listeners || 0)
+        case 'ratio':
+          const ratioA = aStats.listeners > 0 ? aStats.playcount / aStats.listeners : 0
+          const ratioB = bStats.listeners > 0 ? bStats.playcount / bStats.listeners : 0
+          return ratioB - ratioA
+        default:
+          return 0
+      }
+    })
+    
+    console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${sortedPageTracks.length} tracks (sorted by ${sortBy.value})`)
+    return sortedPageTracks
+  }
 })
 
 const isTrackSaved = (track: Track): boolean => {
@@ -828,6 +855,15 @@ const getRelatedTracks = (track: Track) => {
   // Close any open preview dropdown when getting related tracks
   expandedTrackId.value = null
   emit('related-tracks', track)
+}
+
+// Update current page tracks when page changes
+const updateCurrentPageTracks = () => {
+  const allFilteredTracks = filteredRecommendations.value
+  const start = (currentPage.value - 1) * currentTracksPerPage.value
+  const end = start + currentTracksPerPage.value
+  currentPageTracks.value = allFilteredTracks.slice(start, end)
+  console.log(`[PAGE TRACKS] Updated current page tracks: ${currentPageTracks.value.length} tracks for page ${currentPage.value}`)
 }
 
 // Pagination methods
@@ -1417,39 +1453,11 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
   }
 }
 
-// Apply sorting to recommendations
+// Apply sorting to recommendations (now handled per-page in displayRecommendations computed)
 const applySorting = () => {
-  if (sortBy.value === 'none') {
-    // Random order - use original recommendations
-    return
-  }
-  
-  const baseRecommendations = originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
-  
-  const sorted = [...baseRecommendations].sort((a, b) => {
-    const aStats = a.lastfm_stats
-    const bStats = b.lastfm_stats
-    
-    // Tracks without stats go to the end
-    if (!aStats && !bStats) return 0
-    if (!aStats) return 1
-    if (!bStats) return -1
-    
-    switch (sortBy.value) {
-      case 'playcount':
-        return (bStats.playcount || 0) - (aStats.playcount || 0)
-      case 'listeners':
-        return (bStats.listeners || 0) - (aStats.listeners || 0)
-      case 'ratio':
-        const ratioA = aStats.listeners > 0 ? aStats.playcount / aStats.listeners : 0
-        const ratioB = bStats.listeners > 0 ? bStats.playcount / bStats.listeners : 0
-        return ratioB - ratioA
-      default:
-        return 0
-    }
-  })
-  
-  sortedRecommendations.value = sorted
+  // Sorting is now handled per-page in the displayRecommendations computed property
+  // This function is kept for compatibility but no longer modifies global state
+  console.log(`[SORTING] Sort changed to: ${sortBy.value} (will apply to current page only)`)
 }
 
 // Shuffle array function to randomize display
@@ -1508,9 +1516,8 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     originalRecommendations.value = shuffleArray(newRecommendations)
     console.log('👀 STORED originalRecommendations - after shuffle:', originalRecommendations.value.length)
     
-    // Apply default sorting first to determine display order
-    console.log('👀 APPLYING SORTING FIRST')
-    applySorting()
+    // Update current page tracks
+    updateCurrentPageTracks()
     
     // Only fetch stats if this is new recommendations
     if (isNewRecommendations) {
@@ -1527,6 +1534,11 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     console.log('👀 WATCH COMPLETE')
   }
 }, { immediate: true })
+
+// Watch for page changes and update current page tracks
+watch([currentPage, currentTracksPerPage], () => {
+  updateCurrentPageTracks()
+}, { immediate: false })
 
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {

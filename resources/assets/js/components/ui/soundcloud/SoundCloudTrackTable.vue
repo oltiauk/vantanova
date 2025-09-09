@@ -23,8 +23,7 @@
               class="hover:bg-white/5 transition h-16"
               :class="[
                 isCurrentTrack(track) ? 'bg-white/5' : 'border-b border-white/5',
-                expandedTrackId !== track.id && allowAnimations ? 'track-row' : '',
-                isArtistBanned(track) ? 'opacity-60 bg-red-500/5' : '',
+                expandedTrackId !== track.id && allowAnimations ? 'track-row' : ''
               ]"
               :style="expandedTrackId !== track.id && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
             >
@@ -137,7 +136,7 @@
                   </button>
 
                   <button
-                    class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 w-20 justify-center"
+                    class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 justify-center"
                     @click="toggleInlinePlayer(track)"
                   >
                     <Icon :icon="expandedTrackId === track.id ? faTimes : faPlay" class="w-3 h-3" />
