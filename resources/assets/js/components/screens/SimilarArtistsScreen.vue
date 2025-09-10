@@ -306,10 +306,19 @@
                   </tr>
 
                   <!-- Spotify Preview Section -->
-                  <tr v-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="bg-white/5 border-b border-white/5">
+                  <tr v-if="currentlyPreviewingArtist === artist.name" class="bg-white/5 border-b border-white/5">
                     <td colspan="8" class="p-0">
                       <div class="spotify-player-container p-6 bg-white/3">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Loading State -->
+                        <div v-if="loadingPreviewArtist === artist.name" class="flex items-center justify-center" style="height: 80px;">
+                          <div class="flex items-center gap-3">
+                            <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
+                            <span class="text-k-text-secondary">Loading tracks...</span>
+                          </div>
+                        </div>
+
+                        <!-- Tracks Display -->
+                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                           <div
                             v-for="track in artist.spotifyTracks.slice(0, 3)"
                             :key="track.id"
@@ -335,6 +344,13 @@
                                 <div class="text-sm font-medium">No Spotify preview available</div>
                               </div>
                             </div>
+                          </div>
+                        </div>
+
+                        <!-- No Tracks Found -->
+                        <div v-else class="flex items-center justify-center py-8">
+                          <div class="text-center text-white/60">
+                            <div class="text-sm font-medium">No tracks found for this artist</div>
                           </div>
                         </div>
                       </div>
@@ -831,6 +847,9 @@ const previewArtist = async (artist: LastfmArtist) => {
     }
   }
 
+  // Immediately open the dropdown for instant feedback
+  currentlyPreviewingArtist.value = artist.name
+
   // Set loading state
   loadingPreviewArtist.value = artist.name
 
@@ -842,13 +861,17 @@ const previewArtist = async (artist: LastfmArtist) => {
     if (response.success && response.data && response.data.tracks.length > 0) {
       // Add Spotify tracks to the artist object
       artist.spotifyTracks = response.data.tracks
-      currentlyPreviewingArtist.value = artist.name
 
       // Stop any currently playing Spotify tracks
       stopAllSpotifyPlayers()
+    } else {
+      // If no tracks found, close the preview
+      closePreview(artist)
     }
   } catch (error: any) {
     console.error('Failed to get Spotify preview for', artist.name, error)
+    // If error occurred, close the preview
+    closePreview(artist)
   } finally {
     // Clear loading state
     loadingPreviewArtist.value = null
