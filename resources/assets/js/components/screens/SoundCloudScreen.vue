@@ -1,14 +1,11 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader>Enhanced SoundCloud Search</ScreenHeader>
+      <ScreenHeader header-image="/HeadersSVG/SoundCloud-AdvancedSearch-Header.svg">
+        Enhanced SoundCloud Search
+      </ScreenHeader>
     </template>
 
-    <!-- Header -->
-    <div class="flex justify-center items-center gap-4 mb-8 -mt-6">
-      <img src="/public/img/soundcloud-ar21.svg" alt="SoundCloud" class="w-36 h-auto" />
-      <h2 class="text-4xl font-thin mt-4" style="font-weight: 100;">Advanced Search</h2>
-    </div>
 
     <div class="p-6 space-y-6">
       <!-- Enhanced Search Controls -->

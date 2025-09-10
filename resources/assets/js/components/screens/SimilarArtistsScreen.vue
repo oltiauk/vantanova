@@ -1,7 +1,10 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader layout="collapsed">
+      <ScreenHeader 
+        layout="collapsed"
+        header-image="/HeadersSVG/LastFM-SimilarArtists-header.svg"
+      >
         Similar Artists
         <template #meta>
           <span v-if="selectedArtist" class="text-text-secondary">
@@ -14,10 +17,7 @@
     <div class="similar-artists-screen">
       <!-- Welcome Message - Only show when no results and no search -->
       <div v-if="!selectedArtist && !similarArtists.length && !searchQuery.trim() && !errorMessage" class="max-w-2xl mx-auto text-center mb-8">
-        <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="flex justify-center items-center gap-4 mb-8 -mt-7">
-          <img src="/public/img/last-fm.svg" alt="Last.fm" class="w-36 h-auto">
-          <h2 class="text-4xl font-thin mt-2" style="font-weight: 100;">Similar Artists</h2>
-        </div>
+
         <p class="text-k-text-secondary">
           Search for a seed artist to find similar artists
         </p>

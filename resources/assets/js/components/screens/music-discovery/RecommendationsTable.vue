@@ -74,7 +74,7 @@
       </div>
 
       <h3 class="text-lg font-semibold mb-4">
-        Recommendations ({{ filteredRecommendations.length }})
+        Related Tracks ({{ filteredRecommendations.length }})
       </h3>
       
       <div class="bg-white/5 rounded-lg overflow-hidden">
@@ -96,8 +96,9 @@
             <tbody>
               <template v-for="(track, index) in displayRecommendations" :key="`related-${track.id}`">
                 <tr
-                  class="hover:bg-white/5 transition h-16 border-b border-white/5"
                   :class="[
+                    'transition h-16 border-b border-white/5',
+                    expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
                     expandedTrackId !== getTrackKey(track) && allowAnimations ? 'track-row' : ''
                   ]"
                   :style="expandedTrackId !== getTrackKey(track) && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"

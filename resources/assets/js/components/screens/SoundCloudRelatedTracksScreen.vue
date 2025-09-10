@@ -1,7 +1,10 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader layout="collapsed">
+      <ScreenHeader 
+        layout="collapsed"
+        header-image="/HeadersSVG/Soundcloud-RelatedTracks-header.svg"
+      >
         SoundCloud Related Tracks
         <template #meta>
           <span v-if="seedTrack" class="text-text-secondary">
@@ -17,10 +20,6 @@
     <div class="p-6">
       <!-- Welcome Message - Only show when no results and no search -->
       <div v-if="!showingSeedResults && !tracks.length && !seedSearchQuery.trim() && !error" class="max-w-2xl mx-auto text-center mb-8">
-        <div class="flex justify-center items-center gap-4 mb-8 -mt-12">
-          <img src="/public/img/soundcloud-ar21.svg" alt="SoundCloud" class="w-36 h-auto" />
-          <h2 class="text-4xl font-thin mt-4" style="font-weight: 100;">Related Tracks</h2>
-        </div>
         <!-- <p class="text-k-text-secondary">
           Search for a seed track to find related tracks, or click "Related Tracks" while playing a SoundCloud song.
         </p> -->

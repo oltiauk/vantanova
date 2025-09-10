@@ -10,6 +10,17 @@
 
     <main class="flex flex-1 gap-5 items-center overflow-hidden">
       <div class="w-full flex-1 overflow-hidden">
+        <!-- Header Image Display -->
+        <div v-if="headerImage" class="flex justify-center items-center py-4">
+          <img 
+            :src="headerImage" 
+            :alt="`${$slots.default?.[0]?.children || 'Screen'} Header`"
+            :class="getImageSizeClass()"
+            class="w-auto object-contain"
+          />
+        </div>
+        
+        <!-- Original Content (commented out) -->
         <!-- <h1 class="name">
           <slot />
         </h1>
@@ -24,15 +35,34 @@
 </template>
 
 <script lang="ts" setup>
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   layout?: ScreenHeaderLayout
   disabled?: boolean
   showMusicDiscovery?: boolean
+  headerImage?: string
 }>(), {
   layout: 'expanded',
   disabled: false,
   showMusicDiscovery: false,
+  headerImage: undefined,
 })
+
+const getImageSizeClass = () => {
+  if (!props.headerImage) return 'max-h-12'
+  
+  // Smaller size for LastFM images
+  if (props.headerImage.includes('LastFM')) {
+    return 'max-h-8' // 2rem = 32px (smaller)
+  }
+  
+  // Slightly larger size for SoundCloud images  
+  if (props.headerImage.includes('SoundCloud') || props.headerImage.includes('Soundcloud')) {
+    return 'max-h-14' // 3.5rem = 56px (slightly larger than the previous 48px)
+  }
+  
+  // Default size
+  return 'max-h-12'
+}
 </script>
 
 <style lang="postcss" scoped>

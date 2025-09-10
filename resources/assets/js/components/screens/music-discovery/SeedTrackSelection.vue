@@ -1,14 +1,17 @@
 <template>
   <div class="seed-selection mb-8">
     <!-- Welcome Message with Last.fm Logo -->
-    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="text-center mb-8 -mt-7">
-      <div class="flex justify-center items-center gap-4 mb-4">
-        <img src="/public/img/last-fm.svg" alt="Last.fm" class="w-36 h-auto">
-        <h2 class="text-4xl font-thin mt-2" style="font-weight: 100;">Related Tracks</h2>
+    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="mb-8 -mt-7">
+      <div class="max-w-4xl mx-auto">
+        <div class="flex justify-center items-center py-4">
+          <div class="text-center">
+            <h3 class="text-lg font-bold text-white mb-2">Search for a Seed Track</h3>
+            <p class="text-k-text-secondary">
+              Search for a seed track to find related tracks
+            </p>
+          </div>
+        </div>
       </div>
-      <p class="text-k-text-secondary pt-2">
-        Search for a seed track to find related tracks
-      </p>
     </div>
 
     <!-- Search Container -->

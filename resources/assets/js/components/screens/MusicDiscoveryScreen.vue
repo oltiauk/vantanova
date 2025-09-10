@@ -1,7 +1,10 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader show-music-discovery="true">
+      <ScreenHeader 
+        show-music-discovery="true"
+        header-image="/HeadersSVG/LastFM-RelatedTracks-Header.svg"
+      >
         Related Tracks
       </ScreenHeader>
     </template>
