@@ -16,11 +16,17 @@
 
     <div class="similar-artists-screen">
       <!-- Welcome Message - Only show when no results and no search -->
-      <div v-if="!selectedArtist && !similarArtists.length && !searchQuery.trim() && !errorMessage" class="max-w-2xl mx-auto text-center mb-8">
-
-        <p class="text-k-text-secondary">
-          Search for a seed artist to find similar artists
-        </p>
+      <div v-if="!selectedArtist && !similarArtists.length && !searchQuery.trim() && !errorMessage" class="">
+        <div class="max-w-4xl mx-auto">
+          <div class="flex justify-center items-center py-4">
+            <div class="text-center ml-6">
+              <h3 class="text-lg font-bold text-white mb-2">Search for a Seed Artist</h3>
+              <p class="text-k-text-secondary">
+                Search for a seed artist to find similar artists
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Search Container -->
@@ -93,66 +99,33 @@
 
       <!-- Selected Seed Track Display - Compact -->
       <div v-if="selectedArtist" class="selected-seed mb-8 relative z-20">
-        <div class="text-sm font-medium mb-2">Seed Artist:</div>
-        <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 flex-1 min-w-0">
-              <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
-              <span class="text-k-text-primary font-medium truncate">{{ selectedArtist.name }}</span>
+        <div class="max-w-4xl mx-auto">
+          <div class="text-sm font-medium mb-2">Seed Artist:</div>
+          <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
+                <span class="text-k-text-primary font-medium truncate">{{ selectedArtist.name }}</span>
+              </div>
+              <button
+                class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
+                title="Clear seed artist"
+                @click="clearSeedArtist"
+              >
+                <Icon :icon="faTimes" class="w-4 h-4" />
+              </button>
             </div>
-            <button
-              class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
-              title="Clear seed artist"
-              @click="clearSeedArtist"
-            >
-              <Icon :icon="faTimes" class="w-4 h-4" />
-            </button>
           </div>
         </div>
       </div>
 
-      <!-- Sort by Dropdown -->
-      <div v-if="similarArtists.length > 0" class="flex justify-end mb-4 relative">
-        <button
-          class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
-          style="background-color: rgba(47, 47, 47, 255) !important;"
-          @click="toggleLikesRatioDropdown"
-          @blur="hideLikesRatioDropdown"
-        >
-          <Icon :icon="getSortIcon()" />
-          {{ getSortText() }}
-          <Icon :icon="faChevronDown" class="text-xs" />
-        </button>
-
-        <!-- Dropdown Menu -->
-        <div
-          v-if="showLikesRatioDropdown"
-          class="absolute right-0 mt-12 w-52 rounded-lg shadow-lg z-50"
-          style="background-color: rgb(67,67,67,255);"
-        >
-          <button
-            v-for="option in sortOptions"
-            :key="option.value"
-            class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-            :class="option.value === 'match' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length - 1].value ? 'rounded-b-lg' : '')"
-            :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
-            @mousedown.prevent="setLikesRatioFilter(option.value)"
-          >
-            <Icon :icon="getSortIconForOption(option.value)" />
-            {{ option.label }}
-          </button>
-        </div>
-      </div>
-
       <!-- Similar Artists Results -->
-      <div v-if="isLoading" class="loading-section flex flex-col items-center justify-center py-16 space-y-4">
-        <div class="relative">
-          <div class="animate-spin rounded-full h-12 w-12 border-4 border-white/10" />
-          <div class="absolute top-0 left-0 animate-spin rounded-full h-12 w-12 border-4 border-k-accent border-t-transparent" />
-        </div>
-        <div class="text-center space-y-2">
-          <div class="text-k-text-primary font-medium">{{ selectedArtist ? 'Finding similar artists...' : 'Loading...' }}</div>
-          <div class="text-k-text-secondary text-sm">{{ selectedArtist ? `Discovering artists like ${selectedArtist.name}` : 'Please wait' }}</div>
+      <div v-if="isLoading" class="text-center p-12">
+        <div class="inline-flex flex-col items-center">
+          <svg class="w-8 h-8 animate-spin text-[#9d0cc6] mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
         </div>
       </div>
 
@@ -175,10 +148,43 @@
       </div>
 
       <div v-else-if="displayedArtists.length > 0" class="results-section">
-        <h3 class="text-lg font-semibold mb-4">
-          Similar Artists ({{ filteredArtists.length }})
-          <span v-if="loadingPageListeners" class="loading-dots text-orange-400 text-sm ml-2">Loading listeners<span class="dots" /></span>
-        </h3>
+        <!-- Controls -->
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold">
+            Similar Artists ({{ filteredArtists.length }})
+          </h3>
+          
+          <!-- Sort by Dropdown -->
+          <div class="relative">
+            <button
+              class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
+              style="background-color: rgba(47, 47, 47, 255) !important;"
+              @click="toggleLikesRatioDropdown"
+              @blur="hideLikesRatioDropdown"
+            >
+              Sort by: {{ getSortText() }}
+              <Icon :icon="faChevronDown" class="text-xs" />
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div
+              v-if="showLikesRatioDropdown"
+              class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-50"
+              style="background-color: rgb(67,67,67,255);"
+            >
+              <button
+                v-for="option in sortOptions"
+                :key="option.value"
+                class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition"
+                :class="option.value === 'match' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length - 1].value ? 'rounded-b-lg' : '')"
+                :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
+                @mousedown.prevent="setLikesRatioFilter(option.value)"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="bg-white/5 rounded-lg overflow-hidden relative z-10">
           <div class="overflow-x-auto scrollbar-hide">
@@ -200,6 +206,7 @@
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
                       currentlyPreviewingArtist !== artist.name && allowAnimations ? 'artist-row' : '',
+                      currentlyPreviewingArtist === artist.name ? 'bg-white/5' : '',
                     ]"
                     :style="currentlyPreviewingArtist !== artist.name && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
                   >
@@ -230,7 +237,7 @@
 
                     <!-- Listeners -->
                     <td class="p-3 align-middle">
-                      <span v-if="artist.listeners" class="text-white/80">{{ formatListeners(artist.listeners) }}</span>
+                      <span v-if="artist.listeners" class="text-white/80 pl-3">{{ formatListeners(artist.listeners) }}</span>
                       <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
                         <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -242,7 +249,7 @@
 
                     <!-- Streams/Playcount -->
                     <td class="p-3 align-middle">
-                      <span v-if="artist.playcount" class="text-white/80">{{ formatPlaycount(artist.playcount) }}</span>
+                      <span v-if="artist.playcount" class="text-white/80 pl-2">{{ formatPlaycount(artist.playcount) }}</span>
                       <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
                         <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -254,28 +261,35 @@
 
                     <!-- S/L Ratio -->
                     <td class="p-3 align-middle">
-                      <span v-if="artist.listeners && artist.playcount" class="text-white/80">{{ calculateSLRatio(artist.playcount, artist.listeners) }}</span>
+                      <span v-if="artist.listeners && artist.playcount" class="text-white/80 pl-3">{{ calculateSLRatio(artist.playcount, artist.listeners) }}</span>
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
+                        <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      </div>
                       <span v-else class="text-white/30">-</span>
                     </td>
 
                     <!-- Match Score -->
                     <td class="p-3 align-middle">
-                      <span class="text-white/80 font-medium">{{ Math.round(parseFloat(artist.match) * 100) }}%</span>
+                      <span class="text-white/80 font-medium pl-2">{{ Math.round(parseFloat(artist.match) * 100) }}%</span>
                     </td>
 
                     <!-- Actions -->
                     <td class="p-3 align-middle">
                       <div class="flex gap-2 relative z-0">
                         <button
-                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition relative z-0 flex items-center gap-1"
+                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition relative z-0 flex items-center gap-1 min-w-[90px] justify-center"
                           title="Find Similar Artists"
                           @click="findSimilarArtists(artist)"
                         >
-                          <Icon :icon="faSearch" class="w-3 h-3" /> Similars
+                          <Icon :icon="faSearch" class="w-3 h-3" />
+                          Similars
                         </button>
                         <button
                           :disabled="loadingPreviewArtist === artist.name"
-                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 justify-center"
+                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
                           @click="previewArtist(artist)"
                         >
                           <!-- Loading spinner when processing -->
@@ -294,7 +308,7 @@
                   <!-- Spotify Preview Section -->
                   <tr v-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="bg-white/5 border-b border-white/5">
                     <td colspan="8" class="p-0">
-                      <div class="spotify-player-container p-6" style="background-color: rgb(67,67,67);">
+                      <div class="spotify-player-container p-6 bg-white/3">
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                           <div
                             v-for="track in artist.spotifyTracks.slice(0, 3)"

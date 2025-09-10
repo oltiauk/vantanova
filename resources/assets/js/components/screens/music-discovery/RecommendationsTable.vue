@@ -40,7 +40,11 @@
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
       <!-- Controls -->
-      <div class="mb-4 flex justify-end items-center gap-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold">
+          Related Tracks ({{ filteredRecommendations.length }})
+        </h3>
+        
         <!-- Sort by Dropdown -->
         <div class="relative">
           <button
@@ -72,10 +76,6 @@
           </div>
         </div>
       </div>
-
-      <h3 class="text-lg font-semibold mb-4">
-        Related Tracks ({{ filteredRecommendations.length }})
-      </h3>
       
       <div class="bg-white/5 rounded-lg overflow-hidden">
         <div class="overflow-x-auto scrollbar-hide">

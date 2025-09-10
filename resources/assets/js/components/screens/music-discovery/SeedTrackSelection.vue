@@ -1,10 +1,10 @@
 <template>
   <div class="seed-selection mb-8">
     <!-- Welcome Message with Last.fm Logo -->
-    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="mb-8 -mt-7">
+    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="">
       <div class="max-w-4xl mx-auto">
         <div class="flex justify-center items-center py-4">
-          <div class="text-center">
+          <div class="text-center ml-6">
             <h3 class="text-lg font-bold text-white mb-2">Search for a Seed Track</h3>
             <p class="text-k-text-secondary">
               Search for a seed track to find related tracks
@@ -85,7 +85,8 @@
     </div>
 
     <!-- Selected Seed Track Display - Compact -->
-    <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
+   
+    </div> <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
       <div class="max-w-4xl mx-auto">
         <div class="text-sm font-medium mb-2">Seed Track:</div>
         <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
@@ -104,7 +105,6 @@
           </div>
         </div>
       </div>
-    </div>
 
     <!-- Error State -->
     <div v-if="searchError" class="bg-red-500/20 border border-red-500/40 rounded-lg p-4 max-w-2xl mx-auto">
