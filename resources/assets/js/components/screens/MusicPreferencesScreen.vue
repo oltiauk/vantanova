@@ -303,7 +303,7 @@ const loadClientUnsavedTracks = () => {
     if (stored) {
       const unsavedList = JSON.parse(stored)
       clientUnsavedTracks.value = new Set(unsavedList)
-      console.log('MusicPreferences: Loaded client unsaved tracks:', unsavedList)
+      // console.log('MusicPreferences: Loaded client unsaved tracks:', unsavedList)
     }
   } catch (error) {
     console.warn('Failed to load client unsaved tracks from localStorage:', error)
@@ -370,13 +370,13 @@ const removeFromBlacklist = async (type: 'track' | 'artist', item: any) => {
     const endpoint = type === 'track' ? 'blacklist-track' : 'blacklist-artist'
     
     if (type === 'track') {
-      console.log('Track item:', item)
+      // console.log('Track item:', item)
       const deleteData = {
         isrc: item.isrc || item.id, // fallback to id if isrc is null
         track_name: item.track_name,
         artist_name: item.artist_name
       }
-      console.log('DELETE data:', deleteData)
+      // console.log('DELETE data:', deleteData)
       
       // Try using query parameters instead
       const params = new URLSearchParams(deleteData)
@@ -410,18 +410,18 @@ const clearAllBlacklistedTracks = async () => {
     const response = await http.delete('music-preferences/clear-all-blacklisted-tracks')
     if (response.success) {
       blacklistedTracks.value = []
-      console.log('✅ All blacklisted tracks cleared successfully')
+      // console.log('✅ All blacklisted tracks cleared successfully')
       return
     }
   } catch (error) {
-    console.log('Bulk delete not available, falling back to individual deletions')
+    // console.log('Bulk delete not available, falling back to individual deletions')
   }
   
   // Fallback to individual deletions
   try {
     const promises = blacklistedTracks.value.map(track => removeFromBlacklist('track', track))
     await Promise.all(promises)
-    console.log('✅ All blacklisted tracks cleared individually')
+    // console.log('✅ All blacklisted tracks cleared individually')
   } catch (error) {
     console.error('Failed to clear all blacklisted tracks:', error)
   }
@@ -435,18 +435,18 @@ const clearAllBlacklistedArtists = async () => {
     const response = await http.delete('music-preferences/clear-all-blacklisted-artists')
     if (response.success) {
       blacklistedArtists.value = []
-      console.log('✅ All blacklisted artists cleared successfully')
+      // console.log('✅ All blacklisted artists cleared successfully')
       return
     }
   } catch (error) {
-    console.log('Bulk delete not available, falling back to individual deletions')
+    // console.log('Bulk delete not available, falling back to individual deletions')
   }
   
   // Fallback to individual deletions
   try {
     const promises = blacklistedArtists.value.map(artist => removeFromBlacklist('artist', artist))
     await Promise.all(promises)
-    console.log('✅ All blacklisted artists cleared individually')
+    // console.log('✅ All blacklisted artists cleared individually')
   } catch (error) {
     console.error('Failed to clear all blacklisted artists:', error)
   }

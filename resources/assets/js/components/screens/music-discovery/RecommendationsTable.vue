@@ -86,7 +86,6 @@
                 <th class="text-left p-3 font-medium w-12">Ban Artist</th>
                 <th class="text-left p-3 font-medium">Name(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
-                <th class="text-left p-3 font-medium">Duration</th>
                 <th class="text-left p-3 font-medium">Streams</th>
                 <th class="text-left p-3 font-medium">Listeners</th>
                 <th class="text-left p-3 font-medium">S/L Ratio</th>
@@ -94,7 +93,7 @@
               </tr>
             </thead>
             <tbody>
-              <template v-for="(track, index) in displayRecommendations" :key="`related-${track.id}`">
+              <template v-for="(track, index) in displayRecommendations" :key="`related-${getTrackKey(track)}-${index}`">
                 <tr
                   :class="[
                     'transition h-16 border-b border-white/5',
@@ -131,14 +130,7 @@
 
                   <!-- Title -->
                   <td class="p-3 align-middle">
-                    <div class="flex items-center gap-2">
-                      <span class="text-white/80">{{ track.name }}</span>
-                    </div>
-                  </td>
-
-                  <!-- Duration -->
-                  <td class="p-3 align-middle">
-                    <span class="text-white/80" :title="`Duration: ${track.duration_ms}ms`">{{ formatDuration(track.duration_ms) }}</span>
+                    <span class="text-white/80">{{ track.name }}</span>
                   </td>
 
                   <!-- Streams (Playcount) -->
@@ -236,7 +228,7 @@
                         
                         <!-- Preview Button -->
                         <button
-                          @click="(track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
+                          @click="(track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
                           :disabled="processingTrack === getTrackKey(track)"
                           class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
                         >
@@ -256,8 +248,8 @@
 
                 <!-- Spotify Player Dropdown Row with Animation -->
                 <Transition name="spotify-dropdown" mode="out-in">
-                  <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${track.id}`" class="border-b border-white/5 player-row">
-                    <td colspan="9" class="p-0 overflow-hidden">
+                  <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
+                    <td colspan="8" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
@@ -455,6 +447,7 @@ const formatNumber = (num: number): string => {
   return num.toString()
 }
 
+
 const formatRatio = (playcount: number, listeners: number): string => {
   if (listeners === 0) return '0'
   const ratio = playcount / listeners
@@ -490,7 +483,7 @@ const setLikesRatioFilter = (type: string) => {
   sortBy.value = type
   showLikesRatioDropdown.value = false
   // No need to call applySorting() - displayRecommendations computed will handle per-page sorting
-  console.log(`[SORT] Changed to ${type} - will apply to current page only`)
+  // console.log(`[SORT] Changed to ${type} - will apply to current page only`)
 }
 
 const getSortIcon = () => {
@@ -520,11 +513,11 @@ const isPaginationMode = computed(() => props.totalTracks !== undefined)
 
 // Total tracks - use the length of filtered recommendations
 const currentTotalTracks = computed(() => {
-  console.log(`[RECOMMENDATIONS DEBUG] Props totalTracks: ${props.totalTracks}, isPaginationMode: ${isPaginationMode.value}`)
+  // console.log(`[RECOMMENDATIONS DEBUG] Props totalTracks: ${props.totalTracks}, isPaginationMode: ${isPaginationMode.value}`)
   
   // Always use the filtered recommendations count for accurate pagination
   const total = filteredRecommendations.value.length
-  console.log(`[RECOMMENDATIONS DEBUG] Using filtered recommendations total: ${total}`)
+  // console.log(`[RECOMMENDATIONS DEBUG] Using filtered recommendations total: ${total}`)
   return total
 })
 
@@ -566,28 +559,28 @@ const visiblePages = computed(() => {
 
 // Computed property for all filtered recommendations (without sorting - always returns same tracks)
 const filteredRecommendations = computed(() => {
-  console.log('🔄 FILTERED RECOMMENDATIONS COMPUTED CALLED')
-  console.log('🔄 Current banned artists:', Array.from(bannedArtists.value))
+  // console.log('🔄 FILTERED RECOMMENDATIONS COMPUTED CALLED')
+  // console.log('🔄 Current banned artists:', Array.from(bannedArtists.value))
   
   // Always use original recommendations - sorting is handled per-page in displayRecommendations
   let tracks: Track[] = originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
   
-  console.log(`[RECOMMENDATIONS DEBUG] Raw tracks: ${tracks.length}, Props recommendations: ${props.recommendations.length}`)
-  console.log(`[RECOMMENDATIONS DEBUG] originalRecommendations: ${originalRecommendations.value.length}, sortedRecommendations: ${sortedRecommendations.value.length}`)
+  // console.log(`[RECOMMENDATIONS DEBUG] Raw tracks: ${tracks.length}, Props recommendations: ${props.recommendations.length}`)
+  // console.log(`[RECOMMENDATIONS DEBUG] originalRecommendations: ${originalRecommendations.value.length}, sortedRecommendations: ${sortedRecommendations.value.length}`)
   
   // Filter out tracks from the same artist as the seed track
   if (props.seedTrack) {
     const seedArtist = props.seedTrack.artist.toLowerCase()
     tracks = tracks.filter(track => track.artist.toLowerCase() !== seedArtist)
-    console.log(`[RECOMMENDATIONS DEBUG] Filtered out seed artist "${props.seedTrack.artist}": ${tracks.length} tracks remaining`)
+    // console.log(`[RECOMMENDATIONS DEBUG] Filtered out seed artist "${props.seedTrack.artist}": ${tracks.length} tracks remaining`)
   } else {
-    console.log('[RECOMMENDATIONS DEBUG] No seed track provided, skipping artist filtering')
+    // console.log('[RECOMMENDATIONS DEBUG] No seed track provided, skipping artist filtering')
   }
   
   // Don't filter out banned artists immediately - keep them visible in current results
   // Filtering will only happen when new recommendations arrive
-  console.log(`[RECOMMENDATIONS DEBUG] Keeping all tracks visible (including banned): ${tracks.length}`)
-  console.log('🔄 Tracks being returned:', tracks.map(t => t.artist).slice(0, 5))
+  // console.log(`[RECOMMENDATIONS DEBUG] Keeping all tracks visible (including banned): ${tracks.length}`)
+  // console.log('🔄 Tracks being returned:', tracks.map(t => t.artist).slice(0, 5))
   return tracks
 })
 
@@ -601,7 +594,7 @@ const displayRecommendations = computed(() => {
   // Use the stored current page tracks and apply sorting only to them
   if (sortBy.value === 'none') {
     // No sorting - return current page tracks in their original order
-    console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${currentPageTracks.value.length} tracks (unsorted)`)
+    // console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${currentPageTracks.value.length} tracks (unsorted)`)
     return currentPageTracks.value
   } else {
     // Sort only the current page's tracks
@@ -628,7 +621,7 @@ const displayRecommendations = computed(() => {
       }
     })
     
-    console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${sortedPageTracks.length} tracks (sorted by ${sortBy.value})`)
+    // console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${sortedPageTracks.length} tracks (sorted by ${sortBy.value})`)
     return sortedPageTracks
   }
 })
@@ -878,7 +871,7 @@ const updateCurrentPageTracks = () => {
   const start = (currentPage.value - 1) * currentTracksPerPage.value
   const end = start + currentTracksPerPage.value
   currentPageTracks.value = allFilteredTracks.slice(start, end)
-  console.log(`[PAGE TRACKS] Updated current page tracks: ${currentPageTracks.value.length} tracks for page ${currentPage.value}`)
+  // console.log(`[PAGE TRACKS] Updated current page tracks: ${currentPageTracks.value.length} tracks for page ${currentPage.value}`)
 }
 
 // Fetch stats for current page tracks if they don't have stats yet
@@ -893,10 +886,10 @@ const fetchStatsForCurrentPage = async () => {
   })
   
   if (tracksNeedingStats.length > 0) {
-    console.log(`🎵 LAZY LOADING: Fetching stats for ${tracksNeedingStats.length} tracks on page ${currentPage.value}`)
+    // console.log(`🎵 LAZY LOADING: Fetching stats for ${tracksNeedingStats.length} tracks on page ${currentPage.value}`)
     await fetchLastFmStatsOptimized(tracksNeedingStats)
   } else {
-    console.log(`🎵 LAZY LOADING: All tracks on page ${currentPage.value} already have stats`)
+    // console.log(`🎵 LAZY LOADING: All tracks on page ${currentPage.value} already have stats`)
   }
 }
 
@@ -1033,6 +1026,44 @@ const cleanTrackForQuery = (text: string): string => {
     .replace(/\s*-\s*$/, '')
     .replace(/^\s*-\s*/, '')
     .trim()
+}
+
+// Preview Last.fm tracks by converting to Spotify
+const previewLastfmTrack = async (track: Track) => {
+  const trackKey = getTrackKey(track)
+  processingTrack.value = trackKey
+  isPreviewProcessing.value = true
+  
+  try {
+    // Clean track and artist names for better matching
+    const cleanedArtist = cleanTrackForQuery(track.artist)
+    const cleanedTitle = cleanTrackForQuery(track.name)
+    
+    const response = await http.get('music-discovery/track-preview', {
+      params: {
+        artist_name: cleanedArtist,
+        track_title: cleanedTitle,
+        original_artist: track.artist, // Keep originals for fallback
+        original_title: track.name,
+        source: 'lastfm'
+      }
+    })
+
+    if (response.success && response.data && response.data.spotify_track_id) {
+      // Update the track object with Spotify ID for the player
+      track.id = response.data.spotify_track_id
+      
+      // Now open the Spotify player with the converted track
+      toggleSpotifyPlayer(track)
+    } else {
+      showTrackNotFoundNotification(track)
+    }
+  } catch (error: any) {
+    showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
+  } finally {
+    processingTrack.value = null
+    isPreviewProcessing.value = false
+  }
 }
 
 // Preview tracks by converting to Spotify
@@ -1225,7 +1256,7 @@ const banArtist = async (track: Track) => {
       }
       const params = new URLSearchParams(deleteData)
       const response = await http.delete(`music-preferences/blacklist-artist?${params}`)
-      console.log('✅ Artist removed from global blacklist API:', response)
+      // console.log('✅ Artist removed from global blacklist API:', response)
     } catch (apiError: any) {
       console.error('❌ Failed to remove from API:', apiError)
       // API failed but local/visual changes are already applied
@@ -1233,14 +1264,14 @@ const banArtist = async (track: Track) => {
     }
   } else {
     // BAN ARTIST
-    console.log('🚫 BANNING ARTIST - START:', artistName)
+    // console.log('🚫 BANNING ARTIST - START:', artistName)
     
     // IMMEDIATE UI UPDATE - Add to banned list right away for instant visual feedback
     bannedArtists.value.add(artistName)
     saveBannedArtists()
     addArtistToBlacklist(artistName)
     
-    console.log('🚫 UI updated immediately (banned), now doing API call in background')
+    // console.log('🚫 UI updated immediately (banned), now doing API call in background')
     
     // Background API call to save to backend
     try {
@@ -1248,7 +1279,7 @@ const banArtist = async (track: Track) => {
         artist_name: artistName,
         spotify_artist_id: track.artists?.[0]?.id || track.id // Use track ID as fallback if no artist ID
       })
-      console.log('✅ Artist saved to global blacklist API:', response)
+      // console.log('✅ Artist saved to global blacklist API:', response)
     } catch (apiError: any) {
       console.error('❌ Failed to save to API:', apiError)
       console.error('❌ API Error details:', apiError.response?.data || apiError.message)
@@ -1307,7 +1338,7 @@ onUnmounted(() => {
 const fetchLastFmStats = async (tracks: Track[]) => {
   if (tracks.length === 0) return
   
-  console.log('🎵 Fetching LastFM stats for tracks:', tracks.length)
+  // console.log('🎵 Fetching LastFM stats for tracks:', tracks.length)
   lastfmStatsLoading.value = true
   lastfmError.value = false
   
@@ -1320,7 +1351,7 @@ const fetchLastFmStats = async (tracks: Track[]) => {
       batches.push(tracks.slice(i, i + batchSize))
     }
     
-    console.log(`🎵 Processing ${batches.length} batches of ${batchSize} tracks each`)
+    // console.log(`🎵 Processing ${batches.length} batches of ${batchSize} tracks each`)
     
     // Process batches sequentially to be nice to the API
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -1349,7 +1380,7 @@ const fetchLastFmStats = async (tracks: Track[]) => {
               }
             }
           })
-          console.log(`🎵 Processed batch ${batchIndex + 1}/${batches.length}`)
+          // console.log(`🎵 Processed batch ${batchIndex + 1}/${batches.length}`)
         } else {
           console.warn(`🎵 Batch ${batchIndex + 1} failed:`, response.error)
         }
@@ -1364,7 +1395,7 @@ const fetchLastFmStats = async (tracks: Track[]) => {
       }
     }
     
-    console.log('🎵 Finished fetching LastFM stats for all tracks')
+    // console.log('🎵 Finished fetching LastFM stats for all tracks')
     
   } catch (error) {
     console.error('🎵 Failed to fetch LastFM stats:', error)
@@ -1385,12 +1416,12 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
   })
   
   if (tracksNeedingStats.length === 0) {
-    console.log('🎵 STATS FETCH SKIPPED - All tracks already have stats')
+    // console.log('🎵 STATS FETCH SKIPPED - All tracks already have stats')
     return
   }
   
-  console.log('🎵 STATS FETCH START - Total tracks needing stats:', tracksNeedingStats.length, 'out of', tracks.length)
-  console.log('🎵 STATS FETCH - Sample tracks:', tracksNeedingStats.slice(0, 3).map(t => `${t.artist} - ${t.name}`))
+  // console.log('🎵 STATS FETCH START - Total tracks needing stats:', tracksNeedingStats.length, 'out of', tracks.length)
+  // console.log('🎵 STATS FETCH - Sample tracks:', tracksNeedingStats.slice(0, 3).map(t => `${t.artist} - ${t.name}`))
   isUpdatingStats.value = true
   lastfmStatsLoading.value = true
   lastfmError.value = false
@@ -1408,7 +1439,7 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
     
     // Fetch first batch immediately (blocks UI to show initial data quickly)
     if (firstBatch.length > 0) {
-      console.log('🎵 Fetching first batch immediately:', firstBatch.length, 'tracks')
+      // console.log('🎵 Fetching first batch immediately:', firstBatch.length, 'tracks')
       
       const trackData = firstBatch.map(track => ({
         artist: track.artist,
@@ -1433,7 +1464,7 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
               }
             }
           })
-          console.log('🎵 ✅ First batch completed immediately')
+          // console.log('🎵 ✅ First batch completed immediately')
         }
       } catch (error) {
         console.error('🎵 ❌ First batch failed:', error)
@@ -1446,7 +1477,7 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
     
     // Process remaining tracks in background (non-blocking)
     if (remainingTracks.length > 0) {
-      console.log('🎵 Processing remaining', remainingTracks.length, 'tracks in background...')
+      // console.log('🎵 Processing remaining', remainingTracks.length, 'tracks in background...')
       
       // Use setTimeout to ensure this runs after the current render cycle
       setTimeout(async () => {
@@ -1480,7 +1511,7 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
                   }
                 }
               })
-              console.log(`🎵 Background batch ${batchIndex + 1}/${batches.length} completed`)
+              // console.log(`🎵 Background batch ${batchIndex + 1}/${batches.length} completed`)
             }
             
             // Small delay between background batches
@@ -1493,7 +1524,7 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
           }
         }
         
-        console.log('🎵 ✅ All background processing completed')
+        // console.log('🎵 ✅ All background processing completed')
         isUpdatingStats.value = false
       }, 100) // Small delay to ensure first batch renders first
     }
@@ -1510,7 +1541,7 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
 const applySorting = () => {
   // Sorting is now handled per-page in the displayRecommendations computed property
   // This function is kept for compatibility but no longer modifies global state
-  console.log(`[SORTING] Sort changed to: ${sortBy.value} (will apply to current page only)`)
+  // console.log(`[SORTING] Sort changed to: ${sortBy.value} (will apply to current page only)`)
 }
 
 // Shuffle array function to randomize display
@@ -1525,19 +1556,30 @@ const shuffleArray = <T>(array: T[]): T[] => {
 
 // Watch for recommendation changes and fetch stats
 watch(() => props.recommendations, async (newRecommendations, oldRecommendations) => {
-  console.log('👀 WATCH TRIGGERED - newRecommendations.length:', newRecommendations.length)
-  console.log('👀 WATCH - oldRecommendations?.length:', oldRecommendations?.length)
-  console.log('👀 WATCH - lastRecommendationsCount:', lastRecommendationsCount.value)
+  // console.log('👀 WATCH TRIGGERED - newRecommendations.length:', newRecommendations.length)
+  // console.log('👀 WATCH - oldRecommendations?.length:', oldRecommendations?.length)
+  // console.log('👀 WATCH - lastRecommendationsCount:', lastRecommendationsCount.value)
   
   if (newRecommendations.length > 0) {
     // Check if this is truly new recommendations or just stats being updated
     const isNewRecommendations = newRecommendations.length !== lastRecommendationsCount.value || 
                                 !oldRecommendations
     
-    console.log('👀 WATCH - isNewRecommendations:', isNewRecommendations)
+    console.log('👀 RECOMMENDATIONS UPDATED', newRecommendations.length, 'tracks')
+    // Sample a few tracks to log structure including match scores
+    const samples = newRecommendations.slice(0, 3).map(track => ({
+      name: track.name,
+      artist: track.artist,
+      source: track.source,
+      match: track.match,
+      hasMatch: track.match !== undefined
+    }))
+    console.log('👀 SAMPLE TRACKS WITH MATCH', samples)
+    
+    // console.log('👀 WATCH - isNewRecommendations:', isNewRecommendations)
     
     if (isNewRecommendations) {
-      console.log('🎵 New recommendations received - closing previews')
+      // console.log('🎵 New recommendations received - closing previews')
       // Close any open preview dropdown when NEW recommendations are loaded
       expandedTrackId.value = null
       
@@ -1554,39 +1596,39 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
       // Update the count
       lastRecommendationsCount.value = newRecommendations.length
     } else {
-      console.log('🎵 Stats update detected - keeping previews open and no animations')
+      // console.log('🎵 Stats update detected - keeping previews open and no animations')   
       // Don't change animation state for stats updates - keep current state
     }
     
     // Debug: Check what data we're receiving
-    console.log('🎵 RecommendationsTable received tracks:', newRecommendations.length)
-    console.log('🎵 Sample track data:', newRecommendations[0])
-    console.log('🎵 Sample track has lastfm_stats?', !!newRecommendations[0]?.lastfm_stats)
+    // console.log('🎵 RecommendationsTable received tracks:', newRecommendations.length)
+    // console.log('🎵 Sample track data:', newRecommendations[0])
+    // console.log('🎵 Sample track has lastfm_stats?', !!newRecommendations[0]?.lastfm_stats)
     
     // Don't filter out banned artists from current session - only filter on fresh searches
     // Store original recommendations and shuffle them for random display
-    console.log('👀 STORING originalRecommendations - before shuffle:', newRecommendations.length)
+    // console.log('👀 STORING originalRecommendations - before shuffle:', newRecommendations.length)
     originalRecommendations.value = shuffleArray(newRecommendations)
-    console.log('👀 STORED originalRecommendations - after shuffle:', originalRecommendations.value.length)
+    // console.log('👀 STORED originalRecommendations - after shuffle:', originalRecommendations.value.length)
     
     // Update current page tracks
     updateCurrentPageTracks()
     
     // Only fetch stats if this is new recommendations
     if (isNewRecommendations) {
-      console.log('🎵 FETCHING STATS for new recommendations')
+      // console.log('🎵 FETCHING STATS for new recommendations')
       // Clear previously tracked stats for completely new recommendation set
       tracksWithStatsFetched.value.clear()
       // Only fetch stats for currently displayed tracks (lazy loading)
       const currentPageDisplayTracks = displayRecommendations.value
-      console.log('🎵 Fetching stats for CURRENT PAGE only, tracks:', currentPageDisplayTracks.slice(0, 5).map(t => `${t.artist} - ${t.name}`))
+      // console.log('🎵 Fetching stats for CURRENT PAGE only, tracks:', currentPageDisplayTracks.slice(0, 5).map(t => `${t.artist} - ${t.name}`))
       // Optimized stats fetching: Get first batch immediately, rest in background
       await fetchLastFmStatsOptimized(currentPageDisplayTracks)
     } else {
-      console.log('🎵 SKIPPING STATS FETCH - not new recommendations')
+      // console.log('🎵 SKIPPING STATS FETCH - not new recommendations')
     }
     
-    console.log('👀 WATCH COMPLETE')
+    // console.log('👀 WATCH COMPLETE')
   }
 }, { immediate: true })
 

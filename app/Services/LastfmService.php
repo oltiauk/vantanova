@@ -7,6 +7,7 @@ use App\Http\Integrations\Lastfm\Requests\GetAlbumInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\GetArtistInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\GetSessionKeyRequest;
 use App\Http\Integrations\Lastfm\Requests\GetSimilarArtistsRequest;
+use App\Http\Integrations\Lastfm\Requests\GetSimilarTracksRequest;
 use App\Http\Integrations\Lastfm\Requests\GetTrackInfoRequest;
 use App\Http\Integrations\Lastfm\Requests\ScrobbleRequest;
 use App\Http\Integrations\Lastfm\Requests\SearchArtistsRequest;
@@ -242,6 +243,44 @@ class LastfmService implements MusicEncyclopedia
         } catch (\Exception $e) {
             Log::warning('Failed to get similar artists on Last.fm', [
                 'mbid' => $mbid,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [];
+        }
+    }
+
+    /**
+     * Get similar tracks for a given artist and track
+     * 
+     * @param string $artist
+     * @param string $track
+     * @param int $limit
+     * @return array<mixed>
+     */
+    public function getSimilarTracks(string $artist, string $track, int $limit = 50): array
+    {
+        if (!static::enabled() || empty($artist) || empty($track)) {
+            Log::info("LASTFM_DISABLED_OR_EMPTY", [
+                'enabled' => static::enabled(),
+                'artist_empty' => empty($artist),
+                'track_empty' => empty($track)
+            ]);
+            return [];
+        }
+
+        try {
+            Log::info("LASTFM_API_REQUEST", ['artist' => $artist, 'track' => $track, 'limit' => $limit]);
+            $request = new GetSimilarTracksRequest($artist, $track, $limit);
+            $response = $this->connector->send($request);
+            
+            $result = $response->dto() ?? [];
+            Log::info("LASTFM_API_RESPONSE", ['tracks_returned' => count($result)]);
+            return $result;
+        } catch (\Exception $e) {
+            Log::error("LASTFM_API_ERROR", [
+                'artist' => $artist,
+                'track' => $track,
                 'error' => $e->getMessage()
             ]);
             

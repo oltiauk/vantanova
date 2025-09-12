@@ -1217,7 +1217,7 @@ const loadBannedArtists = () => {
     if (stored) {
       const bannedList = JSON.parse(stored)
       bannedArtists.value = new Set(bannedList)
-      console.log('SoundCloud: Loaded banned artists:', bannedList)
+      // console.log('SoundCloud: Loaded banned artists:', bannedList)
     }
   } catch (error) {
     console.warn('SoundCloud: Failed to load banned artists from localStorage:', error)

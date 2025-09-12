@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\SpotifyService;
 use App\Services\SoundStatsService;
 use App\Services\RapidApiService;
+use App\Services\LastfmService;
 use App\Models\BlacklistedTrack;
 use App\Models\SavedTrack;
 use App\Models\BlacklistedArtist;
@@ -22,10 +23,27 @@ class MusicDiscoveryController extends Controller
         private ?SoundStatsService $soundStatsService = null,
         private ?RapidApiService $rapidApiService = null
     ) {}
+    
+    private function getLastfmService(): ?LastfmService
+    {
+        try {
+            $service = app(LastfmService::class);
+            \Log::info("LASTFM_SERVICE_RESOLVED", [
+                'service_class' => get_class($service),
+                'enabled' => $service::enabled(),
+                'api_key_set' => !empty(config('koel.services.lastfm.key')),
+                'api_secret_set' => !empty(config('koel.services.lastfm.secret'))
+            ]);
+            return $service;
+        } catch (\Exception $e) {
+            \Log::info("LASTFM_SERVICE_RESOLVE_FAILED", ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
 
 
     /**
-     * Get related tracks using Spotify and Shazam APIs
+     * Get related tracks using Spotify, Shazam, and Last.fm APIs
      * GET /api/music-discovery/related-tracks
      */
     public function getRelatedTracks(Request $request): JsonResponse
@@ -52,6 +70,7 @@ class MusicDiscoveryController extends Controller
             $allTracks = [];
             $spotifyTracks = [];
             $shazamTracks = [];
+            $lastfmTracks = [];
 
             // 1. Search for the track on Spotify to get Track ID
             $spotifySearchResults = $this->searchSpotifyForTrack($artistName, $trackTitle);
@@ -125,16 +144,47 @@ class MusicDiscoveryController extends Controller
                 $shazamQuotaExceeded = true; // Assume quota exceeded if no tracks returned
             }
 
-            // 4. Combine all tracks
-            $allTracks = array_merge($spotifyTracks, $shazamTracks);
+            // 4. Get Last.fm similar tracks
+            \Log::info("LASTFM_BEFORE_RESOLVE");
+            $lastfmService = $this->getLastfmService();
+            \Log::info("LASTFM_AFTER_RESOLVE");
+            \Log::info("LASTFM_INTEGRATION_CHECK", [
+                'service_exists' => $lastfmService !== null,
+                'artist' => $artistName,
+                'track' => $trackTitle
+            ]);
 
-            // 5. Remove duplicates only
+            if ($lastfmService) {
+                try {
+                    $lastfmTracks = $lastfmService->getSimilarTracks($artistName, $trackTitle, $limit);
+                    \Log::info("LASTFM_TRACKS_FETCHED", ['count' => count($lastfmTracks)]);
+                    if (!empty($lastfmTracks)) {
+                        \Log::info("LASTFM_SAMPLE_TRACK", ['sample' => $lastfmTracks[0] ?? null]);
+                    }
+                } catch (\Exception $e) {
+                    \Log::error("LASTFM_ERROR", [
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    $lastfmTracks = [];
+                }
+            } else {
+                \Log::warning("LASTFM_SERVICE_MISSING");
+                $lastfmTracks = [];
+            }
+
+            // 5. Combine all tracks
+            $allTracks = array_merge($spotifyTracks, $shazamTracks, $lastfmTracks);
+
+            // 6. Remove duplicates only
             $allTracks = $this->removeDuplicateTracks($allTracks);
 
-            // 6. Format tracks to match frontend expectations BEFORE filtering
+            // 7. Format tracks to match frontend expectations BEFORE filtering
             $formattedTracks = $this->formatRelatedTracksArray($allTracks);
 
-            // 7. Apply user preference filtering (blacklist filtering) on formatted tracks
+            // 8. Apply user preference filtering (blacklist filtering) on formatted tracks
             $userId = auth()->id();
             if ($userId) {
                 $beforeCount = count($formattedTracks);
@@ -149,16 +199,17 @@ class MusicDiscoveryController extends Controller
                 \Log::info("🎧 Applied seed artist filtering (no auth)", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
             }
 
-            // 8. Randomize order
+            // 9. Randomize order
             shuffle($formattedTracks);
 
-            // 9. Limit results
+            // 10. Limit results
             $formattedTracks = array_slice($formattedTracks, 0, $limit);
 
             // Debug: Count tracks by source
             $sourceCounts = [
                 'spotify' => 0,
                 'shazam' => 0,
+                'lastfm' => 0,
                 'unknown' => 0
             ];
             
@@ -179,6 +230,7 @@ class MusicDiscoveryController extends Controller
                 'total' => count($formattedTracks),
                 'spotify_count' => count($spotifyTracks),
                 'shazam_count' => count($shazamTracks),
+                'lastfm_count' => count($lastfmTracks),
                 'after_deduplication' => count($formattedTracks),
                 'requested' => $limit,
                 'source_debug' => $sourceCounts,  // Add debug info to response
@@ -968,12 +1020,22 @@ class MusicDiscoveryController extends Controller
     {
         return array_map(function ($track) {
             $extractedImage = $this->extractTrackImage($track);
+            $matchScore = $track['match'] ?? null;
             
-            return [
-                'id' => $track['id'] ?? '',
-                'name' => $track['title'] ?? '', // Convert 'title' to 'name'
+            \Log::info('FORMAT_TRACK', [
+                'track' => $track['title'] ?? $track['name'] ?? 'Unknown',
+                'source' => $track['source'] ?? 'unknown',
+                'input_match' => $track['match'] ?? 'not_set',
+                'processed_match' => $matchScore
+            ]);
+            
+            $result = [
+                'id' => $track['id'] ?? $track['mbid'] ?? uniqid('track_', true),
+                'name' => $track['title'] ?? $track['name'] ?? '', // Convert 'title' to 'name'
                 'artist' => is_array($track['artist']) ? ($track['artist']['name'] ?? 'Unknown Artist') : ($track['artist'] ?? 'Unknown Artist'),
-                'album' => is_array($track['album']) ? ($track['album']['title'] ?? 'Unknown Album') : ($track['album'] ?? 'Unknown Album'),
+                'album' => isset($track['album']) ? 
+                    (is_array($track['album']) ? ($track['album']['title'] ?? 'Unknown Album') : ($track['album'] ?? 'Unknown Album')) :
+                    'Unknown Album', // Fallback for tracks without album info (like Last.fm)
                 'duration_ms' => isset($track['duration']) ? $track['duration'] * 1000 : 0,
                 'external_url' => $track['external_url'] ?? null,
                 'preview_url' => $track['preview_url'] ?? null,
@@ -982,9 +1044,18 @@ class MusicDiscoveryController extends Controller
                 'external_ids' => $track['external_ids'] ?? [], // Add external_ids for ISRC
                 'artists' => isset($track['artist']['name']) ? [['id' => '', 'name' => $track['artist']['name']]] : [], // Add artists array
                 'source' => $track['source'] ?? 'unknown', // PRESERVE SOURCE IDENTIFIER
+                'match' => $matchScore, // PRESERVE MATCH SCORE FROM LAST.FM
                 'shazam_id' => $track['shazam_id'] ?? null, // Preserve Shazam ID if available
                 'spotify_id' => $track['spotify_id'] ?? null // Preserve Spotify ID if available
             ];
+            
+            \Log::info('FORMAT_RESULT', [
+                'track' => $result['name'],
+                'source' => $result['source'],
+                'result_match' => $result['match']
+            ]);
+            
+            return $result;
         }, $tracks);
     }
 
@@ -1007,6 +1078,25 @@ class MusicDiscoveryController extends Controller
         }
         
         if (isset($track['image'])) {
+            // Handle Last.fm image array format
+            if (is_array($track['image'])) {
+                // Last.fm returns images in different sizes, prefer largest
+                foreach (['extralarge', 'large', 'medium', 'small'] as $size) {
+                    foreach ($track['image'] as $img) {
+                        if (isset($img['size']) && $img['size'] === $size && !empty($img['#text'])) {
+                            return $img['#text'];
+                        }
+                    }
+                }
+                // Fallback to first image with text
+                foreach ($track['image'] as $img) {
+                    if (!empty($img['#text'])) {
+                        return $img['#text'];
+                    }
+                }
+                return null;
+            }
+            // Handle string image URLs
             return $track['image'];
         }
         
@@ -1995,7 +2085,7 @@ class MusicDiscoveryController extends Controller
 
         foreach ($tracks as $index => $track) {
             $artistName = $track['artist']['name'] ?? $track['artist'] ?? '';
-            $title = $track['title'] ?? '';
+            $title = $track['title'] ?? $track['name'] ?? ''; // Handle both 'title' (Last.fm) and 'name' (Spotify/Shazam)
             $source = $track['source'] ?? 'unknown';
             
             // Normalize both artist and title for better duplicate detection
@@ -2832,7 +2922,7 @@ class MusicDiscoveryController extends Controller
 
     /**
      * Get track preview/oEmbed data
-     * Works with both Shazam and Spotify tracks
+     * Works with Shazam, Last.fm, and Spotify tracks
      * GET /api/music-discovery/track-preview
      */
     public function getTrackPreview(Request $request): JsonResponse
@@ -2842,7 +2932,7 @@ class MusicDiscoveryController extends Controller
             'track_title' => 'required|string',
             'original_artist' => 'sometimes|string', // Original unmodified artist name for fallback
             'original_title' => 'sometimes|string', // Original unmodified title for fallback
-            'source' => 'required|string|in:shazam,spotify',
+            'source' => 'required|string|in:shazam,spotify,lastfm',
             'track_id' => 'sometimes|string', // Spotify track ID if source is spotify
         ]);
 
@@ -2873,7 +2963,7 @@ class MusicDiscoveryController extends Controller
                     'title' => $trackTitle
                 ]);
             } else {
-                // For Shazam tracks, try cleaned names first, then fallback to ISRC with originals
+                // For Shazam/Last.fm tracks, try cleaned names first, then fallback to ISRC with originals
                 $spotifyTrackId = $this->getSpotifyTrackIdFromShazam($artistName, $trackTitle, $originalArtist, $originalTitle);
                 
                 if (!$spotifyTrackId) {

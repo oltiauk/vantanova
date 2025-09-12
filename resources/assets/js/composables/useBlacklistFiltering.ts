@@ -38,17 +38,17 @@ export const useBlacklistFiltering = () => {
   // Event bus listeners for cross-component synchronization
   const setupEventListeners = () => {
     eventBus.on('BLACKLIST_UPDATED', async () => {
-      console.log('🔄 Received blacklist update event, reloading...')
+      // console.log('🔄 Received blacklist update event, reloading...')
       await reloadBlacklistedItems()
     })
     
     eventBus.on('BLACKLIST_ARTIST_DELETED', async (artistName: string) => {
-      console.log('🗑️ Received artist deletion event for:', artistName)
+      // console.log('🗑️ Received artist deletion event for:', artistName)
       removeArtistFromBlacklist(artistName)
     })
     
     eventBus.on('BLACKLIST_TRACK_DELETED', async (trackData: { artist: string, name: string }) => {
-      console.log('🗑️ Received track deletion event for:', trackData)
+      // console.log('🗑️ Received track deletion event for:', trackData) 
       // Create a mock track object for removal
       const mockTrack = { artist: trackData.artist, name: trackData.name, id: '', album: '' }
       removeTrackFromBlacklist(mockTrack)
@@ -145,7 +145,7 @@ export const useBlacklistFiltering = () => {
   const addArtistToBlacklist = (artistName: string) => {
     const artistKey = getArtistKey(artistName)
     blacklistedArtists.value.add(artistKey)
-    console.log(`🚫 Added artist "${artistName}" to local blacklist (normalized: "${artistKey}")`)
+    // console.log(`🚫 Added artist "${artistName}" to local blacklist (normalized: "${artistKey}")`)
   }
 
   // Remove track from blacklist
@@ -158,11 +158,11 @@ export const useBlacklistFiltering = () => {
   const removeArtistFromBlacklist = (artistName: string) => {
     const artistKey = getArtistKey(artistName)
     const wasRemoved = blacklistedArtists.value.delete(artistKey)
-    console.log(`🚫 ${wasRemoved ? 'Removed' : 'Attempted to remove'} artist "${artistName}" from local blacklist (normalized: "${artistKey}")`)
+    // console.log(`🚫 ${wasRemoved ? 'Removed' : 'Attempted to remove'} artist "${artistName}" from local blacklist (normalized: "${artistKey}")`)
     
     // Clear localStorage cache when removing items to prevent stale data
     localStorage.removeItem('koel-banned-artists')
-    console.log('🗑️ Cleared localStorage banned artists cache')
+    // console.log('🗑️ Cleared localStorage banned artists cache')
     
     return wasRemoved
   }
@@ -170,7 +170,7 @@ export const useBlacklistFiltering = () => {
   // Load blacklisted items from API
   const loadBlacklistedItems = async () => {
     try {
-      console.log('🚫 Loading blacklisted items from API...')
+      // console.log('🚫 Loading blacklisted items from API...')
 
       // Load blacklisted tracks
       const blacklistedTracksResponse = await http.get('music-preferences/blacklisted-tracks')
@@ -180,7 +180,7 @@ export const useBlacklistFiltering = () => {
           const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
           blacklistedTracks.value.add(trackKey)
         })
-        console.log(`🚫 Loaded ${blacklistedTracks.value.size} blacklisted tracks`)
+        // console.log(`🚫 Loaded ${blacklistedTracks.value.size} blacklisted tracks`)
       }
 
       // Load blacklisted artists
@@ -204,17 +204,17 @@ export const useBlacklistFiltering = () => {
           
           // Log if we found duplicates
           if (artists.length > 1) {
-            console.log(`🚫 Found ${artists.length} entries for artist "${artists[0].artist_name}":`, 
-              artists.map(a => a.spotify_artist_id))
+              // console.log(`🚫 Found ${artists.length} entries for artist "${artists[0].artist_name}":`, 
+              //   artists.map(a => a.spotify_artist_id))
           }
         })
         
-        console.log(`🚫 Loaded ${blacklistedArtists.value.size} unique blacklisted artists (from ${blacklistedArtistsResponse.data.length} entries)`)
+        // console.log(`🚫 Loaded ${blacklistedArtists.value.size} unique blacklisted artists (from ${blacklistedArtistsResponse.data.length} entries)`)
       }
 
-      console.log('🚫 Blacklist loading complete')
+      // console.log('🚫 Blacklist loading complete')
     } catch (error) {
-      console.log('🚫 Could not load blacklisted items (user may not be logged in)')
+      // console.log('🚫 Could not load blacklisted items (user may not be logged in)')
     }
   }
 
@@ -224,15 +224,15 @@ export const useBlacklistFiltering = () => {
 
   // Clear all blacklist caches
   const clearBlacklistCaches = () => {
-    console.log('🗑️ Clearing all blacklist caches...')
+    // console.log('🗑️ Clearing all blacklist caches...')
     localStorage.removeItem('koel-banned-artists')
     localStorage.removeItem('koel-banned-tracks') // In case this exists too
-    console.log('🗑️ All blacklist caches cleared')
+    // console.log('🗑️ All blacklist caches cleared')
   }
 
   // Reload blacklisted items (useful after deletions in preferences)
   const reloadBlacklistedItems = async () => {
-    console.log('🔄 Reloading blacklisted items from API...')
+    // console.log('🔄 Reloading blacklisted items from API...')
     clearBlacklistCaches() // Clear caches before reloading
     await loadBlacklistedItems()
   }

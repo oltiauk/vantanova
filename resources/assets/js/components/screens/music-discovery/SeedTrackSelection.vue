@@ -289,7 +289,7 @@ const searchTracks = async () => {
     return
   }
 
-  console.log('🔍 [FRONTEND] Starting search for:', searchQuery.value.trim())
+  // console.log('🔍 [FRONTEND] Starting search for:', searchQuery.value.trim())
 
   isSearching.value = true
   searchError.value = ''
@@ -297,7 +297,7 @@ const searchTracks = async () => {
   currentPage.value = 1
 
   try {
-    console.log('🔍 [FRONTEND] Making API call to music-discovery/search-seed')
+    // console.log('🔍 [FRONTEND] Making API call to music-discovery/search-seed')
 
     // Use the updated search-seed endpoint with Spotify fallback
     const response = await http.post('music-discovery/search-seed', {
@@ -305,22 +305,22 @@ const searchTracks = async () => {
       limit: 100,
     })
 
-    console.log('🔍 [FRONTEND] API Response received:', {
-      success: response.success,
-      dataLength: response.data?.length,
-      error: response.error,
-    })
+    // console.log('🔍 [FRONTEND] API Response received:', {
+    //   success: response.success,
+    //   dataLength: response.data?.length,
+    //   error: response.error,
+    // })
 
     if (response.success && response.data && Array.isArray(response.data)) {
       searchResults.value = response.data
-      console.log(`🔍 [FRONTEND] Found ${response.data.length} tracks from search`)
-      console.log('🔍 [FRONTEND] Sample track data:', response.data[0]) // Debug the structure
-      console.log('🔍 [FRONTEND] All tracks:', response.data.map(t => `${t.artist} - ${t.name}`))
+      // console.log(`🔍 [FRONTEND] Found ${response.data.length} tracks from search`)
+      // console.log('🔍 [FRONTEND] Sample track data:', response.data[0]) // Debug the structure
+      // console.log('🔍 [FRONTEND] All tracks:', response.data.map(t => `${t.artist} - ${t.name}`))
     } else {
       throw new Error(response.error || 'Invalid response format from backend')
     }
   } catch (err: any) {
-    console.error('🔍 [FRONTEND] Search failed:', err)
+    // console.error('🔍 [FRONTEND] Search failed:', err)
     searchError.value = err.message || 'Failed to search tracks. Please try again.'
     searchResults.value = []
   } finally {
@@ -381,7 +381,7 @@ const saveTrack = async (track: Track) => {
 
       if (response.success) {
         savedTracks.value.delete(trackKey)
-        console.log('Track unsaved successfully')
+        // console.log('Track unsaved successfully')
       } else {
         throw new Error(response.error || 'Failed to unsave track')
       }
@@ -396,13 +396,13 @@ const saveTrack = async (track: Track) => {
 
       if (response.success) {
         savedTracks.value.add(trackKey)
-        console.log('Track saved successfully')
+        // console.log('Track saved successfully')
       } else {
         throw new Error(response.error || 'Failed to save track')
       }
     }
   } catch (error: any) {
-    console.error('Failed to save track:', error)
+    // console.error('Failed to save track:', error)
     if (error.response?.status === 401 || error.message.includes('Unauthenticated') || error.message.includes('Authentication required')) {
       searchError.value = 'Please log in to save tracks'
     } else {
@@ -433,7 +433,7 @@ const toggleBlacklistTrack = async (track: Track) => {
 
       if (response.success) {
         blacklistedTracks.value.delete(trackKey)
-        console.log('Track unblocked successfully')
+        // console.log('Track unblocked successfully')
       } else {
         throw new Error(response.error || 'Failed to unblock track')
       }
@@ -447,13 +447,13 @@ const toggleBlacklistTrack = async (track: Track) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
-        console.log('Track blacklisted successfully')
+        // console.log('Track blacklisted successfully')
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
       }
     }
   } catch (error: any) {
-    console.error('Failed to toggle blacklist:', error)
+    // console.error('Failed to toggle blacklist:', error)
     if (error.response?.status === 401 || error.message.includes('Unauthenticated') || error.message.includes('Authentication required')) {
       searchError.value = 'Please log in to manage track preferences'
     } else {
@@ -484,7 +484,7 @@ const saveArtist = async (track: Track) => {
 
       if (response.success) {
         savedArtists.value.delete(artistKey)
-        console.log('Artist unsaved successfully')
+        // console.log('Artist unsaved successfully')
       } else {
         throw new Error(response.error || 'Failed to unsave artist')
       }
@@ -497,13 +497,13 @@ const saveArtist = async (track: Track) => {
 
       if (response.success) {
         savedArtists.value.add(artistKey)
-        console.log('Artist saved successfully')
+        // console.log('Artist saved successfully')
       } else {
         throw new Error(response.error || 'Failed to save artist')
       }
     }
   } catch (error: any) {
-    console.error('Failed to save artist:', error)
+    // console.error('Failed to save artist:', error)
     if (error.response?.status === 401 || error.message.includes('Unauthenticated') || error.message.includes('Authentication required')) {
       searchError.value = 'Please log in to save artists'
     } else {
@@ -533,7 +533,7 @@ const blacklistArtist = async (track: Track) => {
 
       if (response.success) {
         blacklistedArtists.value.delete(artistKey)
-        console.log('Artist unblacklisted successfully')
+        // console.log('Artist unblacklisted successfully')
       } else {
         throw new Error(response.error || 'Failed to unblacklist artist')
       }
@@ -546,13 +546,13 @@ const blacklistArtist = async (track: Track) => {
 
       if (response.success) {
         blacklistedArtists.value.add(artistKey)
-        console.log('Artist blacklisted successfully')
+        // console.log('Artist blacklisted successfully')
       } else {
         throw new Error(response.error || 'Failed to blacklist artist')
       }
     }
   } catch (error: any) {
-    console.error('Failed to blacklist artist:', error)
+    // console.error('Failed to blacklist artist:', error)
     if (error.response?.status === 401 || error.message.includes('Unauthenticated') || error.message.includes('Authentication required')) {
       searchError.value = 'Please log in to manage artist preferences'
     } else {
@@ -622,7 +622,7 @@ const loadUserPreferences = async () => {
         const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
         savedTracks.value.add(trackKey)
       })
-      console.log(`Loaded ${savedTracks.value.size} saved tracks`)
+      // console.log(`Loaded ${savedTracks.value.size} saved tracks`)
     }
 
     // Load saved artists (local to this component)
@@ -631,10 +631,10 @@ const loadUserPreferences = async () => {
       savedArtistsResponse.data.forEach((artist: any) => {
         savedArtists.value.add(artist.artist_name.toLowerCase())
       })
-      console.log(`Loaded ${savedArtists.value.size} saved artists`)
+      // console.log(`Loaded ${savedArtists.value.size} saved artists`)
     }
   } catch (error) {
-    console.log('Could not load user preferences (user may not be logged in)')
+    //  console.log('Could not load user preferences (user may not be logged in)')
   }
 }
 </script>

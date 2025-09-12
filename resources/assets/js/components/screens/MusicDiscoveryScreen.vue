@@ -296,7 +296,7 @@ const discoverMusicSoundStats = async () => {
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 SoundStats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
+      // console.log(`📋 SoundStats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
@@ -388,7 +388,7 @@ const discoverMusicReccoBeats = async () => {
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 ReccoBeats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
+      // console.log(`📋 ReccoBeats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
@@ -427,7 +427,7 @@ const discoverMusicRapidApi = async () => {
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 RapidAPI: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
+      // console.log(`📋 RapidAPI: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
@@ -474,10 +474,10 @@ const getRelatedTracks = async (track: Track) => {
 
   isDiscovering.value = true
   errorMessage.value = ''
-  currentProvider.value = 'Related Tracks (Spotify + Shazam)'
+  currentProvider.value = 'Related Tracks (Spotify + Shazam + Last.fm)'
 
   try {
-    console.log('🎵 Getting related tracks for:', track.name, 'by', track.artist)
+    // console.log('🎵 Getting related tracks for:', track.name, 'by', track.artist)
     
     const response: ApiResponse<Track[]> = await http.get('music-discovery/related-tracks', {
       params: {
@@ -493,13 +493,13 @@ const getRelatedTracks = async (track: Track) => {
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
       
-      console.log(`📋 Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
+      // console.log(`📋 Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
       
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
       
-      console.log(`✅ Found ${filteredTracks.length} similar tracks (${allTracks.length} total, ${allTracks.length - filteredTracks.length} blacklisted)`)
+      // console.log(`✅ Found ${filteredTracks.length} similar tracks (${allTracks.length} total, ${allTracks.length - filteredTracks.length} blacklisted)`)
 
       // Auto-scroll to bottom of page after a brief delay
       setTimeout(() => {
@@ -536,7 +536,7 @@ const discoverRelatedTracks = async () => {
 const onTracksBlacklisted = (trackKeys: string[]) => {
   // Don't immediately filter - let banned items stay visible until next search
   // The filtering will only happen when new recommendations are fetched
-  console.log(`📋 Parent: ${trackKeys.length} tracks were blacklisted, but keeping them visible until next search`)
+  // console.log(`📋 Parent: ${trackKeys.length} tracks were blacklisted, but keeping them visible until next search`)
   
   // Just log the event, don't re-filter current recommendations
   // Filtering will happen automatically when getRelatedTracks() or getSimilarTracks() is called next
