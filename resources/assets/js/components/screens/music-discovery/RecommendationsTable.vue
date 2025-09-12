@@ -125,7 +125,13 @@
 
                   <!-- Artist -->
                   <td class="p-3 align-middle">
-                    <div class="font-medium text-white">{{ track.artist }}</div>
+                    <button
+                      @click="openLastFmArtistPage(track)"
+                      class="font-medium text-white hover:text-[#9d0cc6] transition-colors cursor-pointer text-left"
+                      :title="`View ${track.artist} on Last.fm`"
+                    >
+                      {{ track.artist }}
+                    </button>
                   </td>
 
                   <!-- Title -->
@@ -250,7 +256,7 @@
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
                     <td colspan="8" class="p-0 overflow-hidden">
-                      <div class="p-4 bg-white/5">
+                      <div class="p-4 bg-white/5 relative">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
                           <iframe
@@ -271,6 +277,19 @@
                           <div class="text-center text-white/60">
                             <div class="text-sm font-medium">No Spotify preview available</div>
                           </div>
+                        </div>
+                        
+                        <!-- Spotify Login Link -->
+                        <div class="absolute bottom-2 right-4">
+                          <span class="text-xs text-white/50 font-light">
+                            <a 
+                              href="https://accounts.spotify.com/login" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              class="text-white/50 hover:text-white/70 transition-colors underline"
+                            >
+                              Connect</a> to Spotify to listen to the full track
+                          </span>
                         </div>
                       </div>
                       </div>
@@ -428,6 +447,18 @@ const clientUnsavedTracks = ref<Set<string>>(new Set()) // Tracks unsaved by cli
 // Helper functions
 const getTrackKey = (track: Track): string => {
   return `${track.artist}-${track.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+const getLastFmArtistUrl = (artistName: string): string => {
+  // Use the exact artist name and encode it properly for LastFM URLs
+  const encodedArtist = encodeURIComponent(artistName.replace(/ /g, '+'))
+  return `https://www.last.fm/music/${encodedArtist}`
+}
+
+const openLastFmArtistPage = (track: Track): void => {
+  // Open the LastFM artist page in a new tab using the exact artist name
+  const artistUrl = getLastFmArtistUrl(track.artist)
+  window.open(artistUrl, '_blank', 'noopener,noreferrer')
 }
 
 const formatDuration = (ms?: number): string => {
@@ -1452,6 +1483,9 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
         })
         
         if (response.success && response.data) {
+          // ADD THIS LINE to see what we actually get back
+          console.log('🔍 LastFM API Response Sample:', Object.entries(response.data).slice(0, 2))
+          
           firstBatch.forEach(track => {
             const trackKey = `${track.artist.toLowerCase()}|${track.name.toLowerCase()}`
             const stats = response.data[trackKey]

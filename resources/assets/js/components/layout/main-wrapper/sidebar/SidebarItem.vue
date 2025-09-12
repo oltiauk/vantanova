@@ -15,7 +15,7 @@
         <slot name="icon" />
       </span>
 
-      <span class="overflow-hidden text-ellipsis whitespace-nowrap">
+      <span class="overflow-hidden text-ellipsis whitespace-nowrap text-[12px]">
         <slot />
       </span>
     </a>

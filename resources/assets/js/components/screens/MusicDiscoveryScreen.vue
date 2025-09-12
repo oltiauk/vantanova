@@ -10,6 +10,11 @@
     </template>
 
     <div class="music-discovery-screen">
+      <!-- Last.fm Attribution -->
+      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light ml-5 -mt-4">
+        Music metadata and metrics powered by <a href="https://www.last.fm" target="_blank" rel="noopener noreferrer" class="text-k-text-secondary underline hover:text-k-text-primary transition-colors">Last.fm</a>
+      </div>
+      
       <SeedTrackSelection
         v-model:selected-track="selectedSeedTrack"
         :has-recommendations="allRecommendations.length > 0 || isDiscovering"

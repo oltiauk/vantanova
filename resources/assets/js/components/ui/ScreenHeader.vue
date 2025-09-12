@@ -20,13 +20,15 @@
           />
         </div>
         
-        <!-- Original Content (commented out) -->
-        <!-- <h1 class="name">
-          <slot />
-        </h1>
-        <span v-if="$slots.meta" class="meta text-k-text-secondary hidden text-[0.9rem] leading-loose space-x-2">
-          <slot name="meta" />
-        </span> -->
+        <!-- Fallback for non-image headers -->
+        <div v-else>
+          <h1 class="name">
+            <slot />
+          </h1>
+          <span v-if="$slots.meta" class="meta text-k-text-secondary hidden text-[0.9rem] leading-loose space-x-2">
+            <slot name="meta" />
+          </span>
+        </div>
       </div>
 
       <slot name="controls" />

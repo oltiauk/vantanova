@@ -15,6 +15,11 @@
     </template>
 
     <div class="similar-artists-screen">
+      <!-- Last.fm Attribution -->
+      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light ml-5 -mt-4">
+        Music metadata and metrics powered by <a href="https://www.last.fm" target="_blank" rel="noopener noreferrer" class="text-k-text-secondary underline hover:text-k-text-primary transition-colors">Last.fm</a>
+      </div>
+
       <!-- Welcome Message - Only show when no results and no search -->
       <div v-if="!selectedArtist && !similarArtists.length && !searchQuery.trim() && !errorMessage" class="">
         <div class="max-w-4xl mx-auto">
@@ -232,7 +237,13 @@
 
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
-                      <div class="font-medium text-white">{{ artist.name }}</div>
+                      <button
+                        @click="openLastFmArtistPage(artist)"
+                        class="font-medium text-white hover:text-[#9d0cc6] transition-colors cursor-pointer text-left"
+                        :title="`View ${artist.name} on Last.fm`"
+                      >
+                        {{ artist.name }}
+                      </button>
                     </td>
 
                     <!-- Listeners -->
@@ -308,7 +319,7 @@
                   <!-- Spotify Preview Section -->
                   <tr v-if="currentlyPreviewingArtist === artist.name" class="bg-white/5 border-b border-white/5">
                     <td colspan="8" class="p-0">
-                      <div class="spotify-player-container p-6 bg-white/3">
+                      <div class="spotify-player-container p-6 bg-white/3 relative">
                         <!-- Loading State -->
                         <div v-if="loadingPreviewArtist === artist.name" class="flex items-center justify-center" style="height: 80px;">
                           <div class="flex items-center gap-3">
@@ -352,6 +363,19 @@
                           <div class="text-center text-white/60">
                             <div class="text-sm font-medium">No tracks found for this artist</div>
                           </div>
+                        </div>
+
+                        <!-- Spotify Login Link -->
+                        <div class="absolute bottom-0 right-6">
+                          <span class="text-xs text-white/50 font-light">
+                            <a 
+                              href="https://accounts.spotify.com/login" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              class="text-white/50 hover:text-white/70 transition-colors underline"
+                            >
+                              Connect</a> to Spotify to listen to the full track
+                          </span>
                         </div>
                       </div>
                     </td>
@@ -928,6 +952,17 @@ const stopSpotifyPlayersForArtist = (artist: LastfmArtist) => {
 }
 
 // Utility functions
+const getLastFmArtistUrl = (artistName: string): string => {
+  // Use the exact artist name and encode it properly for LastFM URLs
+  const encodedArtist = encodeURIComponent(artistName.replace(/ /g, '+'))
+  return `https://www.last.fm/music/${encodedArtist}`
+}
+
+const openLastFmArtistPage = (artist: LastfmArtist): void => {
+  // Open the LastFM artist page in a new tab using the exact artist name
+  const artistUrl = getLastFmArtistUrl(artist.name)
+  window.open(artistUrl, '_blank', 'noopener,noreferrer')
+}
 
 const formatListeners = (listeners: string | number): string => {
   const num = typeof listeners === 'string' ? Number.parseInt(listeners, 10) : listeners
