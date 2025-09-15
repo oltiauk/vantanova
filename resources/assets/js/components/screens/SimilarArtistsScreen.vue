@@ -335,12 +335,42 @@
                             :key="track.id"
                             class="w-full"
                           >
-                            <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
+                            <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'" class="flex gap-2 items-center">
+                              <!-- Save/Ban Buttons -->
+                              <div class="flex flex-col gap-2 flex-shrink-0">
+                                <!-- Save Button -->
+                                <button
+                                  @click="saveTrack(track)"
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackSaved(track)
+                                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                                >
+                                  <Icon :icon="faHeart" class="text-xs" />
+                                </button>
+
+                                <!-- Ban Button -->
+                                <button
+                                  @click="banTrack(track)"
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackBanned(track)
+                                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
+                                >
+                                  <Icon :icon="faBan" class="text-xs" />
+                                </button>
+                              </div>
+
+                              <!-- Spotify Embed -->
                               <iframe
                                 :key="track.id"
                                 :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
                                 :title="`${track.artists?.[0]?.name || 'Unknown'} - ${track.name}`"
-                                class="w-full spotify-embed"
+                                class="flex-1 spotify-embed"
                                 style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);"
                                 frameBorder="0"
                                 scrolling="no"
@@ -350,9 +380,41 @@
                                 @error="() => {}"
                               />
                             </div>
-                            <div v-else class="flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);">
-                              <div class="text-center text-white/60">
-                                <div class="text-sm font-medium">No Spotify preview available</div>
+                            <div v-else class="flex gap-2 items-center">
+                              <!-- Save/Ban Buttons for No Preview -->
+                              <div class="flex flex-col gap-2 flex-shrink-0">
+                                <!-- Save Button -->
+                                <button
+                                  @click="saveTrack(track)"
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackSaved(track)
+                                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                                >
+                                  <Icon :icon="faHeart" class="text-xs" />
+                                </button>
+
+                                <!-- Ban Button -->
+                                <button
+                                  @click="banTrack(track)"
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackBanned(track)
+                                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
+                                >
+                                  <Icon :icon="faBan" class="text-xs" />
+                                </button>
+                              </div>
+
+                              <!-- No Preview Available -->
+                              <div class="flex-1 flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);">
+                                <div class="text-center text-white/60">
+                                  <div class="text-sm font-medium">No Spotify preview available</div>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -432,7 +494,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
-import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faMusic, faPlay, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faHeart, faMusic, faPlay, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -454,6 +516,7 @@ interface LastfmArtist {
   playcount?: string
   match?: string
   spotifyTracks?: SpotifyTrack[]
+  allSpotifyTracks?: SpotifyTrack[] // Store all tracks for re-filtering
 }
 
 interface SpotifyTrack {
@@ -518,6 +581,12 @@ const showLikesRatioDropdown = ref(false)
 
 // Banned artists tracking
 const bannedArtists = ref(new Set<string>()) // Store MBIDs of banned artists
+
+// Track management state (similar to RecommendationsTable.vue)
+const savedTracks = ref<Set<string>>(new Set())
+const blacklistedTracks = ref<Set<string>>(new Set())
+const clientUnsavedTracks = ref<Set<string>>(new Set()) // Tracks unsaved by client
+const processingTrack = ref<string | null>(null)
 
 // Helper function to check if an artist is banned
 const isArtistBanned = (artist: LastfmArtist): boolean => {
@@ -729,6 +798,124 @@ const banArtist = async (artist: LastfmArtist) => {
   }
 }
 
+// Track management functions (from RecommendationsTable.vue)
+const saveTrack = async (track: SpotifyTrack) => {
+  const trackKey = getTrackKey(track)
+
+  if (isTrackSaved(track)) {
+    // Unsave track: Update UI immediately for better UX
+    savedTracks.value.delete(trackKey)
+
+    // Since no DELETE endpoint exists for saved tracks, use client-side tracking
+    // This provides the expected UX while tracks will naturally expire in 24h
+    clientUnsavedTracks.value.add(trackKey)
+
+    // Save to localStorage for persistence across page reloads
+    try {
+      const unsavedList = Array.from(clientUnsavedTracks.value)
+      localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+    } catch (error) {
+      // Failed to save unsaved tracks to localStorage
+    }
+  } else {
+    // Save track - show processing state
+    processingTrack.value = trackKey
+
+    try {
+      const response = await http.post('music-preferences/save-track', {
+        isrc: track.id,
+        track_name: track.name,
+        artist_name: track.artists?.[0]?.name || 'Unknown',
+        spotify_id: track.id
+      })
+
+      if (response.success) {
+        savedTracks.value.add(trackKey)
+        // Remove from client unsaved tracks if it was previously unsaved
+        clientUnsavedTracks.value.delete(trackKey)
+        // Update localStorage
+        try {
+          const unsavedList = Array.from(clientUnsavedTracks.value)
+          localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+        } catch (error) {
+          // Failed to update unsaved tracks in localStorage
+        }
+      } else {
+        throw new Error(response.error || 'Failed to save track')
+      }
+    } catch (error: any) {
+      console.error('Failed to save track:', error)
+    } finally {
+      processingTrack.value = null
+    }
+  }
+}
+
+// Note: Session-based filtering - tracks stay visible when blacklisted during current session
+// Filtering only happens when preview is initially opened, not when tracks are banned during session
+const refreshCurrentPreview = () => {
+  // Do nothing - tracks should remain visible during current session even when blacklisted
+  // Filtering will only happen when preview is closed and reopened
+  return
+}
+
+const banTrack = async (track: SpotifyTrack) => {
+  const trackKey = getTrackKey(track)
+
+  if (isTrackBanned(track)) {
+    // Update UI immediately for better UX
+    blacklistedTracks.value.delete(trackKey)
+
+    // Re-filter any currently open Spotify previews to include the newly unbanned track
+    refreshCurrentPreview()
+
+    // Do backend work in background without blocking UI
+    try {
+      const deleteData = {
+        isrc: track.id,
+        track_name: track.name,
+        artist_name: track.artists?.[0]?.name || 'Unknown'
+      }
+      const params = new URLSearchParams(deleteData)
+      const response = await http.delete(`music-preferences/blacklist-track?${params}`)
+
+      if (!response.success) {
+        // Revert UI change if backend failed
+        blacklistedTracks.value.add(trackKey)
+        refreshCurrentPreview()
+      }
+    } catch (error: any) {
+      // Revert UI change if request failed
+      blacklistedTracks.value.add(trackKey)
+      refreshCurrentPreview()
+    }
+  } else {
+    // Block track - show processing state
+    processingTrack.value = trackKey
+
+    try {
+      const response = await http.post('music-preferences/blacklist-track', {
+        isrc: track.id,
+        track_name: track.name,
+        artist_name: track.artists?.[0]?.name || 'Unknown'
+      })
+
+      if (response.success) {
+        blacklistedTracks.value.add(trackKey)
+
+        // Re-filter any currently open Spotify previews to remove the newly banned track
+        refreshCurrentPreview()
+      } else {
+        throw new Error(response.error || 'Failed to blacklist track')
+      }
+    } catch (error: any) {
+      console.error('Failed to blacklist track:', error)
+    } finally {
+      processingTrack.value = null
+    }
+  }
+}
+
 // Similar artists functionality
 const findSimilarArtists = async (artist?: LastfmArtist) => {
   // If called from button click, ignore the event parameter and use selected artist
@@ -883,8 +1070,13 @@ const previewArtist = async (artist: LastfmArtist) => {
     })
 
     if (response.success && response.data && response.data.tracks.length > 0) {
-      // Add Spotify tracks to the artist object
-      artist.spotifyTracks = response.data.tracks
+      // Filter out blacklisted tracks when initially opening preview (not during session)
+      const filteredTracks = response.data.tracks.filter(track => !isTrackBanned(track))
+      const tracksToShow = filteredTracks.slice(0, 3)
+
+      // Store all original tracks for reference and show filtered tracks
+      artist.allSpotifyTracks = response.data.tracks // Store all tracks
+      artist.spotifyTracks = tracksToShow // Show first 3 non-blacklisted tracks
 
       // Stop any currently playing Spotify tracks
       stopAllSpotifyPlayers()
@@ -1009,6 +1201,20 @@ const formatDuration = (durationMs: number): string => {
   const minutes = Math.floor(durationMs / 60000)
   const seconds = Math.floor((durationMs % 60000) / 1000)
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+// Track management helper functions (from RecommendationsTable.vue)
+const getTrackKey = (track: SpotifyTrack): string => {
+  return `${track.artists?.[0]?.name || 'Unknown'}-${track.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+const isTrackSaved = (track: SpotifyTrack): boolean => {
+  const trackKey = getTrackKey(track)
+  return savedTracks.value.has(trackKey) && !clientUnsavedTracks.value.has(trackKey)
+}
+
+const isTrackBanned = (track: SpotifyTrack): boolean => {
+  return blacklistedTracks.value.has(getTrackKey(track))
 }
 
 // Pagination functionality
@@ -1234,9 +1440,49 @@ const loadBannedArtists = () => {
   }
 }
 
-onMounted(() => {
+// Load client-side unsaved tracks from localStorage
+const loadClientUnsavedTracks = () => {
+  try {
+    const stored = localStorage.getItem('koel-client-unsaved-tracks')
+    if (stored) {
+      const unsavedList = JSON.parse(stored)
+      clientUnsavedTracks.value = new Set(unsavedList)
+    }
+  } catch (error) {
+    console.warn('Failed to load client unsaved tracks from localStorage:', error)
+  }
+}
+
+// Load user's saved tracks and blacklisted items
+const loadUserPreferences = async () => {
+  try {
+    // Load blacklisted tracks
+    const blacklistedTracksResponse = await http.get('music-preferences/blacklisted-tracks')
+    if (blacklistedTracksResponse.success && blacklistedTracksResponse.data) {
+      blacklistedTracksResponse.data.forEach((track: any) => {
+        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        blacklistedTracks.value.add(trackKey)
+      })
+    }
+
+    // Load saved tracks
+    const savedTracksResponse = await http.get('music-preferences/saved-tracks')
+    if (savedTracksResponse.success && savedTracksResponse.data) {
+      savedTracksResponse.data.forEach((track: any) => {
+        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        savedTracks.value.add(trackKey)
+      })
+    }
+  } catch (error) {
+    // Could not load user preferences (user may not be logged in)
+  }
+}
+
+onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   loadBannedArtists()
+  loadClientUnsavedTracks()
+  await loadUserPreferences()
   // Load global blacklisted items (but don't filter Similar Artists results)
   loadBlacklistedItems()
 })

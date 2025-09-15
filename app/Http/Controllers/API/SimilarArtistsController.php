@@ -287,10 +287,10 @@ class SimilarArtistsController extends Controller
             // Get top tracks for the artist
             $topTracksResult = $this->spotifyClient->getArtistTopTracks($artistId, ['market' => 'US']);
             
-            // Get first 3 tracks with preview URLs and oembed data
+            // Get up to 10 tracks with preview URLs and oembed data (for client-side filtering)
             $tracks = [];
             foreach ($topTracksResult['tracks'] as $track) {
-                if (count($tracks) >= 3) break;
+                if (count($tracks) >= 10) break;
                 
                 // Get Spotify oembed data for this track
                 $oembedData = $this->getSpotifyOEmbedData($track['id']);
