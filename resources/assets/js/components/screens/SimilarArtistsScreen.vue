@@ -197,12 +197,13 @@
               <thead>
                 <tr class="border-b border-white/10">
                   <th class="text-left p-3 font-medium">#</th>
-                  <th class="text-left p-3 font-medium w-12">Ban Artist</th>
-                  <th class="text-left p-3 font-medium">Name(s)</th>
+                  <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
+                  <th class="text-left p-3 font-medium w-1/3">Name(s)</th>
                   <th class="text-left p-3 font-medium">Listeners</th>
                   <th class="text-left p-3 font-medium">Streams</th>
                   <th class="text-left p-3 font-medium">S/L Ratio</th>
                   <th class="text-left p-3 font-medium">Match</th>
+                  <th class="text-left p-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
@@ -222,17 +223,19 @@
 
                     <!-- Ban Button -->
                     <td class="p-3 align-middle">
-                      <button
-                        class="p-2 rounded-full transition-colors" :class="[
-                          isArtistBanned(artist)
-                            ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
-                            : 'text-[#bcbcbc] hover:text-white hover:bg-white/10',
-                        ]"
-                        :title="isArtistBanned(artist) ? 'Click to unban this artist' : 'Ban this artist'"
-                        @click="banArtist(artist)"
-                      >
-                        <Icon :icon="faBan" class="w-4 h-4" />
-                      </button>
+                      <div class="flex items-center justify-center">
+                        <button
+                          class="p-2 rounded-full transition-colors" :class="[
+                            isArtistBanned(artist)
+                              ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
+                              : 'text-[#bcbcbc] hover:text-white hover:bg-white/10',
+                          ]"
+                          :title="isArtistBanned(artist) ? 'Click to unban this artist' : 'Ban this artist'"
+                          @click="banArtist(artist)"
+                        >
+                          <Icon :icon="faBan" class="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
 
                     <!-- Artist Name -->
@@ -289,9 +292,9 @@
 
                     <!-- Actions -->
                     <td class="p-3 align-middle">
-                      <div class="flex gap-2 relative z-0">
+                      <div class="flex gap-2 justify-end">
                         <button
-                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition relative z-0 flex items-center gap-1 min-w-[90px] justify-center"
+                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition flex items-center gap-1 min-w-[90px] justify-center"
                           title="Find Similar Artists"
                           @click="findSimilarArtists(artist)"
                         >

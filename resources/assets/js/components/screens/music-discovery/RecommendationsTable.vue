@@ -83,13 +83,14 @@
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left p-3 font-medium">#</th>
-                <th class="text-left p-3 font-medium w-12">Ban Artist</th>
+                <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
                 <th class="text-left p-3 font-medium">Name(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
                 <th class="text-left p-3 font-medium">Streams</th>
                 <th class="text-left p-3 font-medium">Listeners</th>
                 <th class="text-left p-3 font-medium">S/L Ratio</th>
-                <th class="text-left p-3 font-medium">Save/Ban<br>Track</th>
+                <th class="text-center p-3 font-medium whitespace-nowrap">Save/Ban</th>
+                <th class="text-center p-3 font-medium whitespace-nowrap"></th>
               </tr>
             </thead>
             <tbody>
@@ -109,18 +110,20 @@
 
                   <!-- Ban Button -->
                   <td class="p-3 align-middle">
-                    <button
-                      @click="banArtist(track)"
-                      :class="[
-                        'p-2 rounded-full transition-colors',
-                        isArtistBanned(track) 
-                          ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20' 
-                          : 'text-[#bcbcbc] hover:text-white hover:bg-white/10'
-                      ]"
-                      :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
-                    >
-                      <Icon :icon="faBan" class="w-4 h-4" />
-                    </button>
+                    <div class="flex items-center justify-center">
+                      <button
+                        @click="banArtist(track)"
+                        :class="[
+                          'p-2 rounded-full transition-colors',
+                          isArtistBanned(track)
+                            ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
+                            : 'text-[#bcbcbc] hover:text-white hover:bg-white/10'
+                        ]"
+                        :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
+                      >
+                        <Icon :icon="faBan" class="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
 
                   <!-- Artist -->
@@ -141,7 +144,7 @@
 
                   <!-- Streams (Playcount) -->
                   <td class="p-3 align-middle">
-                    <div v-if="track.lastfm_stats?.playcount" class="text-white/80">
+                    <div v-if="track.lastfm_stats?.playcount" class="flex items-center justify-center text-white/80">
                       {{ formatNumber(track.lastfm_stats.playcount) }}
                     </div>
                     <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
@@ -150,13 +153,13 @@
                         <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     </div>
-                    <div v-else-if="lastfmError" class="text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
-                    <div v-else class="text-white/30">-</div>
+                    <div v-else-if="lastfmError" class="flex items-center justify-center text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
+                    <div v-else class="flex items-center justify-center text-white/30">-</div>
                   </td>
 
                   <!-- Listeners -->
                   <td class="p-3 align-middle">
-                    <div v-if="track.lastfm_stats?.listeners" class="text-white/80">
+                    <div v-if="track.lastfm_stats?.listeners" class="flex items-center justify-center text-white/80">
                       {{ formatNumber(track.lastfm_stats.listeners) }}
                     </div>
                     <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
@@ -165,13 +168,13 @@
                         <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     </div>
-                    <div v-else-if="lastfmError" class="text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
-                    <div v-else class="text-white/30">-</div>
+                    <div v-else-if="lastfmError" class="flex items-center justify-center text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
+                    <div v-else class="flex items-center justify-center text-white/30">-</div>
                   </td>
 
                   <!-- Streams/Listeners Ratio -->
                   <td class="p-3 align-middle">
-                    <div v-if="track.lastfm_stats?.playcount && track.lastfm_stats?.listeners" class="text-white/80">
+                    <div v-if="track.lastfm_stats?.playcount && track.lastfm_stats?.listeners" class="flex items-center justify-center text-white/80">
                       {{ formatRatio(track.lastfm_stats.playcount, track.lastfm_stats.listeners) }}
                     </div>
                     <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
@@ -180,74 +183,70 @@
                         <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     </div>
-                    <div v-else-if="lastfmError" class="text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
-                    <div v-else class="text-white/30">-</div>
+                    <div v-else-if="lastfmError" class="flex items-center justify-center text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
+                    <div v-else class="flex items-center justify-center text-white/30">-</div>
                   </td>
 
-                  <!-- Actions -->
+                  <!-- Save/Ban Actions -->
                   <td class="p-3 align-middle">
-                    <div class="flex gap-2 items-center">
-                      <!-- Save/Ban Group -->
-                      <div class="flex gap-2">
-                        <!-- Save Button (24h) -->
-                        <button
-                          @click="saveTrack(track)"
-                          :disabled="processingTrack === getTrackKey(track)"
-                          :class="isTrackSaved(track) 
-                            ? 'bg-green-600 hover:bg-green-700 text-white' 
-                            : 'bg-gray-600 hover:bg-gray-500 text-white'"
-                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                          :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
-                        >
-                          <Icon :icon="faHeart" class="text-xs" />
-                        </button>
+                    <div class="flex gap-2 justify-center">
+                      <!-- Save Button (24h) -->
+                      <button
+                        @click="saveTrack(track)"
+                        :disabled="processingTrack === getTrackKey(track)"
+                        :class="isTrackSaved(track)
+                          ? 'bg-green-600 hover:bg-green-700 text-white'
+                          : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                        class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                        :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                      >
+                        <Icon :icon="faHeart" class="text-xs" />
+                      </button>
 
-                        <!-- Blacklist Button -->
-                        <button
-                          @click="blacklistTrack(track)"
-                          :disabled="processingTrack === getTrackKey(track)"
-                          :class="isTrackBlacklisted(track) 
-                            ? 'bg-orange-600 hover:bg-orange-700 text-white' 
-                            : 'bg-gray-600 hover:bg-gray-500 text-white'"
-                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                          :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Block track'"
-                        >
-                          <Icon :icon="faBan" class="text-xs" />
-                        </button>
-                      </div>
+                      <!-- Blacklist Button -->
+                      <button
+                        @click="blacklistTrack(track)"
+                        :disabled="processingTrack === getTrackKey(track)"
+                        :class="isTrackBlacklisted(track)
+                          ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                          : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                        class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                        :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Block track'"
+                      >
+                        <Icon :icon="faBan" class="text-xs" />
+                      </button>
+                    </div>
+                  </td>
 
-                      <!-- Spacer -->
-                      <div class="w-4"></div>
+                  <!-- Related/Preview Actions -->
+                  <td class="p-3 align-middle">
+                    <div class="flex gap-2 justify-center">
+                      <!-- Related Track Button -->
+                      <button
+                        @click="getRelatedTracks(track)"
+                        :disabled="processingTrack === getTrackKey(track)"
+                        class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
+                        title="Find Related Tracks"
+                      >
+                        <Icon :icon="faSearch" class="w-3 h-3" />
+                        <span>Related</span>
+                      </button>
 
-                      <!-- Related/Preview Group -->
-                      <div class="flex gap-2">
-                        <!-- Related Track Button -->
-                        <button
-                          @click="getRelatedTracks(track)"
-                          :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
-                          title="Find Related Tracks"
-                        >
-                          <Icon :icon="faSearch" class="w-3 h-3" />
-                          <span>Related</span>
-                        </button>
-                        
-                        <!-- Preview Button -->
-                        <button
-                          @click="(track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
-                          :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
-                        >
-                          <!-- Loading spinner when processing -->
-                          <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          <!-- Regular icon when not processing -->
-                          <Icon v-else :icon="expandedTrackId === getTrackKey(track) ? faTimes : faPlay" class="w-3 h-3" />
-                          <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
-                        </button>
-                      </div>
+                      <!-- Preview Button -->
+                      <button
+                        @click="(track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
+                        :disabled="processingTrack === getTrackKey(track)"
+                        class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
+                      >
+                        <!-- Loading spinner when processing -->
+                        <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <!-- Regular icon when not processing -->
+                        <Icon v-else :icon="expandedTrackId === getTrackKey(track) ? faTimes : faPlay" class="w-3 h-3" />
+                        <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -255,7 +254,7 @@
                 <!-- Spotify Player Dropdown Row with Animation -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="8" class="p-0 overflow-hidden">
+                    <td colspan="9" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
@@ -929,17 +928,26 @@ const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value) {
     // Close any open preview dropdown when changing pages
     expandedTrackId.value = null
-    
+
     // Enable animations for page change
     allowAnimations.value = true
     initialLoadComplete.value = false
-    
+
+    // Scroll to recommendations table
+    const tableElement = document.querySelector('.recommendations-table')
+    if (tableElement) {
+      tableElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      })
+    }
+
     // Disable animations after they complete
     setTimeout(() => {
       allowAnimations.value = false
       initialLoadComplete.value = true
     }, 2000)
-    
+
     emit('page-change', page)
   }
 }
