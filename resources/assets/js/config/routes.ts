@@ -211,9 +211,14 @@ export const routes: Route[] = [
     screen: 'MusicDiscovery'
   },
   {
-    name: 'music-preferences',
-    path: '/preferences',
-    screen: 'MusicPreferences'
+    name: 'banned-tracks',
+    path: '/banned-tracks',
+    screen: 'BannedTracks'
+  },
+  {
+    name: 'banned-artists',
+    path: '/banned-artists',
+    screen: 'BannedArtists'
   },
   {
     name: 'soundcloud',

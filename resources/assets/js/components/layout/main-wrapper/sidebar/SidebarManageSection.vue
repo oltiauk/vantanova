@@ -23,18 +23,24 @@
         </template>
         Profile
       </SidebarItem>
-      <SidebarItem :href="url('music-preferences')" screen="MusicPreferences">
+      <SidebarItem :href="url('banned-tracks')" screen="BannedTracks">
         <template #icon>
-          <Icon :icon="faSliders" fixed-width />
+          <Icon :icon="faBan" fixed-width />
         </template>
-        Preferences
+        Banned Tracks
+      </SidebarItem>
+      <SidebarItem :href="url('banned-artists')" screen="BannedArtists">
+        <template #icon>
+          <Icon :icon="faUserSlash" fixed-width />
+        </template>
+        Banned Artists
       </SidebarItem>
     </ul>
   </SidebarSection>
 </template>
 
 <script lang="ts" setup>
-import { faTools, faUsers, faUser, faSliders } from '@fortawesome/free-solid-svg-icons'
+import { faTools, faUsers, faUser, faBan, faUserSlash } from '@fortawesome/free-solid-svg-icons'
 import { useAuthorization } from '@/composables/useAuthorization'
 import { useRouter } from '@/composables/useRouter'
 

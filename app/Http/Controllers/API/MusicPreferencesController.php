@@ -409,8 +409,17 @@ class MusicPreferencesController extends Controller
      */
     public function removeFromBlacklist(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        if (!$this->tablesExist()) {
+            return $this->missingTablesResponse();
+        }
+
+        // Handle both query parameters and request body
+        $data = array_merge($request->query(), $request->all());
+
+        $validator = Validator::make($data, [
             'isrc' => 'required|string',
+            'track_name' => 'sometimes|string',
+            'artist_name' => 'sometimes|string',
         ]);
 
         if ($validator->fails()) {
@@ -421,21 +430,45 @@ class MusicPreferencesController extends Controller
         }
 
         $userId = Auth::id();
-        
+
         if (!$userId) {
             return response()->json([
                 'success' => false,
                 'error' => 'Authentication required'
             ], 401);
         }
-        $deleted = BlacklistedTrack::where('user_id', $userId)
-            ->where('isrc', $request->isrc)
-            ->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => $deleted ? 'Track removed from blacklist' : 'Track not found in blacklist'
-        ]);
+        try {
+            $query = BlacklistedTrack::where('user_id', $userId);
+
+            // Try to match by ISRC first (most reliable)
+            if (!empty($data['isrc']) && $data['isrc'] !== 'undefined') {
+                $query->where('isrc', $data['isrc']);
+            } else {
+                // Fallback to track_name + artist_name matching if ISRC is not available
+                if (!empty($data['track_name']) && !empty($data['artist_name'])) {
+                    $query->where('track_name', $data['track_name'])
+                          ->where('artist_name', $data['artist_name']);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Either ISRC or both track_name and artist_name are required'
+                    ], 422);
+                }
+            }
+
+            $deleted = $query->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $deleted ? 'Track removed from blacklist' : 'Track not found in blacklist'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to remove track from blacklist'
+            ], 500);
+        }
     }
 
     /**
@@ -443,8 +476,16 @@ class MusicPreferencesController extends Controller
      */
     public function removeArtistFromBlacklist(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        if (!$this->tablesExist()) {
+            return $this->missingTablesResponse();
+        }
+
+        // Handle both query parameters and request body
+        $data = array_merge($request->query(), $request->all());
+
+        $validator = Validator::make($data, [
             'spotify_artist_id' => 'required|string',
+            'artist_name' => 'sometimes|string',
         ]);
 
         if ($validator->fails()) {
@@ -455,20 +496,38 @@ class MusicPreferencesController extends Controller
         }
 
         $userId = Auth::id();
-        
+
         if (!$userId) {
             return response()->json([
                 'success' => false,
                 'error' => 'Authentication required'
             ], 401);
         }
-        $deleted = BlacklistedArtist::where('user_id', $userId)
-            ->where('spotify_artist_id', $request->spotify_artist_id)
-            ->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => $deleted ? 'Artist removed from blacklist' : 'Artist not found in blacklist'
-        ]);
+        try {
+            $query = BlacklistedArtist::where('user_id', $userId);
+
+            // Match by spotify_artist_id (primary key)
+            if (!empty($data['spotify_artist_id'])) {
+                $query->where('spotify_artist_id', $data['spotify_artist_id']);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'spotify_artist_id is required'
+                ], 422);
+            }
+
+            $deleted = $query->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $deleted ? 'Artist removed from blacklist' : 'Artist not found in blacklist'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to remove artist from blacklist'
+            ], 500);
+        }
     }
 }

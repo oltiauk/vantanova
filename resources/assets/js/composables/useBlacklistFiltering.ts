@@ -146,6 +146,9 @@ export const useBlacklistFiltering = () => {
     const artistKey = getArtistKey(artistName)
     blacklistedArtists.value.add(artistKey)
     // console.log(`🚫 Added artist "${artistName}" to local blacklist (normalized: "${artistKey}")`)
+
+    // Emit event to notify other components
+    eventBus.emit('ARTIST_BANNED', artistName)
   }
 
   // Remove track from blacklist
@@ -159,11 +162,16 @@ export const useBlacklistFiltering = () => {
     const artistKey = getArtistKey(artistName)
     const wasRemoved = blacklistedArtists.value.delete(artistKey)
     // console.log(`🚫 ${wasRemoved ? 'Removed' : 'Attempted to remove'} artist "${artistName}" from local blacklist (normalized: "${artistKey}")`)
-    
+
     // Clear localStorage cache when removing items to prevent stale data
     localStorage.removeItem('koel-banned-artists')
     // console.log('🗑️ Cleared localStorage banned artists cache')
-    
+
+    // Emit event to notify other components if removal was successful
+    if (wasRemoved) {
+      eventBus.emit('ARTIST_UNBANNED', artistName)
+    }
+
     return wasRemoved
   }
 

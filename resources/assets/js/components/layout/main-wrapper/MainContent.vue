@@ -25,9 +25,10 @@
     <PodcastListScreen v-show="screen === 'Podcasts'" />
     <MediaBrowser v-if="useMediaBrowser" v-show="screen === 'MediaBrowser'" />
     
-    <!-- Music Discovery and Preferences -->
+    <!-- Music Discovery and Management -->
     <MusicDiscoveryScreen v-show="screen === 'MusicDiscovery'" />
-    <MusicPreferencesScreen v-show="screen === 'MusicPreferences'" />
+    <BannedTracksScreen v-show="screen === 'BannedTracks'" />
+    <BannedArtistsScreen v-show="screen === 'BannedArtists'" />
     <SoundCloudScreen v-show="screen === 'SoundCloud'" />
     <SoundCloudRelatedTracksScreen v-show="screen === 'SoundCloudRelatedTracks'" />
     <SimilarArtistsScreen v-show="screen === 'SimilarArtists'" />
@@ -68,7 +69,8 @@ import UploadScreen from '@/components/screens/UploadScreen.vue'
 import SearchExcerptsScreen from '@/components/screens/search/SearchExcerptsScreen.vue'
 import PodcastListScreen from '@/components/screens/PodcastListScreen.vue'
 import MusicDiscoveryScreen from '@/components/screens/MusicDiscoveryScreen.vue'
-import MusicPreferencesScreen from '@/components/screens/MusicPreferencesScreen.vue'
+import BannedTracksScreen from '@/components/screens/BannedTracksScreen.vue'
+import BannedArtistsScreen from '@/components/screens/BannedArtistsScreen.vue'
 import SoundCloudScreen from '@/components/screens/SoundCloudScreen.vue'
 import SoundCloudRelatedTracksScreen from '@/components/screens/SoundCloudRelatedTracksScreen.vue'
 import SimilarArtistsScreen from '@/components/screens/SimilarArtistsScreen.vue'
