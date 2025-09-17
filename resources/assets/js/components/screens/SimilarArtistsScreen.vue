@@ -196,14 +196,14 @@
             <table class="w-full relative z-10">
               <thead>
                 <tr class="border-b border-white/10">
-                  <th class="text-left p-3 font-medium">#</th>
+                  <th class="text-left p-3 py-7 font-medium">#</th>
                   <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
                   <th class="text-left p-3 font-medium w-1/3">Name(s)</th>
-                  <th class="text-left p-3 font-medium">Listeners</th>
-                  <th class="text-left p-3 font-medium">Streams</th>
-                  <th class="text-left p-3 font-medium">S/L Ratio</th>
-                  <th class="text-left p-3 font-medium">Match</th>
-                  <th class="text-left p-3 font-medium"></th>
+                  <th class="text-center p-3 font-medium">Listeners</th>
+                  <th class="text-center p-3 font-medium">Streams</th>
+                  <th class="text-center p-3 font-medium">S/L Ratio</th>
+                  <th class="text-center p-3 font-medium">Match</th>
+                  <th class="text-left p-3 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -225,15 +225,15 @@
                     <td class="p-3 align-middle">
                       <div class="flex items-center justify-center">
                         <button
-                          class="p-2 rounded-full transition-colors" :class="[
+                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
                             isArtistBanned(artist)
-                              ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
-                              : 'text-[#bcbcbc] hover:text-white hover:bg-white/10',
+                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              : 'bg-[#484948] hover:bg-gray-500 text-white',
                           ]"
                           :title="isArtistBanned(artist) ? 'Click to unban this artist' : 'Ban this artist'"
                           @click="banArtist(artist)"
                         >
-                          <Icon :icon="faBan" class="w-4 h-4" />
+                          <Icon :icon="faUserSlash" class="text-xs" />
                         </button>
                       </div>
                     </td>
@@ -241,9 +241,9 @@
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
                       <button
-                        @click="openLastFmArtistPage(artist)"
                         class="font-medium text-white hover:text-[#9d0cc6] transition-colors cursor-pointer text-left"
                         :title="`View ${artist.name} on Last.fm`"
+                        @click="openLastFmArtistPage(artist)"
                       >
                         {{ artist.name }}
                       </button>
@@ -251,43 +251,49 @@
 
                     <!-- Listeners -->
                     <td class="p-3 align-middle">
-                      <span v-if="artist.listeners" class="text-white/80 pl-3">{{ formatListeners(artist.listeners) }}</span>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
+                      <div v-if="artist.listeners" class="flex items-center justify-center text-white/80">
+                        {{ formatListeners(artist.listeners) }}
+                      </div>
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
                         <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
                       </div>
-                      <span v-else class="text-white/30">-</span>
+                      <div v-else class="flex items-center justify-center text-white/30">-</div>
                     </td>
 
                     <!-- Streams/Playcount -->
                     <td class="p-3 align-middle">
-                      <span v-if="artist.playcount" class="text-white/80 pl-2">{{ formatPlaycount(artist.playcount) }}</span>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
+                      <div v-if="artist.playcount" class="flex items-center justify-center text-white/80">
+                        {{ formatPlaycount(artist.playcount) }}
+                      </div>
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
                         <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
                       </div>
-                      <span v-else class="text-white/30">-</span>
+                      <div v-else class="flex items-center justify-center text-white/30">-</div>
                     </td>
 
                     <!-- S/L Ratio -->
                     <td class="p-3 align-middle">
-                      <span v-if="artist.listeners && artist.playcount" class="text-white/80 pl-3">{{ calculateSLRatio(artist.playcount, artist.listeners) }}</span>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center pl-6" style="width: 4ch;">
+                      <div v-if="artist.listeners && artist.playcount" class="flex items-center justify-center text-white/80">
+                        {{ calculateSLRatio(artist.playcount, artist.listeners) }}
+                      </div>
+                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
                         <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
                       </div>
-                      <span v-else class="text-white/30">-</span>
+                      <div v-else class="flex items-center justify-center text-white/30">-</div>
                     </td>
 
                     <!-- Match Score -->
-                    <td class="p-3 align-middle">
-                      <span class="text-white/80 font-medium pl-2">{{ Math.round(parseFloat(artist.match) * 100) }}%</span>
+                    <td class="p-3 align-middle text-center">
+                      <span class="text-white/80 font-medium">{{ Math.round(parseFloat(artist.match) * 100) }}%</span>
                     </td>
 
                     <!-- Actions -->
@@ -303,7 +309,7 @@
                         </button>
                         <button
                           :disabled="loadingPreviewArtist === artist.name"
-                          class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
+                          class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
                           @click="previewArtist(artist)"
                         >
                           <!-- Loading spinner when processing -->
@@ -343,26 +349,26 @@
                               <div class="flex flex-col gap-2 flex-shrink-0">
                                 <!-- Save Button -->
                                 <button
-                                  @click="saveTrack(track)"
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackSaved(track)
                                     ? 'bg-green-600 hover:bg-green-700 text-white'
                                     : 'bg-gray-600 hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                                  @click="saveTrack(track)"
                                 >
                                   <Icon :icon="faHeart" class="text-xs" />
                                 </button>
 
                                 <!-- Ban Button -->
                                 <button
-                                  @click="banTrack(track)"
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackBanned(track)
                                     ? 'bg-orange-600 hover:bg-orange-700 text-white'
                                     : 'bg-gray-600 hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
+                                  @click="banTrack(track)"
                                 >
                                   <Icon :icon="faBan" class="text-xs" />
                                 </button>
@@ -388,26 +394,26 @@
                               <div class="flex flex-col gap-2 flex-shrink-0">
                                 <!-- Save Button -->
                                 <button
-                                  @click="saveTrack(track)"
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackSaved(track)
                                     ? 'bg-green-600 hover:bg-green-700 text-white'
                                     : 'bg-gray-600 hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                                  @click="saveTrack(track)"
                                 >
                                   <Icon :icon="faHeart" class="text-xs" />
                                 </button>
 
                                 <!-- Ban Button -->
                                 <button
-                                  @click="banTrack(track)"
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackBanned(track)
                                     ? 'bg-orange-600 hover:bg-orange-700 text-white'
                                     : 'bg-gray-600 hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
+                                  @click="banTrack(track)"
                                 >
                                   <Icon :icon="faBan" class="text-xs" />
                                 </button>
@@ -433,9 +439,9 @@
                         <!-- Spotify Login Link -->
                         <div class="absolute bottom-0 right-6">
                           <span class="text-xs text-white/50 font-light">
-                            <a 
-                              href="https://accounts.spotify.com/login" 
-                              target="_blank" 
+                            <a
+                              href="https://accounts.spotify.com/login"
+                              target="_blank"
                               rel="noopener noreferrer"
                               class="text-white/50 hover:text-white/70 transition-colors underline"
                             >
@@ -497,7 +503,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
-import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faHeart, faMusic, faPlay, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faHeart, faMusic, faPlay, faSearch, faSpinner, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -829,7 +835,7 @@ const saveTrack = async (track: SpotifyTrack) => {
         isrc: track.id,
         track_name: track.name,
         artist_name: track.artists?.[0]?.name || 'Unknown',
-        spotify_id: track.id
+        spotify_id: track.id,
       })
 
       if (response.success) {
@@ -859,7 +865,7 @@ const saveTrack = async (track: SpotifyTrack) => {
 const refreshCurrentPreview = () => {
   // Do nothing - tracks should remain visible during current session even when blacklisted
   // Filtering will only happen when preview is closed and reopened
-  return
+
 }
 
 const banTrack = async (track: SpotifyTrack) => {
@@ -877,7 +883,7 @@ const banTrack = async (track: SpotifyTrack) => {
       const deleteData = {
         isrc: track.id,
         track_name: track.name,
-        artist_name: track.artists?.[0]?.name || 'Unknown'
+        artist_name: track.artists?.[0]?.name || 'Unknown',
       }
       const params = new URLSearchParams(deleteData)
       const response = await http.delete(`music-preferences/blacklist-track?${params}`)
@@ -900,7 +906,7 @@ const banTrack = async (track: SpotifyTrack) => {
       const response = await http.post('music-preferences/blacklist-track', {
         isrc: track.id,
         track_name: track.name,
-        artist_name: track.artists?.[0]?.name || 'Unknown'
+        artist_name: track.artists?.[0]?.name || 'Unknown',
       })
 
       if (response.success) {
@@ -1234,6 +1240,15 @@ const goToPage = async (page: number) => {
     }
   }
   currentlyPreviewingArtist.value = null
+
+  // Scroll to the table
+  const tableElement = document.querySelector('.results-section')
+  if (tableElement) {
+    tableElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }
 
   // Enable animations BEFORE updating data to prevent flash
   allowAnimations.value = true

@@ -82,13 +82,13 @@
           <table class="w-full">
             <thead>
               <tr class="border-b border-white/10">
-                <th class="text-left p-3 font-medium">#</th>
+                <th class="text-left p-3 py-7 font-medium">#</th>
                 <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
-                <th class="text-left p-3 font-medium">Name(s)</th>
+                <th class="text-left p-3 font-medium w-auto min-w-64">Name(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
-                <th class="text-left p-3 font-medium">Streams</th>
-                <th class="text-left p-3 font-medium">Listeners</th>
-                <th class="text-left p-3 font-medium">S/L Ratio</th>
+                <th class="text-center p-3 font-medium">Streams</th>
+                <th class="text-center p-3 font-medium">Listeners</th>
+                <th class="text-center p-3 font-medium">S/L Ratio</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Save/Ban</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap"></th>
               </tr>
@@ -114,14 +114,14 @@
                       <button
                         @click="banArtist(track)"
                         :class="[
-                          'p-2 rounded-full transition-colors',
+                          'w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center',
                           isArtistBanned(track)
-                            ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
-                            : 'text-[#bcbcbc] hover:text-white hover:bg-white/10'
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
+                            : 'bg-[#484948] hover:bg-gray-500 text-white'
                         ]"
                         :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
                       >
-                        <Icon :icon="faBan" class="w-4 h-4" />
+                        <Icon :icon="faUserSlash" class="text-xs" />
                       </button>
                     </div>
                   </td>
@@ -196,7 +196,7 @@
                         :disabled="processingTrack === getTrackKey(track)"
                         :class="isTrackSaved(track)
                           ? 'bg-green-600 hover:bg-green-700 text-white'
-                          : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                          : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                         :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
                       >
@@ -209,7 +209,7 @@
                         :disabled="processingTrack === getTrackKey(track)"
                         :class="isTrackBlacklisted(track)
                           ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                          : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                          : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                         :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Block track'"
                       >
@@ -236,7 +236,7 @@
                       <button
                         @click="(track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
                         :disabled="processingTrack === getTrackKey(track)"
-                        class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
+                        class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
                       >
                         <!-- Loading spinner when processing -->
                         <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -339,7 +339,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick, withDefaults } from 'vue'
-import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch, faChevronDown, faFilter, faArrowUp, faClock } from '@fortawesome/free-solid-svg-icons'
+import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch, faChevronDown, faFilter, faArrowUp, faClock, faUserSlash } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
@@ -706,8 +706,11 @@ const saveTrack = async (track: Track) => {
     processingTrack.value = trackKey
     
     try {
+      // Generate a fallback ISRC if none exists
+      const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
       const response = await http.post('music-preferences/save-track', {
-        isrc: track.external_ids?.isrc || track.id,
+        isrc: isrcValue,
         track_name: track.name,
         artist_name: track.artist,
         spotify_id: track.id
@@ -749,8 +752,11 @@ const blacklistTrack = async (track: Track) => {
     
     // Do backend work in background without blocking UI
     try {
+      // Use the same fallback logic as when blacklisting
+      const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
       const deleteData = {
-        isrc: track.external_ids?.isrc || track.id,
+        isrc: isrcValue,
         track_name: track.name,
         artist_name: track.artist
       }
@@ -772,8 +778,11 @@ const blacklistTrack = async (track: Track) => {
     processingTrack.value = trackKey
     
     try {
+      // Generate a fallback ISRC if none exists
+      const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
       const response = await http.post('music-preferences/blacklist-track', {
-        isrc: track.external_ids?.isrc || track.id,
+        isrc: isrcValue,
         track_name: track.name,
         artist_name: track.artist
       })
@@ -1289,9 +1298,12 @@ const banArtist = async (track: Track) => {
     
     // Background API call to remove from backend
     try {
+      // Generate a fallback spotify_artist_id if none exists
+      const spotifyArtistId = track.artists?.[0]?.id || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
       const deleteData = {
         artist_name: artistName,
-        spotify_artist_id: track.artists?.[0]?.id || track.id
+        spotify_artist_id: spotifyArtistId
       }
       const params = new URLSearchParams(deleteData)
       const response = await http.delete(`music-preferences/blacklist-artist?${params}`)
@@ -1314,9 +1326,12 @@ const banArtist = async (track: Track) => {
     
     // Background API call to save to backend
     try {
+      // Generate a fallback spotify_artist_id if none exists
+      const spotifyArtistId = track.artists?.[0]?.id || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
       const response = await http.post('music-preferences/blacklist-artist', {
         artist_name: artistName,
-        spotify_artist_id: track.artists?.[0]?.id || track.id // Use track ID as fallback if no artist ID
+        spotify_artist_id: spotifyArtistId
       })
       // console.log('✅ Artist saved to global blacklist API:', response)
     } catch (apiError: any) {

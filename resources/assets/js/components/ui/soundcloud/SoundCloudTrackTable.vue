@@ -23,7 +23,7 @@
               class="hover:bg-white/5 transition h-16"
               :class="[
                 isCurrentTrack(track) ? 'bg-white/5' : 'border-b border-white/5',
-                expandedTrackId !== track.id && allowAnimations ? 'track-row' : ''
+                expandedTrackId !== track.id && allowAnimations ? 'track-row' : '',
               ]"
               :style="expandedTrackId !== track.id && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
             >
@@ -36,17 +36,19 @@
 
               <!-- Ban Button -->
               <td class="p-3 align-middle">
-                <button
-                  class="p-2 rounded-full transition-colors" :class="[
-                    isArtistBanned(track)
-                      ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
-                      : 'text-[#bcbcbc] hover:text-white hover:bg-white/10',
-                  ]"
-                  :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
-                  @click="banArtist(track)"
-                >
-                  <Icon :icon="faBan" class="w-4 h-4" />
-                </button>
+                <div class="flex items-center justify-center">
+                  <button
+                    class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
+                      isArtistBanned(track)
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-[#484948] hover:bg-gray-500 text-white',
+                    ]"
+                    :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
+                    @click="banArtist(track)"
+                  >
+                    <Icon :icon="faUserSlash" class="text-xs" />
+                  </button>
+                </div>
               </td>
 
               <!-- Artist -->
@@ -136,7 +138,7 @@
                   </button>
 
                   <button
-                    class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 justify-center"
+                    class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 justify-center"
                     @click="toggleInlinePlayer(track)"
                   >
                     <Icon :icon="expandedTrackId === track.id ? faTimes : faPlay" class="w-3 h-3" />
@@ -167,7 +169,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faBan, faMusic, faPause, faPlay, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faBan, faMusic, faPause, faPlay, faSearch, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import InlineSoundCloudPlayer from '@/components/ui/soundcloud/InlineSoundCloudPlayer.vue'
