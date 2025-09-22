@@ -267,6 +267,12 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             
             Route::delete('blacklist-track', [MusicPreferencesController::class, 'removeFromBlacklist'])->name('remove-blacklist-track');
             Route::delete('blacklist-artist', [MusicPreferencesController::class, 'removeArtistFromBlacklist'])->name('remove-blacklist-artist');
+
+            // Spotify data endpoints
+            Route::get('spotify/track/{trackId}', [MusicPreferencesController::class, 'getSpotifyTrack'])->name('spotify-track');
+            Route::get('spotify/artist/{artistId}', [MusicPreferencesController::class, 'getSpotifyArtist'])->name('spotify-artist');
+            Route::get('spotify/album/{albumId}', [MusicPreferencesController::class, 'getSpotifyAlbum'])->name('spotify-album');
+            Route::get('spotify/search', [MusicPreferencesController::class, 'searchSpotifyTrack'])->name('spotify-search');
         });
 
         // Similar Artists routes

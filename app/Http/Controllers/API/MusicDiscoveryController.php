@@ -23,6 +23,56 @@ class MusicDiscoveryController extends Controller
         private ?SoundStatsService $soundStatsService = null,
         private ?RapidApiService $rapidApiService = null
     ) {}
+
+    /**
+     * Log API request and response for tracking
+     */
+    private function logApiCall(string $service, string $endpoint, array $params = [], $response = null): void
+    {
+        $requestId = uniqid('api_');
+
+        \Log::info("🔥 API_REQUEST_{$service}", [
+            'request_id' => $requestId,
+            'endpoint' => $endpoint,
+            'params' => $params,
+            'timestamp' => now()->toISOString()
+        ]);
+
+        if ($response) {
+            \Log::info("🔥 API_RESPONSE_{$service}", [
+                'request_id' => $requestId,
+                'status' => $response->status(),
+                'success' => $response->successful(),
+                'timestamp' => now()->toISOString()
+            ]);
+        }
+    }
+
+    /**
+     * Wrapper for HTTP calls with automatic logging
+     */
+    private function makeApiCall(string $service, string $endpoint, string $method = 'GET', array $params = [], array $headers = []): \Illuminate\Http\Client\Response
+    {
+        $this->logApiCall($service, $endpoint, $params);
+
+        $http = Http::timeout(30);
+
+        if (!empty($headers)) {
+            $http = $http->withHeaders($headers);
+        }
+
+        $response = match(strtoupper($method)) {
+            'GET' => $http->get($endpoint, $params),
+            'POST' => $http->post($endpoint, $params),
+            'PUT' => $http->put($endpoint, $params),
+            'DELETE' => $http->delete($endpoint, $params),
+            default => $http->get($endpoint, $params)
+        };
+
+        $this->logApiCall($service, $endpoint, $params, $response);
+
+        return $response;
+    }
     
     private function getLastfmService(): ?LastfmService
     {
@@ -48,6 +98,7 @@ class MusicDiscoveryController extends Controller
      */
     public function getRelatedTracks(Request $request): JsonResponse
     {
+
         $validator = Validator::make($request->all(), [
             'track_id' => 'sometimes|string',
             'artist_name' => 'required|string',
@@ -156,27 +207,54 @@ class MusicDiscoveryController extends Controller
 
             if ($lastfmService) {
                 try {
+                    \Log::info("🔥 API_REQUEST_LASTFM_SIMILAR_TRACKS", [
+                        'artist' => $artistName,
+                        'track' => $trackTitle,
+                        'limit' => $limit,
+                        'timestamp' => now()->toISOString()
+                    ]);
+
                     $lastfmTracks = $lastfmService->getSimilarTracks($artistName, $trackTitle, $limit);
-                    \Log::info("LASTFM_TRACKS_FETCHED", ['count' => count($lastfmTracks)]);
+
+                    \Log::info("🔥 API_RESPONSE_LASTFM_SIMILAR_TRACKS", [
+                        'count' => count($lastfmTracks),
+                        'success' => true,
+                        'timestamp' => now()->toISOString()
+                    ]);
+
                     if (!empty($lastfmTracks)) {
                         \Log::info("LASTFM_SAMPLE_TRACK", ['sample' => $lastfmTracks[0] ?? null]);
                     }
                 } catch (\Exception $e) {
-                    \Log::error("LASTFM_ERROR", [
+                    \Log::error("🔥 API_RESPONSE_LASTFM_SIMILAR_TRACKS", [
+                        'success' => false,
                         'error' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                        'trace' => $e->getTraceAsString()
+                        'timestamp' => now()->toISOString()
                     ]);
                     $lastfmTracks = [];
                 }
             } else {
-                \Log::warning("LASTFM_SERVICE_MISSING");
+                \Log::warning("🔥 API_REQUEST_LASTFM_SIMILAR_TRACKS", [
+                    'error' => 'Service not available',
+                    'timestamp' => now()->toISOString()
+                ]);
                 $lastfmTracks = [];
             }
 
             // 5. Combine all tracks
             $allTracks = array_merge($spotifyTracks, $shazamTracks, $lastfmTracks);
+
+            // Log API usage summary
+            \Log::info("🔥 API_USAGE_SUMMARY", [
+                'total_spotify_calls' => count($spotifyTracks) > 0 ? 3 : 1, // Search + Seed-to-playlist + Playlist-tracks (if successful)
+                'total_shazam_calls' => count($shazamTracks) > 0 ? 3 : 2, // 1-2 search calls + 1 similar tracks call (if successful)
+                'total_lastfm_calls' => count($lastfmTracks) > 0 ? 1 : 0, // Similar tracks call
+                'spotify_tracks_count' => count($spotifyTracks),
+                'shazam_tracks_count' => count($shazamTracks),
+                'lastfm_tracks_count' => count($lastfmTracks),
+                'combined_tracks_count' => count($allTracks),
+                'timestamp' => now()->toISOString()
+            ]);
 
             // 6. Remove duplicates only
             $allTracks = $this->removeDuplicateTracks($allTracks);
@@ -1009,6 +1087,8 @@ class MusicDiscoveryController extends Controller
                 'external_url' => $track['external_urls']['spotify'] ?? null,
                 'popularity' => $track['popularity'] ?? 0,
                 'release_date' => $track['album']['release_date'] ?? null,
+                'label' => null, // Will be populated by enhanced metadata calls
+                'followers' => null, // Will be populated by enhanced metadata calls
             ];
         }, $tracks);
     }
@@ -1022,12 +1102,6 @@ class MusicDiscoveryController extends Controller
             $extractedImage = $this->extractTrackImage($track);
             $matchScore = $track['match'] ?? null;
             
-            \Log::info('FORMAT_TRACK', [
-                'track' => $track['title'] ?? $track['name'] ?? 'Unknown',
-                'source' => $track['source'] ?? 'unknown',
-                'input_match' => $track['match'] ?? 'not_set',
-                'processed_match' => $matchScore
-            ]);
             
             $result = [
                 'id' => $track['id'] ?? $track['mbid'] ?? uniqid('track_', true),
@@ -1046,14 +1120,11 @@ class MusicDiscoveryController extends Controller
                 'source' => $track['source'] ?? 'unknown', // PRESERVE SOURCE IDENTIFIER
                 'match' => $matchScore, // PRESERVE MATCH SCORE FROM LAST.FM
                 'shazam_id' => $track['shazam_id'] ?? null, // Preserve Shazam ID if available
-                'spotify_id' => $track['spotify_id'] ?? null // Preserve Spotify ID if available
+                'spotify_id' => $track['spotify_id'] ?? null, // Preserve Spotify ID if available
+                'popularity' => $track['popularity'] ?? null, // Add Spotify popularity
+                'release_date' => $track['album']['release_date'] ?? $track['release_date'] ?? null // Add release date
             ];
             
-            \Log::info('FORMAT_RESULT', [
-                'track' => $result['name'],
-                'source' => $result['source'],
-                'result_match' => $result['match']
-            ]);
             
             return $result;
         }, $tracks);
@@ -1127,7 +1198,10 @@ class MusicDiscoveryController extends Controller
             'external_urls' => $track['external_urls'],
             'duration_ms' => $track['duration_ms'],
             'popularity' => $track['popularity'] ?? 0,
+            'release_date' => $track['album']['release_date'] ?? null,
             'image' => $track['album']['images'][0]['url'] ?? null,
+            'label' => null, // Will be populated by enhanced metadata calls
+            'followers' => null, // Will be populated by enhanced metadata calls
         ];
     }
 
@@ -2055,11 +2129,14 @@ class MusicDiscoveryController extends Controller
                             'id' => $track['album']['id'] ?? '',
                             'title' => $track['album']['name'] ?? 'Unknown Album',
                             'cover' => $track['album']['images'][0]['url'] ?? null,
+                            'release_date' => $track['album']['release_date'] ?? null,
                         ],
                         'duration' => intval($track['duration_ms'] / 1000),
                         'preview_url' => $track['preview_url'],
                         'external_urls' => $track['external_urls'],
                         'spotify_id' => $track['id'],
+                        'popularity' => $track['popularity'] ?? null,
+                        'release_date' => $track['album']['release_date'] ?? null,
                         'source' => 'spotify'
                     ];
                 }
@@ -2297,12 +2374,27 @@ class MusicDiscoveryController extends Controller
                 'encoded_query' => urlencode($query)
             ]);
             
+            \Log::info("🔥 API_REQUEST_SPOTIFY_SEARCH", [
+                'endpoint' => 'https://api.spotify.com/v1/search',
+                'query' => $query,
+                'type' => 'track',
+                'limit' => 20,
+                'timestamp' => now()->toISOString()
+            ]);
+
             $response = Http::withHeaders([
                 'Authorization' => "Bearer $accessToken",
             ])->get("https://api.spotify.com/v1/search", [
                 'q' => $query, // Don't double-encode - Http::get() will handle it
                 'type' => 'track',
                 'limit' => 20 // Increase limit to find more matches
+            ]);
+
+            \Log::info("🔥 API_RESPONSE_SPOTIFY_SEARCH", [
+                'status' => $response->status(),
+                'success' => $response->successful(),
+                'result_count' => $response->json('tracks.items') ? count($response->json('tracks.items')) : 0,
+                'timestamp' => now()->toISOString()
             ]);
 
             if ($response->successful()) {
@@ -2341,11 +2433,23 @@ class MusicDiscoveryController extends Controller
                 'uri' => "spotify:track:$spotifyTrackId"
             ]);
             
+            \Log::info("🔥 API_REQUEST_RAPIDAPI_SPOTIFY_SEED_TO_PLAYLIST", [
+                'endpoint' => 'https://spotify81.p.rapidapi.com/seed_to_playlist',
+                'uri' => "spotify:track:$spotifyTrackId",
+                'timestamp' => now()->toISOString()
+            ]);
+
             $playlistResponse = Http::withHeaders([
                 'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
                 'X-RapidAPI-Host' => 'spotify81.p.rapidapi.com'
             ])->get("https://spotify81.p.rapidapi.com/seed_to_playlist", [
                 'uri' => "spotify:track:$spotifyTrackId"
+            ]);
+
+            \Log::info("🔥 API_RESPONSE_RAPIDAPI_SPOTIFY_SEED_TO_PLAYLIST", [
+                'status' => $playlistResponse->status(),
+                'success' => $playlistResponse->successful(),
+                'timestamp' => now()->toISOString()
             ]);
 
             \Log::info("🎧 RapidAPI seed_to_playlist response", [
@@ -2381,6 +2485,13 @@ class MusicDiscoveryController extends Controller
             $playlistId = $matches[1];
 
             // Step 2: Get tracks from the playlist
+            \Log::info("🔥 API_REQUEST_RAPIDAPI_SPOTIFY_PLAYLIST_TRACKS", [
+                'endpoint' => 'https://spotify81.p.rapidapi.com/playlist_tracks',
+                'playlist_id' => $playlistId,
+                'limit' => min($limit, 100),
+                'timestamp' => now()->toISOString()
+            ]);
+
             $tracksResponse = Http::withHeaders([
                 'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
                 'X-RapidAPI-Host' => 'spotify81.p.rapidapi.com'
@@ -2388,6 +2499,12 @@ class MusicDiscoveryController extends Controller
                 'id' => $playlistId,
                 'offset' => 0,
                 'limit' => min($limit, 100)
+            ]);
+
+            \Log::info("🔥 API_RESPONSE_RAPIDAPI_SPOTIFY_PLAYLIST_TRACKS", [
+                'status' => $tracksResponse->status(),
+                'success' => $tracksResponse->successful(),
+                'timestamp' => now()->toISOString()
             ]);
 
             if (!$tracksResponse->successful()) {
@@ -2416,6 +2533,8 @@ class MusicDiscoveryController extends Controller
                             ],
                             'external_url' => $track['external_urls']['spotify'] ?? null,
                             'preview_url' => $track['preview_url'] ?? null,
+                            'popularity' => $track['popularity'] ?? null,
+                            'release_date' => $track['album']['release_date'] ?? null,
                             'source' => 'spotify'
                         ];
                     }
@@ -2512,12 +2631,27 @@ class MusicDiscoveryController extends Controller
             $fullQuery = "$artistName $trackTitle";
             \Log::info("🎵 Shazam Strategy 1: Full query", ['query' => $fullQuery]);
             
+            \Log::info("🔥 API_REQUEST_SHAZAM_SEARCH_TRACK", [
+                'endpoint' => 'https://shazam-api6.p.rapidapi.com/shazam/search_track/',
+                'query' => $fullQuery,
+                'limit' => 15,
+                'strategy' => 'full_query',
+                'timestamp' => now()->toISOString()
+            ]);
+
             $searchResponse = Http::withHeaders([
                 'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
                 'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
             ])->get("https://shazam-api6.p.rapidapi.com/shazam/search_track/", [
                 'query' => $fullQuery,
                 'limit' => 15 // Increase limit for better success rate
+            ]);
+
+            \Log::info("🔥 API_RESPONSE_SHAZAM_SEARCH_TRACK", [
+                'status' => $searchResponse->status(),
+                'success' => $searchResponse->successful(),
+                'strategy' => 'full_query',
+                'timestamp' => now()->toISOString()
             ]);
             
             if ($searchResponse && $searchResponse->successful()) {
@@ -2529,12 +2663,27 @@ class MusicDiscoveryController extends Controller
             if (!$shazamTrackId) {
                 \Log::info("🎵 Shazam Strategy 2: Artist name only (fallback)", ['query' => $artistName]);
                 
+                \Log::info("🔥 API_REQUEST_SHAZAM_SEARCH_TRACK", [
+                    'endpoint' => 'https://shazam-api6.p.rapidapi.com/shazam/search_track/',
+                    'query' => $artistName,
+                    'limit' => 15,
+                    'strategy' => 'artist_only_fallback',
+                    'timestamp' => now()->toISOString()
+                ]);
+
                 $searchResponse = Http::withHeaders([
                     'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
                     'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
                 ])->get("https://shazam-api6.p.rapidapi.com/shazam/search_track/", [
                     'query' => $artistName,
                     'limit' => 15 // Increase limit for better success rate
+                ]);
+
+                \Log::info("🔥 API_RESPONSE_SHAZAM_SEARCH_TRACK", [
+                    'status' => $searchResponse->status(),
+                    'success' => $searchResponse->successful(),
+                    'strategy' => 'artist_only_fallback',
+                    'timestamp' => now()->toISOString()
                 ]);
             }
 
@@ -2591,12 +2740,25 @@ class MusicDiscoveryController extends Controller
                 'max_limit' => 50
             ]);
             
+            \Log::info("🔥 API_REQUEST_SHAZAM_SIMILAR_TRACKS", [
+                'endpoint' => 'https://shazam-api6.p.rapidapi.com/shazam/similar_tracks',
+                'track_id' => $shazamTrackId,
+                'limit' => min($limit, 50),
+                'timestamp' => now()->toISOString()
+            ]);
+
             $relatedResponse = Http::withHeaders([
                 'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
                 'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
             ])->get("https://shazam-api6.p.rapidapi.com/shazam/similar_tracks", [
                 'track_id' => $shazamTrackId,
                 'limit' => min($limit, 50) // Limit to maximum 50 tracks
+            ]);
+
+            \Log::info("🔥 API_RESPONSE_SHAZAM_SIMILAR_TRACKS", [
+                'status' => $relatedResponse->status(),
+                'success' => $relatedResponse->successful(),
+                'timestamp' => now()->toISOString()
             ]);
 
             if (!$relatedResponse->successful()) {
@@ -2976,12 +3138,55 @@ class MusicDiscoveryController extends Controller
 
             // Get Spotify oEmbed data
             $oEmbedData = $this->getSpotifyOEmbedData($spotifyTrackId);
-            
+
             if (!$oEmbedData) {
                 return response()->json([
                     'success' => false,
                     'error' => 'Could not generate preview for this track'
                 ], 404);
+            }
+
+            // Try to get track metadata for the found Spotify track
+            $trackMetadata = null;
+            try {
+                $trackData = $this->spotifyService->getTrackDetails($spotifyTrackId);
+
+                if ($trackData) {
+                    $trackMetadata = [
+                        'popularity' => $trackData['popularity'] ?? null,
+                        'release_date' => $trackData['album']['release_date'] ?? null,
+                        'preview_url' => $trackData['preview_url'] ?? null
+                    ];
+
+                    // Get artist followers if artist ID is available
+                    if (isset($trackData['artists'][0]['id'])) {
+                        $artistId = $trackData['artists'][0]['id'];
+                        try {
+                            $artistData = $this->spotifyService->getArtist($artistId);
+                            if ($artistData && isset($artistData['followers']['total'])) {
+                                $trackMetadata['followers'] = $artistData['followers']['total'];
+                            }
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to get artist data: ' . $e->getMessage());
+                        }
+                    }
+
+                    // Get album label if album ID is available
+                    if (isset($trackData['album']['id'])) {
+                        $albumId = $trackData['album']['id'];
+                        try {
+                            $albumData = $this->spotifyService->getAlbum($albumId);
+                            if ($albumData && isset($albumData['label'])) {
+                                $trackMetadata['label'] = $albumData['label'];
+                            }
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to get album data: ' . $e->getMessage());
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Failed to get track metadata, continue without it
+                \Log::warning('Failed to get track metadata for preview: ' . $e->getMessage());
             }
 
             return response()->json([
@@ -2991,7 +3196,8 @@ class MusicDiscoveryController extends Controller
                     'oembed' => $oEmbedData,
                     'source' => $source,
                     'artist' => $artistName,
-                    'title' => $trackTitle
+                    'title' => $trackTitle,
+                    'metadata' => $trackMetadata
                 ]
             ]);
 

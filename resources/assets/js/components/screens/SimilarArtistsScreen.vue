@@ -238,6 +238,7 @@
                       </div>
                     </td>
 
+
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
                       <button
@@ -601,6 +602,7 @@ const processingTrack = ref<string | null>(null)
 const isArtistBanned = (artist: LastfmArtist): boolean => {
   return bannedArtists.value.has(artist.mbid)
 }
+
 
 // Sort options
 const sortOptions = [
@@ -1471,6 +1473,7 @@ const loadClientUnsavedTracks = () => {
   }
 }
 
+
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {
   try {
@@ -1506,7 +1509,7 @@ onMounted(async () => {
 })
 
 // Close Spotify previews when navigating away from this screen
-onRouteChanged(route => {
+onRouteChanged(async route => {
   if (route.screen !== 'SimilarArtists') {
     // Close any open preview
     if (currentlyPreviewingArtist.value) {
@@ -1517,6 +1520,90 @@ onRouteChanged(route => {
     }
     currentlyPreviewingArtist.value = null
   } else {
+    // Check for seed artist data when entering Similar Artists screen
+    // Use a simple inline function to avoid scoping issues
+    const handleSeedArtist = async () => {
+      try {
+        const seedArtistJson = localStorage.getItem('koel-similar-artists-seed-artist')
+        if (seedArtistJson) {
+          const seedArtistData = JSON.parse(seedArtistJson)
+          console.log('🔍 [SIMILAR ARTISTS] Found seed artist data:', seedArtistData, 'at', new Date().toISOString())
+
+          // Clear the data so it doesn't trigger again
+          localStorage.removeItem('koel-similar-artists-seed-artist')
+
+          // Check if data is recent (within last 30 seconds)
+          const isRecent = Date.now() - seedArtistData.timestamp < 30000
+          if (isRecent && seedArtistData.name) {
+            console.log('🔍 [SIMILAR ARTISTS] Setting up seed artist from saved tracks - DIRECT MODE')
+
+            // Search for the artist first to get the MBID
+            searchQuery.value = seedArtistData.name
+            await searchArtists()
+
+            // Find exact match in search results to get the MBID
+            const exactMatch = searchResults.value.find(artist =>
+              artist.name.toLowerCase() === seedArtistData.name.toLowerCase()
+            )
+
+            if (exactMatch && exactMatch.mbid) {
+              console.log('🔍 [SIMILAR ARTISTS] Found artist with MBID, setting directly:', exactMatch.name)
+
+              // Set the artist directly without showing search dropdown
+              selectedArtist.value = exactMatch
+              searchQuery.value = '' // Clear search box
+              searchResults.value = [] // Clear search dropdown
+
+              // Clear previous results
+              similarArtists.value = []
+              filteredArtists.value = []
+              displayedArtists.value = []
+              currentPage.value = 1
+              currentlyPreviewingArtist.value = null
+              errorMessage.value = ''
+
+              // Automatically find similar artists
+              await findSimilarArtists(exactMatch)
+
+              console.log('🔍 [SIMILAR ARTISTS] Direct setup complete - similarArtists count:', similarArtists.value.length)
+            } else if (searchResults.value.length > 0 && searchResults.value[0].mbid) {
+              // If no exact match, use first result with MBID
+              const firstResult = searchResults.value[0]
+              console.log('🔍 [SIMILAR ARTISTS] No exact match, using first result with MBID:', firstResult.name)
+
+              // Set the artist directly without showing search dropdown
+              selectedArtist.value = firstResult
+              searchQuery.value = '' // Clear search box
+              searchResults.value = [] // Clear search dropdown
+
+              // Clear previous results
+              similarArtists.value = []
+              filteredArtists.value = []
+              displayedArtists.value = []
+              currentPage.value = 1
+              currentlyPreviewingArtist.value = null
+              errorMessage.value = ''
+
+              // Automatically find similar artists
+              await findSimilarArtists(firstResult)
+
+              console.log('🔍 [SIMILAR ARTISTS] Direct setup complete - similarArtists count:', similarArtists.value.length)
+            } else {
+              console.log('🔍 [SIMILAR ARTISTS] No artist found with MBID for:', seedArtistData.name)
+              // Show error message that similarity search requires artists with database IDs
+              errorMessage.value = `Sorry, "${seedArtistData.name}" doesn't have the required music database ID for similarity search. Try searching manually for a more specific artist name.`
+            }
+          } else {
+            console.log('🔍 [SIMILAR ARTISTS] Seed artist data too old or invalid')
+          }
+        }
+      } catch (error) {
+        console.error('🔍 [SIMILAR ARTISTS] Failed to parse seed artist data:', error)
+      }
+    }
+
+    await handleSeedArtist()
+
     // Enable animations when entering Similar Artists screen
     console.log('🎵 [SIMILAR] Entering Similar Artists screen with', displayedArtists.value.length, 'artists')
     if (displayedArtists.value.length > 0) {
@@ -1750,4 +1837,5 @@ iframe {
 .scrollbar-hide::-webkit-scrollbar-thumb {
   display: none !important;
 }
+
 </style>

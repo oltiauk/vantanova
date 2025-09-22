@@ -139,7 +139,20 @@
 
                   <!-- Title -->
                   <td class="p-3 align-middle">
-                    <span class="text-white/80">{{ track.name }}</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-white/80">{{ track.name }}</span>
+                      <span
+                        class="px-2 py-1 text-xs font-medium rounded"
+                        :class="{
+                          'bg-green-600/20 text-green-400': track.source === 'spotify',
+                          'bg-red-600/20 text-red-400': track.source === 'lastfm',
+                          'bg-blue-600/20 text-blue-400': track.source === 'shazam' || track.source === 'shazam_fallback',
+                          'bg-gray-600/20 text-gray-400': !track.source
+                        }"
+                      >
+                        {{ track.source === 'shazam_fallback' ? 'shazam' : (track.source || 'unknown') }}
+                      </span>
+                    </div>
                   </td>
 
                   <!-- Streams (Playcount) -->
@@ -364,6 +377,11 @@ interface Track {
   source?: string  // 'shazam' or 'spotify'
   shazam_id?: string
   spotify_id?: string
+  label?: string
+  popularity?: number
+  followers?: number
+  release_date?: string
+  preview_url?: string
   lastfm_stats?: {
     playcount: number
     listeners: number
@@ -680,20 +698,20 @@ const isArtistBanned = (track: Track): boolean => {
 // Action handlers
 const saveTrack = async (track: Track) => {
   const trackKey = getTrackKey(track)
-  
+
   // Close any open preview dropdown when saving/unsaving tracks
   if (expandedTrackId.value !== trackKey) {
     expandedTrackId.value = null
   }
-  
+
   if (isTrackSaved(track)) {
     // Unsave track: Update UI immediately for better UX
     savedTracks.value.delete(trackKey)
-    
+
     // Since no DELETE endpoint exists for saved tracks, use client-side tracking
     // This provides the expected UX while tracks will naturally expire in 24h
     clientUnsavedTracks.value.add(trackKey)
-    
+
     // Save to localStorage for persistence across page reloads
     try {
       const unsavedList = Array.from(clientUnsavedTracks.value)
@@ -701,19 +719,88 @@ const saveTrack = async (track: Track) => {
     } catch (error) {
       // Failed to save unsaved tracks to localStorage
     }
+
+    // Trigger SavedTracksScreen refresh when track is unsaved
+    try {
+      // Dispatch custom event
+      window.dispatchEvent(new CustomEvent('track-unsaved', {
+        detail: { track: track, trackKey: trackKey }
+      }))
+
+      // Update localStorage timestamp to trigger cross-tab refresh
+      localStorage.setItem('track-unsaved-timestamp', Date.now().toString())
+    } catch (error) {
+      // Event dispatch failed, not critical
+    }
   } else {
     // Save track - show processing state
     processingTrack.value = trackKey
-    
+
     try {
       // Generate a fallback ISRC if none exists
       const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      let popularity = track.popularity || null
+      let releaseDate = track.release_date || null
+      let spotifyId = track.id
+      let label = track.label || null
+      let followers = track.followers || null
+      let previewUrl = track.preview_url || null
+
+
+      // If we don't have complete metadata, try to get enhanced Spotify data
+      const needsEnhancedData = (!popularity || !releaseDate || !label || !followers) &&
+                                (track.source === 'shazam' || track.source === 'shazam_fallback' || track.source === 'lastfm' || track.source === 'spotify')
+
+      if (needsEnhancedData) {
+        try {
+          const cleanedArtist = cleanTrackForQuery(track.artist)
+          const cleanedTitle = cleanTrackForQuery(track.name)
+
+          const requestParams = {
+            artist_name: cleanedArtist,
+            track_title: cleanedTitle,
+            original_artist: track.artist,
+            original_title: track.name,
+            source: track.source
+          }
+
+          // For Spotify tracks, include the track ID to avoid unnecessary search
+          if (track.source === 'spotify' && track.id) {
+            requestParams.track_id = track.id
+          }
+
+          const spotifyResponse = await http.get('music-discovery/track-preview', {
+            params: requestParams
+          })
+
+          if (spotifyResponse.success && spotifyResponse.data && spotifyResponse.data.spotify_track_id) {
+            // We got a Spotify equivalent! Extract metadata if available
+            spotifyId = spotifyResponse.data.spotify_track_id
+            if (spotifyResponse.data.metadata) {
+              popularity = spotifyResponse.data.metadata.popularity || popularity
+              releaseDate = spotifyResponse.data.metadata.release_date || releaseDate
+              label = spotifyResponse.data.metadata.label || null
+              followers = spotifyResponse.data.metadata.followers || null
+              previewUrl = spotifyResponse.data.metadata.preview_url || null
+            }
+          }
+        } catch (conversionError) {
+          // Failed to convert to Spotify, continue with original data
+        }
+      }
+
 
       const response = await http.post('music-preferences/save-track', {
         isrc: isrcValue,
         track_name: track.name,
         artist_name: track.artist,
-        spotify_id: track.id
+        spotify_id: spotifyId,
+        label: label,
+        popularity: popularity,
+        followers: followers,
+        release_date: releaseDate,
+        preview_url: previewUrl
       })
 
       if (response.success) {
@@ -726,6 +813,19 @@ const saveTrack = async (track: Track) => {
           localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
         } catch (error) {
           // Failed to update unsaved tracks in localStorage
+        }
+
+        // Trigger SavedTracksScreen refresh
+        try {
+          // Dispatch custom event
+          window.dispatchEvent(new CustomEvent('track-saved', {
+            detail: { track: track, trackKey: trackKey }
+          }))
+
+          // Update localStorage timestamp to trigger cross-tab refresh
+          localStorage.setItem('track-saved-timestamp', Date.now().toString())
+        } catch (error) {
+          // Event dispatch failed, not critical
         }
       } else {
         throw new Error(response.error || 'Failed to save track')

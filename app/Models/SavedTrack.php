@@ -14,6 +14,11 @@ class SavedTrack extends Model
         'track_name',
         'artist_name',
         'spotify_id',
+        'label',
+        'popularity',
+        'followers',
+        'release_date',
+        'preview_url',
         'expires_at',
     ];
 
@@ -51,14 +56,29 @@ class SavedTrack extends Model
     /**
      * Create a saved track with 24-hour expiration
      */
-    public static function saveTrack(string|int $userId, string $isrc, string $trackName, string $artistName, ?string $spotifyId = null): static
-    {
+    public static function saveTrack(
+        string|int $userId,
+        string $isrc,
+        string $trackName,
+        string $artistName,
+        ?string $spotifyId = null,
+        ?string $label = null,
+        ?int $popularity = null,
+        ?int $followers = null,
+        ?string $releaseDate = null,
+        ?string $previewUrl = null
+    ): static {
         return static::updateOrCreate(
             ['user_id' => $userId, 'isrc' => $isrc],
             [
                 'track_name' => $trackName,
                 'artist_name' => $artistName,
                 'spotify_id' => $spotifyId,
+                'label' => $label,
+                'popularity' => $popularity,
+                'followers' => $followers,
+                'release_date' => $releaseDate,
+                'preview_url' => $previewUrl,
                 'expires_at' => now()->addHours(24),
             ]
         );

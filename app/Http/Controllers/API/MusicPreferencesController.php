@@ -7,6 +7,8 @@ use App\Models\BlacklistedTrack;
 use App\Models\SavedTrack;
 use App\Models\BlacklistedArtist;
 use App\Models\SavedArtist;
+use App\Models\SpotifyCache;
+use App\Services\SpotifyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +17,9 @@ use Illuminate\Support\Facades\Schema;
 
 class MusicPreferencesController extends Controller
 {
+    public function __construct(private readonly SpotifyService $spotifyService)
+    {
+    }
     /**
      * Check if all required tables exist
      */
@@ -106,6 +111,11 @@ class MusicPreferencesController extends Controller
             'track_name' => 'required|string',
             'artist_name' => 'required|string',
             'spotify_id' => 'sometimes|string|nullable',
+            'label' => 'sometimes|string|nullable',
+            'popularity' => 'sometimes|integer|nullable|min:0|max:100',
+            'followers' => 'sometimes|integer|nullable|min:0',
+            'release_date' => 'sometimes|string|nullable',
+            'preview_url' => 'sometimes|string|nullable',
         ]);
 
         if ($validator->fails()) {
@@ -130,7 +140,12 @@ class MusicPreferencesController extends Controller
                 $request->isrc,
                 $request->track_name,
                 $request->artist_name,
-                $request->spotify_id
+                $request->spotify_id,
+                $request->label,
+                $request->popularity,
+                $request->followers,
+                $request->release_date,
+                $request->preview_url
             );
 
             return response()->json([
@@ -529,5 +544,202 @@ class MusicPreferencesController extends Controller
                 'error' => 'Failed to remove artist from blacklist'
             ], 500);
         }
+    }
+
+    /**
+     * Get Spotify track details by track ID
+     */
+    public function getSpotifyTrack(Request $request, string $trackId): JsonResponse
+    {
+        $validator = Validator::make(['track_id' => $trackId], [
+            'track_id' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Check if this looks like a Koel UUID instead of a Spotify ID
+            if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $trackId)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Invalid Spotify track ID format. Please provide a valid Spotify track ID.',
+                    'code' => 'INVALID_SPOTIFY_ID'
+                ], 400);
+            }
+
+            // Check cache first
+            $cachedData = SpotifyCache::getCached($trackId, 'track');
+            if ($cachedData) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $cachedData
+                ]);
+            }
+
+            $trackDetails = $this->spotifyService->getTrackDetails($trackId);
+
+            if (!$trackDetails) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Track not found'
+                ], 404);
+            }
+
+            // Cache the result
+            SpotifyCache::setCached($trackId, 'track', $trackDetails, 24);
+
+            return response()->json([
+                'success' => true,
+                'data' => $trackDetails
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Spotify track details error', [
+                'message' => $e->getMessage(),
+                'track_id' => $trackId
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch track details'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Spotify artist details by artist ID
+     */
+    public function getSpotifyArtist(Request $request, string $artistId): JsonResponse
+    {
+        $validator = Validator::make(['artist_id' => $artistId], [
+            'artist_id' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Check cache first
+            $cachedData = SpotifyCache::getCached($artistId, 'artist');
+            if ($cachedData) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $cachedData
+                ]);
+            }
+
+            // Use the SpotifyService to get artist data
+            $artistDetails = $this->spotifyService->getArtist($artistId);
+
+            if (!$artistDetails) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Artist not found'
+                ], 404);
+            }
+
+            // Cache the result
+            SpotifyCache::setCached($artistId, 'artist', $artistDetails, 24);
+
+            return response()->json([
+                'success' => true,
+                'data' => $artistDetails
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Spotify artist details error', [
+                'message' => $e->getMessage(),
+                'artist_id' => $artistId
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch artist details'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Spotify album details by album ID
+     */
+    public function getSpotifyAlbum(Request $request, string $albumId): JsonResponse
+    {
+        $validator = Validator::make(['album_id' => $albumId], [
+            'album_id' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Check cache first
+            $cachedData = SpotifyCache::getCached($albumId, 'album');
+            if ($cachedData) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $cachedData
+                ]);
+            }
+
+            // Use the SpotifyService to get album data
+            $albumDetails = $this->spotifyService->getAlbum($albumId);
+
+            if (!$albumDetails) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Album not found'
+                ], 404);
+            }
+
+            // Cache the result
+            SpotifyCache::setCached($albumId, 'album', $albumDetails, 24);
+
+            return response()->json([
+                'success' => true,
+                'data' => $albumDetails
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Spotify album details error', [
+                'message' => $e->getMessage(),
+                'album_id' => $albumId
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch album details'
+            ], 500);
+        }
+    }
+
+    /**
+     * Search for a track on Spotify
+     */
+    public function searchSpotifyTrack(Request $request): JsonResponse
+    {
+        // EMERGENCY DISABLE: This endpoint was causing infinite API loops and costs
+        \Log::warning('🚨 [SPOTIFY ENDPOINT] searchSpotifyTrack called - DISABLED to prevent API costs', [
+            'query' => $request->get('q', 'no query'),
+            'limit' => $request->get('limit', 'no limit'),
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'referer' => $request->header('referer'),
+            'timestamp' => now()->toISOString()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'error' => 'Spotify search temporarily disabled to prevent API costs'
+        ], 503);
     }
 }

@@ -29,6 +29,7 @@
     <MusicDiscoveryScreen v-show="screen === 'MusicDiscovery'" />
     <BannedTracksScreen v-show="screen === 'BannedTracks'" />
     <BannedArtistsScreen v-show="screen === 'BannedArtists'" />
+    <SavedTracksScreen v-show="screen === 'SavedTracks'" />
     <SoundCloudScreen v-show="screen === 'SoundCloud'" />
     <SoundCloudRelatedTracksScreen v-show="screen === 'SoundCloudRelatedTracks'" />
     <SimilarArtistsScreen v-show="screen === 'SimilarArtists'" />
@@ -71,6 +72,7 @@ import PodcastListScreen from '@/components/screens/PodcastListScreen.vue'
 import MusicDiscoveryScreen from '@/components/screens/MusicDiscoveryScreen.vue'
 import BannedTracksScreen from '@/components/screens/BannedTracksScreen.vue'
 import BannedArtistsScreen from '@/components/screens/BannedArtistsScreen.vue'
+import SavedTracksScreen from '@/components/screens/SavedTracksScreen.vue'
 import SoundCloudScreen from '@/components/screens/SoundCloudScreen.vue'
 import SoundCloudRelatedTracksScreen from '@/components/screens/SoundCloudRelatedTracksScreen.vue'
 import SimilarArtistsScreen from '@/components/screens/SimilarArtistsScreen.vue'

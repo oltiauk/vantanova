@@ -221,6 +221,11 @@ export const routes: Route[] = [
     screen: 'BannedArtists'
   },
   {
+    name: 'saved-tracks',
+    path: '/saved-tracks',
+    screen: 'SavedTracks'
+  },
+  {
     name: 'soundcloud',
     path: '/soundcloud',
     screen: 'SoundCloud'

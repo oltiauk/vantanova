@@ -53,6 +53,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
+import { useRouter } from '@/composables/useRouter'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -140,12 +141,15 @@ const totalTracks = ref(0)
 // Removed force close preview feature
 
 // Initialize global blacklist filtering
-const { 
-  filterTracks, 
+const {
+  filterTracks,
   loadBlacklistedItems,
   addTrackToBlacklist,
-  addArtistToBlacklist 
+  addArtistToBlacklist
 } = useBlacklistFiltering()
+
+// Initialize router for handling route parameters
+const { onRouteChanged } = useRouter()
 
 const seedTrackKey = ref<number | null>(null)
 const seedTrackMode = ref<number | null>(null)
@@ -560,7 +564,116 @@ const onPerPageChange = (perPage: number) => {
 // Load blacklisted tracks on component mount
 onMounted(async () => {
   await loadBlacklistedItems()
+
+  // Check for seed track data when component mounts
+  await checkForSeedTrackData()
 })
+
+// Handle route changes to set seed track from SavedTracksScreen
+onRouteChanged(async (route) => {
+  console.log('🔍 [MUSIC DISCOVERY] onRouteChanged called with route:', route)
+
+  if (route.screen === 'MusicDiscovery') {
+    console.log('🔍 [MUSIC DISCOVERY] Route is for music-discovery screen')
+
+    // Check for seed track data in localStorage
+    await checkForSeedTrackData()
+  } else {
+    console.log('🔍 [MUSIC DISCOVERY] Route is for different screen:', route.screen)
+  }
+})
+
+// Check localStorage for seed track data from SavedTracksScreen
+const checkForSeedTrackData = async () => {
+  try {
+    const seedTrackJson = localStorage.getItem('koel-music-discovery-seed-track')
+    if (seedTrackJson) {
+      const seedTrackData = JSON.parse(seedTrackJson)
+      console.log('🔍 [MUSIC DISCOVERY] Found seed track data:', seedTrackData)
+
+      // Clear the data so it doesn't trigger again
+      localStorage.removeItem('koel-music-discovery-seed-track')
+
+      // Check if data is recent (within last 30 seconds)
+      const isRecent = Date.now() - seedTrackData.timestamp < 30000
+      if (isRecent && seedTrackData.id) {
+        console.log('🔍 [MUSIC DISCOVERY] Setting up seed track from saved tracks - FAST MODE')
+        // Start the process immediately without await to make UI responsive
+        handleSpotifyTrackSeed(seedTrackData.id, seedTrackData.name, seedTrackData.artist)
+      } else {
+        console.log('🔍 [MUSIC DISCOVERY] Seed track data too old or invalid')
+      }
+    }
+  } catch (error) {
+    console.error('🔍 [MUSIC DISCOVERY] Failed to parse seed track data:', error)
+  }
+}
+
+// Handle setting a seed track from Spotify track ID
+const handleSpotifyTrackSeed = async (spotifyTrackId: string, trackName?: string, artistName?: string) => {
+  try {
+    // Use track name and artist from route params if available
+    const name = trackName || 'Unknown Track'
+    const artist = artistName || 'Unknown Artist'
+
+    // Create seed track object with known information
+    const seedTrack: Track = {
+      id: spotifyTrackId,
+      name: name,
+      artist: artist,
+      album: 'Unknown Album',
+      external_url: `https://open.spotify.com/track/${spotifyTrackId}`
+    }
+
+    // Set as selected seed track IMMEDIATELY for fast UI update
+    selectedSeedTrack.value = seedTrack
+    console.log('🔍 [MUSIC DISCOVERY] Seed track set immediately, starting background tasks')
+
+    // Start related tracks loading immediately (don't wait for preview data)
+    const relatedTracksPromise = onRelatedTracksRequested(seedTrack)
+
+    // Fetch preview data in background and update when ready
+    const previewPromise = http.get('music-discovery/track-preview', {
+      params: {
+        artist_name: artist,
+        track_title: name,
+        source: 'spotify',
+        track_id: spotifyTrackId
+      }
+    }).then(response => {
+      if (response.success && response.data) {
+        // Update seed track with preview and image data
+        if (selectedSeedTrack.value && selectedSeedTrack.value.id === spotifyTrackId) {
+          selectedSeedTrack.value.preview_url = response.data.oembed?.preview_url
+          selectedSeedTrack.value.image = response.data.oembed?.thumbnail_url
+          console.log('🔍 [MUSIC DISCOVERY] Preview data loaded in background')
+        }
+      }
+    }).catch(previewError => {
+      console.warn('Failed to load preview data:', previewError)
+    })
+
+    // Wait for related tracks (this is the main UI content)
+    await relatedTracksPromise
+
+    // Preview data will complete in background when ready
+  } catch (error) {
+    console.error('Failed to load seed track from Spotify ID:', error)
+    errorMessage.value = 'Failed to load track from Spotify'
+  }
+}
+
+// Handle setting a seed track by searching for artist and track name
+const handleSearchTrackSeed = async (artist: string, track: string) => {
+  try {
+    // Use the existing search functionality (this would need to be implemented)
+    // For now, we'll show an error message suggesting manual search
+    errorMessage.value = `Please search for "${track}" by ${artist} manually in the search above`
+  } catch (error) {
+    console.error('Failed to search for seed track:', error)
+    errorMessage.value = 'Failed to search for track'
+  }
+}
 
 // Removed loadMoreRapidApiRecommendations - no longer needed with proper pagination
 </script>
