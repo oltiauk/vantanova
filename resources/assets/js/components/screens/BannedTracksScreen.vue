@@ -127,7 +127,7 @@
       </div>
 
       <!-- Pagination Controls -->
-      <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 mt-8">
+      <div v-if="totalPages > 1 && !isLoading" class="flex items-center justify-center gap-2 mt-8">
         <button
           :disabled="currentPage === 1"
           class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

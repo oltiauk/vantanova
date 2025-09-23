@@ -49,6 +49,13 @@
             </template>
             SoundCloud - Related Tracks
           </SidebarItem>
+
+          <SidebarItem :href="url('label-search')" screen="LabelSearch">
+            <template #icon>
+              <Icon :icon="faSearch" class="w-4 h-4" />
+            </template>
+            Spotify - Label Search
+          </SidebarItem>
         </ul>
       </SidebarSection>
 

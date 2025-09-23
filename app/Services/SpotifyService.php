@@ -155,6 +155,66 @@ class SpotifyService
         }
     }
 
+    /**
+     * Search for albums on Spotify
+     */
+    public function searchAlbums(string $query, int $limit = 20): array
+    {
+        if (!static::enabled()) {
+            return ['albums' => ['items' => []]];
+        }
+
+        try {
+            return $this->client->search($query, 'album', ['limit' => $limit]);
+
+        } catch (\Exception $e) {
+            Log::error('Spotify album search error', [
+                'message' => $e->getMessage(),
+                'query' => $query
+            ]);
+            return ['albums' => ['items' => []]];
+        }
+    }
+
+    /**
+     * Get multiple albums with their tracks in batch
+     */
+    public function batchGetAlbumsWithTracks(array $albumIds): array
+    {
+        if (!static::enabled() || empty($albumIds)) {
+            return [];
+        }
+
+        try {
+            // Split into chunks of 20 (Spotify's limit for albums)
+            $chunks = array_chunk($albumIds, 20);
+            $allAlbums = [];
+
+            foreach ($chunks as $chunk) {
+                // Get albums with tracks included
+                $albums = $this->client->getAlbums($chunk, ['market' => 'US']);
+                Log::info('Batch albums chunk result', [
+                    'chunk_size' => count($chunk),
+                    'albums_returned' => isset($albums['albums']) ? count($albums['albums']) : 0,
+                    'first_album_has_tracks' => isset($albums['albums'][0]['tracks']) ? 'yes' : 'no'
+                ]);
+
+                if ($albums && isset($albums['albums'])) {
+                    $allAlbums = array_merge($allAlbums, array_filter($albums['albums'])); // Filter out null albums
+                }
+            }
+
+            return $allAlbums;
+
+        } catch (\Exception $e) {
+            Log::error('Spotify batch albums error', [
+                'message' => $e->getMessage(),
+                'album_ids' => $albumIds
+            ]);
+            return [];
+        }
+    }
+
     public function getBatchAudioFeatures(array $trackIds): array
 {
     // Spotify supports up to 100 tracks per request

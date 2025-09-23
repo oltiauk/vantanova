@@ -72,6 +72,7 @@ use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\UserInvitationController;
 use App\Http\Controllers\API\MusicDiscoveryController;
 use App\Http\Controllers\API\MusicPreferencesController;
+use App\Http\Controllers\API\LabelSearchController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Pusher\Pusher;
@@ -310,6 +311,9 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
     Route::get('music-discovery/search-spotify', [MusicDiscoveryController::class, 'searchSpotify'])->name('music-discovery.search-spotify');
     Route::get('music-discovery/search-parallel', [MusicDiscoveryController::class, 'searchParallel'])->name('music-discovery.search-parallel');
     Route::get('music-discovery/deezer-recommendations', [MusicDiscoveryController::class, 'getDeezerRecommendations'])->name('music-discovery.deezer-recommendations');
+
+    // Label search route
+    Route::get('label-search', LabelSearchController::class)->name('label-search');
 
     Route::get('debug-reccobeats/{trackId}', function($trackId) {
         try {

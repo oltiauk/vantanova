@@ -240,4 +240,9 @@ export const routes: Route[] = [
     path: '/similar-artists',
     screen: 'SimilarArtists'
   },
+  {
+    name: 'label-search',
+    path: '/label-search',
+    screen: 'LabelSearch'
+  },
 ]

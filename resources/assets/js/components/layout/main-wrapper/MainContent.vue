@@ -33,6 +33,7 @@
     <SoundCloudScreen v-show="screen === 'SoundCloud'" />
     <SoundCloudRelatedTracksScreen v-show="screen === 'SoundCloudRelatedTracks'" />
     <SimilarArtistsScreen v-show="screen === 'SimilarArtists'" />
+    <LabelSearchScreen v-show="screen === 'LabelSearch'" />
 
     <GenreListScreen v-if="screen === 'Genres'" />
     <SearchSongResultsScreen v-if="screen === 'Search.Songs'" />
@@ -76,6 +77,7 @@ import SavedTracksScreen from '@/components/screens/SavedTracksScreen.vue'
 import SoundCloudScreen from '@/components/screens/SoundCloudScreen.vue'
 import SoundCloudRelatedTracksScreen from '@/components/screens/SoundCloudRelatedTracksScreen.vue'
 import SimilarArtistsScreen from '@/components/screens/SimilarArtistsScreen.vue'
+import LabelSearchScreen from '@/components/screens/LabelSearchScreen.vue'
 import { commonStore } from '@/stores/commonStore'
 
 const UserListScreen = defineAsyncComponent(() => import('@/components/screens/UserListScreen.vue'))
