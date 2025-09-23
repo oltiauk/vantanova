@@ -27,7 +27,7 @@
               <input
                 v-model="searchQuery"
                 type="text"
-                class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg text-center"
+                class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
                 placeholder="Search for a saved track..."
               >
             </div>
@@ -1106,6 +1106,13 @@ watch([searchQuery, sortBy], resetPagination)
 </script>
 
 <style scoped>
+.search-input::placeholder {
+  text-align: center;
+}
+
+.search-input:focus::placeholder {
+  opacity: 0;
+}
 /* Track rows progressive display animation */
 .track-row {
   animation: fadeInUp 0.6s ease-out both;

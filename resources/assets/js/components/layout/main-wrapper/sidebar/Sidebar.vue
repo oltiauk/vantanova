@@ -26,20 +26,18 @@
 
         <ul class="menu">
           <SidebarItem :href="url('music-discovery')" screen="MusicDiscovery">
-            <template #icon>
+            <!-- <template #icon>
               <img src="/public/img/last-fm-icon.svg" alt="Last.fm" class="w-4 h-4 object-contain">
-            </template>
-            Last.Fm - Related Tracks
+            </template> -->
+           Related Tracks
           </SidebarItem>
 
           <SidebarItem :href="url('similar-artists')" screen="SimilarArtists">
-            <template #icon>
-              <img src="/public/img/last-fm-icon.svg" alt="Last.fm" class="w-4 h-4 object-contain">
-            </template>
-            Last.Fm - Similar Artists
+          
+           Similar Artists
           </SidebarItem>
 
-          <SoundCloudSidebarItem>
+          <!-- <SoundCloudSidebarItem>
             SoundCloud - Advanced Search
           </SoundCloudSidebarItem>
 
@@ -48,13 +46,11 @@
               <img src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-5 h-5 object-contain">
             </template>
             SoundCloud - Related Tracks
-          </SidebarItem>
+          </SidebarItem> -->
 
           <SidebarItem :href="url('label-search')" screen="LabelSearch">
-            <template #icon>
-              <Icon :icon="faSearch" class="w-4 h-4" />
-            </template>
-            Spotify - Label Search
+        
+          Label Search
           </SidebarItem>
         </ul>
       </SidebarSection>

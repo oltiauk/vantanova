@@ -44,37 +44,6 @@
         <h3 class="text-lg font-semibold">
           Related Tracks ({{ filteredRecommendations.length }})
         </h3>
-        
-        <!-- Sort by Dropdown -->
-        <div class="relative">
-          <button
-            @click="toggleLikesRatioDropdown"
-            @blur="hideLikesRatioDropdown"
-            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
-            style="background-color: rgba(47, 47, 47, 255) !important;"
-          >
-            {{ getSortText() }}
-            <Icon :icon="faChevronDown" class="text-xs" />
-          </button>
-          
-          <!-- Dropdown Menu -->
-          <div 
-            v-if="showLikesRatioDropdown"
-            class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-50"
-            style="background-color: rgb(67,67,67,255);"
-          >
-            <button
-              v-for="option in sortOptions"
-              :key="option.value"
-              @mousedown.prevent="setLikesRatioFilter(option.value)"
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-              :class="option.value === 'none' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length-1].value ? 'rounded-b-lg' : '')"
-              :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </div>
       </div>
       
       <div class="bg-white/5 rounded-lg overflow-hidden">
@@ -86,9 +55,6 @@
                 <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
                 <th class="text-left p-3 font-medium w-auto min-w-64">Name(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
-                <th class="text-center p-3 font-medium">Streams</th>
-                <th class="text-center p-3 font-medium">Listeners</th>
-                <th class="text-center p-3 font-medium">S/L Ratio</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Save/Ban</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap"></th>
               </tr>
@@ -128,76 +94,14 @@
 
                   <!-- Artist -->
                   <td class="p-3 align-middle">
-                    <button
-                      @click="openLastFmArtistPage(track)"
-                      class="font-medium text-white hover:text-[#9d0cc6] transition-colors cursor-pointer text-left"
-                      :title="`View ${track.artist} on Last.fm`"
-                    >
+                    <span class="font-medium text-white">
                       {{ track.artist }}
-                    </button>
+                    </span>
                   </td>
 
                   <!-- Title -->
                   <td class="p-3 align-middle">
-                    <div class="flex items-center gap-2">
-                      <span class="text-white/80">{{ track.name }}</span>
-                      <span
-                        class="px-2 py-1 text-xs font-medium rounded"
-                        :class="{
-                          'bg-green-600/20 text-green-400': track.source === 'spotify',
-                          'bg-red-600/20 text-red-400': track.source === 'lastfm',
-                          'bg-blue-600/20 text-blue-400': track.source === 'shazam' || track.source === 'shazam_fallback',
-                          'bg-gray-600/20 text-gray-400': !track.source
-                        }"
-                      >
-                        {{ track.source === 'shazam_fallback' ? 'shazam' : (track.source || 'unknown') }}
-                      </span>
-                    </div>
-                  </td>
-
-                  <!-- Streams (Playcount) -->
-                  <td class="p-3 align-middle">
-                    <div v-if="track.lastfm_stats?.playcount" class="flex items-center justify-center text-white/80">
-                      {{ formatNumber(track.lastfm_stats.playcount) }}
-                    </div>
-                    <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
-                      <svg class="animate-spin h-4 w-4 text-[#9d0cc6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    </div>
-                    <div v-else-if="lastfmError" class="flex items-center justify-center text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
-                    <div v-else class="flex items-center justify-center text-white/30">-</div>
-                  </td>
-
-                  <!-- Listeners -->
-                  <td class="p-3 align-middle">
-                    <div v-if="track.lastfm_stats?.listeners" class="flex items-center justify-center text-white/80">
-                      {{ formatNumber(track.lastfm_stats.listeners) }}
-                    </div>
-                    <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
-                      <svg class="animate-spin h-4 w-4 text-[#9d0cc6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    </div>
-                    <div v-else-if="lastfmError" class="flex items-center justify-center text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
-                    <div v-else class="flex items-center justify-center text-white/30">-</div>
-                  </td>
-
-                  <!-- Streams/Listeners Ratio -->
-                  <td class="p-3 align-middle">
-                    <div v-if="track.lastfm_stats?.playcount && track.lastfm_stats?.listeners" class="flex items-center justify-center text-white/80">
-                      {{ formatRatio(track.lastfm_stats.playcount, track.lastfm_stats.listeners) }}
-                    </div>
-                    <div v-else-if="lastfmStatsLoading" class="flex items-center justify-center">
-                      <svg class="animate-spin h-4 w-4 text-[#9d0cc6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    </div>
-                    <div v-else-if="lastfmError" class="flex items-center justify-center text-red-400 text-xs" title="LastFM integration not configured">N/A</div>
-                    <div v-else class="flex items-center justify-center text-white/30">-</div>
+                    <span class="text-white/80">{{ track.name }}</span>
                   </td>
 
                   <!-- Save/Ban Actions -->
@@ -249,17 +153,17 @@
                       <button
                         @click="(track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
                         :disabled="processingTrack === getTrackKey(track)"
-                        class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
+                        class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-[105px] justify-center"
                       >
                         <!-- Loading spinner when processing -->
-                        <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                         <!-- Regular icon when not processing -->
-                        <img v-if="expandedTrackId !== getTrackKey(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                        <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                        <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
+                        <img v-if="!isPreviewProcessing && expandedTrackId !== getTrackKey(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain flex-shrink-0">
+                        <Icon v-else-if="!isPreviewProcessing && expandedTrackId === getTrackKey(track)" :icon="faTimes" class="w-3 h-3 flex-shrink-0" />
+                        <span>{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
                       </button>
                     </div>
                   </td>
@@ -268,7 +172,7 @@
                 <!-- Spotify Player Dropdown Row with Animation -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="9" class="p-0 overflow-hidden">
+                    <td colspan="6" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
@@ -734,8 +638,9 @@ const saveTrack = async (track: Track) => {
       // Event dispatch failed, not critical
     }
   } else {
-    // Save track - show processing state
-    processingTrack.value = trackKey
+    // Update UI immediately for instant feedback
+    savedTracks.value.add(trackKey)
+    clientUnsavedTracks.value.delete(trackKey)
 
     try {
       // Generate a fallback ISRC if none exists
@@ -804,37 +709,35 @@ const saveTrack = async (track: Track) => {
         preview_url: previewUrl
       })
 
-      if (response.success) {
-        savedTracks.value.add(trackKey)
-        // Remove from client unsaved tracks if it was previously unsaved
-        clientUnsavedTracks.value.delete(trackKey)
-        // Update localStorage
-        try {
-          const unsavedList = Array.from(clientUnsavedTracks.value)
-          localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
-        } catch (error) {
-          // Failed to update unsaved tracks in localStorage
-        }
-
-        // Trigger SavedTracksScreen refresh
-        try {
-          // Dispatch custom event
-          window.dispatchEvent(new CustomEvent('track-saved', {
-            detail: { track: track, trackKey: trackKey }
-          }))
-
-          // Update localStorage timestamp to trigger cross-tab refresh
-          localStorage.setItem('track-saved-timestamp', Date.now().toString())
-        } catch (error) {
-          // Event dispatch failed, not critical
-        }
-      } else {
+      if (!response.success) {
+        // Revert on failure
+        savedTracks.value.delete(trackKey)
         throw new Error(response.error || 'Failed to save track')
       }
+
+      // Update localStorage
+      try {
+        const unsavedList = Array.from(clientUnsavedTracks.value)
+        localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+      } catch (error) {
+        // Failed to update unsaved tracks in localStorage
+      }
+
+      // Trigger SavedTracksScreen refresh
+      try {
+        // Dispatch custom event
+        window.dispatchEvent(new CustomEvent('track-saved', {
+          detail: { track: track, trackKey: trackKey }
+        }))
+
+        // Update localStorage timestamp to trigger cross-tab refresh
+        localStorage.setItem('track-saved-timestamp', Date.now().toString())
+      } catch (error) {
+        // Event dispatch failed, not critical
+      }
     } catch (error: any) {
-      // Failed to save track
-    } finally {
-      processingTrack.value = null
+      // Revert on failure
+      savedTracks.value.delete(trackKey)
     }
   }
 }
@@ -1016,21 +919,8 @@ const updateCurrentPageTracks = () => {
 
 // Fetch stats for current page tracks if they don't have stats yet
 const fetchStatsForCurrentPage = async () => {
-  const currentTracks = displayRecommendations.value
-  if (currentTracks.length === 0) return
-  
-  // Check if any tracks on current page need stats
-  const tracksNeedingStats = currentTracks.filter(track => {
-    const trackKey = getTrackKey(track)
-    return !tracksWithStatsFetched.value.has(trackKey)
-  })
-  
-  if (tracksNeedingStats.length > 0) {
-    // console.log(`🎵 LAZY LOADING: Fetching stats for ${tracksNeedingStats.length} tracks on page ${currentPage.value}`)
-    await fetchLastFmStatsOptimized(tracksNeedingStats)
-  } else {
-    // console.log(`🎵 LAZY LOADING: All tracks on page ${currentPage.value} already have stats`)
-  }
+  // Last.fm stats fetching disabled
+  return
 }
 
 // Pagination methods
@@ -1772,19 +1662,8 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     // Update current page tracks
     updateCurrentPageTracks()
     
-    // Only fetch stats if this is new recommendations
-    if (isNewRecommendations) {
-      // console.log('🎵 FETCHING STATS for new recommendations')
-      // Clear previously tracked stats for completely new recommendation set
-      tracksWithStatsFetched.value.clear()
-      // Only fetch stats for currently displayed tracks (lazy loading)
-      const currentPageDisplayTracks = displayRecommendations.value
-      // console.log('🎵 Fetching stats for CURRENT PAGE only, tracks:', currentPageDisplayTracks.slice(0, 5).map(t => `${t.artist} - ${t.name}`))
-      // Optimized stats fetching: Get first batch immediately, rest in background
-      await fetchLastFmStatsOptimized(currentPageDisplayTracks)
-    } else {
-      // console.log('🎵 SKIPPING STATS FETCH - not new recommendations')
-    }
+    // Last.fm stats fetching disabled
+    // No longer fetching Last.fm stats
     
     // console.log('👀 WATCH COMPLETE')
   }

@@ -27,7 +27,7 @@
             <input
               v-model="searchQuery"
               type="text"
-              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg"
+              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
               placeholder="Search for a track"
               @input="onSearchInput"
             >
@@ -640,6 +640,13 @@ const loadUserPreferences = async () => {
 </script>
 
 <style scoped>
+.search-input::placeholder {
+  text-align: center;
+}
+
+.search-input:focus::placeholder {
+  opacity: 0;
+}
 .seed-selection {
   max-width: 100%;
 }

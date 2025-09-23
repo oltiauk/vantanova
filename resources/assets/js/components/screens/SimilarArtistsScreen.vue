@@ -48,7 +48,7 @@
                 <input
                   v-model="searchQuery"
                   type="text"
-                  class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg"
+                  class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
                   placeholder="Search for an artist"
                   @input="onSearchInput"
                 >
@@ -158,37 +158,6 @@
           <h3 class="text-lg font-semibold">
             Similar Artists ({{ filteredArtists.length }})
           </h3>
-
-          <!-- Sort by Dropdown -->
-          <div class="relative">
-            <button
-              class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
-              style="background-color: rgba(47, 47, 47, 255) !important;"
-              @click="toggleLikesRatioDropdown"
-              @blur="hideLikesRatioDropdown"
-            >
-              Sort by: {{ getSortText() }}
-              <Icon :icon="faChevronDown" class="text-xs" />
-            </button>
-
-            <!-- Dropdown Menu -->
-            <div
-              v-if="showLikesRatioDropdown"
-              class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-50"
-              style="background-color: rgb(67,67,67,255);"
-            >
-              <button
-                v-for="option in sortOptions"
-                :key="option.value"
-                class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition"
-                :class="option.value === 'match' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length - 1].value ? 'rounded-b-lg' : '')"
-                :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
-                @mousedown.prevent="setLikesRatioFilter(option.value)"
-              >
-                {{ option.label }}
-              </button>
-            </div>
-          </div>
         </div>
 
         <div class="bg-white/5 rounded-lg overflow-hidden relative z-10">
@@ -199,9 +168,6 @@
                   <th class="text-left p-3 py-7 font-medium">#</th>
                   <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
                   <th class="text-left p-3 font-medium w-1/3">Name(s)</th>
-                  <th class="text-center p-3 font-medium">Listeners</th>
-                  <th class="text-center p-3 font-medium">Streams</th>
-                  <th class="text-center p-3 font-medium">S/L Ratio</th>
                   <th class="text-center p-3 font-medium">Match</th>
                   <th class="text-left p-3 font-medium" />
                 </tr>
@@ -241,55 +207,9 @@
 
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
-                      <button
-                        class="font-medium text-white hover:text-[#9d0cc6] transition-colors cursor-pointer text-left"
-                        :title="`View ${artist.name} on Last.fm`"
-                        @click="openLastFmArtistPage(artist)"
-                      >
+                      <span class="font-medium text-white">
                         {{ artist.name }}
-                      </button>
-                    </td>
-
-                    <!-- Listeners -->
-                    <td class="p-3 align-middle">
-                      <div v-if="artist.listeners" class="flex items-center justify-center text-white/80">
-                        {{ formatListeners(artist.listeners) }}
-                      </div>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
-                        <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      </div>
-                      <div v-else class="flex items-center justify-center text-white/30">-</div>
-                    </td>
-
-                    <!-- Streams/Playcount -->
-                    <td class="p-3 align-middle">
-                      <div v-if="artist.playcount" class="flex items-center justify-center text-white/80">
-                        {{ formatPlaycount(artist.playcount) }}
-                      </div>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
-                        <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      </div>
-                      <div v-else class="flex items-center justify-center text-white/30">-</div>
-                    </td>
-
-                    <!-- S/L Ratio -->
-                    <td class="p-3 align-middle">
-                      <div v-if="artist.listeners && artist.playcount" class="flex items-center justify-center text-white/80">
-                        {{ calculateSLRatio(artist.playcount, artist.listeners) }}
-                      </div>
-                      <div v-else-if="loadingListeners.has(artist.mbid)" class="flex items-center justify-center">
-                        <svg class="w-4 h-4 animate-spin text-[#9d0cc6]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      </div>
-                      <div v-else class="flex items-center justify-center text-white/30">-</div>
+                      </span>
                     </td>
 
                     <!-- Match Score -->
@@ -310,18 +230,18 @@
                         </button>
                         <button
                           :disabled="loadingPreviewArtist === artist.name"
-                          class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[90px] justify-center"
+                          class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-[105px] justify-center"
                           @click="previewArtist(artist)"
                         >
                           <!-- Loading spinner when processing -->
-                          <svg v-if="loadingPreviewArtist === artist.name" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <svg v-if="loadingPreviewArtist === artist.name" class="animate-spin h-3 w-3 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                             <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                           </svg>
                           <!-- Regular icon when not processing -->
-                          <img v-if="currentlyPreviewingArtist !== artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                          <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                          <span :class="loadingPreviewArtist === artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close' : 'Preview') }}</span>
+                          <img v-if="loadingPreviewArtist !== artist.name && currentlyPreviewingArtist !== artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain flex-shrink-0">
+                          <Icon v-else-if="loadingPreviewArtist !== artist.name && currentlyPreviewingArtist === artist.name" :icon="faTimes" class="w-3 h-3 flex-shrink-0" />
+                          <span>{{ loadingPreviewArtist === artist.name ? 'Loading' : (currentlyPreviewingArtist === artist.name ? 'Close' : 'Preview') }}</span>
                         </button>
                       </div>
                     </td>
@@ -354,7 +274,7 @@
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackSaved(track)
                                     ? 'bg-green-600 hover:bg-green-700 text-white'
-                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
                                   @click="saveTrack(track)"
@@ -367,7 +287,7 @@
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackBanned(track)
                                     ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
                                   @click="banTrack(track)"
@@ -399,7 +319,7 @@
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackSaved(track)
                                     ? 'bg-green-600 hover:bg-green-700 text-white'
-                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
                                   @click="saveTrack(track)"
@@ -412,7 +332,7 @@
                                   :disabled="processingTrack === getTrackKey(track)"
                                   :class="isTrackBanned(track)
                                     ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                    : 'bg-gray-600 hover:bg-gray-500 text-white'"
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                                   :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
                                   @click="banTrack(track)"
@@ -812,7 +732,11 @@ const banArtist = async (artist: LastfmArtist) => {
 
 // Track management functions (from RecommendationsTable.vue)
 const saveTrack = async (track: SpotifyTrack) => {
+  console.log('🚀 [SIMILAR ARTISTS] saveTrack CALLED!')
+  console.log('🚀 [SIMILAR ARTISTS] Track passed in:', track)
+
   const trackKey = getTrackKey(track)
+  console.log('🚀 [SIMILAR ARTISTS] Track key:', trackKey)
 
   if (isTrackSaved(track)) {
     // Unsave track: Update UI immediately for better UX
@@ -830,21 +754,77 @@ const saveTrack = async (track: SpotifyTrack) => {
       // Failed to save unsaved tracks to localStorage
     }
   } else {
-    // Save track - show processing state
-    processingTrack.value = trackKey
+    // Save track - Update UI immediately for instant feedback
+    savedTracks.value.add(trackKey)
+    clientUnsavedTracks.value.delete(trackKey)
 
+    // Do backend work in background without blocking UI
     try {
-      const response = await http.post('music-preferences/save-track', {
+      console.log('🎵 [SIMILAR ARTISTS] Starting to save track:', track.name, 'by', track.artists?.[0]?.name)
+      console.log('🎵 [SIMILAR ARTISTS] Track object:', track)
+
+      // Extract metadata from the Spotify track object
+      let label = ''
+      let popularity = track.popularity || 0
+      let followers = 0
+      let releaseDate = ''
+      let previewUrl = track.preview_url || null
+
+      console.log('🎵 [SIMILAR ARTISTS] Initial metadata - label:', label, 'popularity:', popularity, 'followers:', followers, 'releaseDate:', releaseDate)
+
+      // Check if we need to fetch additional metadata
+      const needsEnhancedMetadata = !label || !releaseDate
+
+      console.log('🎵 [SIMILAR ARTISTS] needsEnhancedMetadata:', needsEnhancedMetadata)
+
+      if (needsEnhancedMetadata) {
+        try {
+          console.log('🎵 [SIMILAR ARTISTS] Fetching enhanced metadata from API...')
+          const response = await http.get('music-discovery/track-preview', {
+            params: {
+              artist_name: track.artists?.[0]?.name || 'Unknown',
+              track_title: track.name,
+              source: 'spotify',
+              track_id: track.id
+            }
+          })
+
+          console.log('🎵 [SIMILAR ARTISTS] Enhanced data response:', response)
+
+          if (response.success && response.data && response.data.metadata) {
+            const metadata = response.data.metadata
+            label = metadata.label || label
+            popularity = metadata.popularity || popularity
+            followers = metadata.followers || followers
+            releaseDate = metadata.release_date || releaseDate
+            previewUrl = metadata.preview_url || previewUrl
+
+            console.log('🎵 [SIMILAR ARTISTS] Updated metadata - label:', label, 'popularity:', popularity, 'followers:', followers, 'releaseDate:', releaseDate)
+          }
+        } catch (error) {
+          console.warn('🎵 [SIMILAR ARTISTS] Failed to fetch enhanced metadata, using basic data:', error)
+        }
+      }
+
+      const savePayload = {
         isrc: track.id,
         track_name: track.name,
         artist_name: track.artists?.[0]?.name || 'Unknown',
         spotify_id: track.id,
-      })
+        label: label,
+        popularity: popularity,
+        followers: followers,
+        release_date: releaseDate,
+        preview_url: previewUrl
+      }
+
+      console.log('🎵 [SIMILAR ARTISTS] Sending save request with payload:', savePayload)
+
+      const response = await http.post('music-preferences/save-track', savePayload)
+
+      console.log('🎵 [SIMILAR ARTISTS] Save response:', response)
 
       if (response.success) {
-        savedTracks.value.add(trackKey)
-        // Remove from client unsaved tracks if it was previously unsaved
-        clientUnsavedTracks.value.delete(trackKey)
         // Update localStorage
         try {
           const unsavedList = Array.from(clientUnsavedTracks.value)
@@ -853,12 +833,14 @@ const saveTrack = async (track: SpotifyTrack) => {
           // Failed to update unsaved tracks in localStorage
         }
       } else {
+        // Revert UI change if backend failed
+        savedTracks.value.delete(trackKey)
         throw new Error(response.error || 'Failed to save track')
       }
     } catch (error: any) {
       console.error('Failed to save track:', error)
-    } finally {
-      processingTrack.value = null
+      // Revert UI change if request failed
+      savedTracks.value.delete(trackKey)
     }
   }
 }
@@ -1005,51 +987,8 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
 
 // Load listeners counts for current page artists only
 const loadPageListenersCounts = async () => {
-  const startIndex = (currentPage.value - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const pageArtists = filteredArtists.value.slice(startIndex, endIndex)
-  const artistsWithMbids = pageArtists.filter(artist => artist.mbid && artist.mbid.trim() && !artist.listeners)
-
-  if (artistsWithMbids.length === 0) {
-    return
-  }
-
-  loadingPageListeners.value = true
-
-  // Mark artists as loading
-  artistsWithMbids.forEach(artist => {
-    loadingListeners.value.add(artist.mbid!)
-  })
-
-  try {
-    const mbids = artistsWithMbids.map(artist => artist.mbid!)
-    const response = await http.post('similar-artists/batch-listeners', {
-      mbids,
-    })
-
-    if (response.success && response.data) {
-      // Update artists with listeners count and playcount
-      Object.entries(response.data).forEach(([mbid, data]: [string, any]) => {
-        const artist = similarArtists.value.find(a => a.mbid === mbid)
-        if (artist && data.listeners) {
-          artist.listeners = data.listeners
-          artist.playcount = data.playcount
-        }
-      })
-
-      // Update displayed artists
-      updateDisplayedArtists()
-    }
-  } catch (error: any) {
-    console.error('Failed to load listeners counts:', error)
-    // Continue without listener data - don't block the UI
-  } finally {
-    // Clear loading states
-    artistsWithMbids.forEach(artist => {
-      loadingListeners.value.delete(artist.mbid!)
-    })
-    loadingPageListeners.value = false
-  }
+  // Last.fm listeners/playcount fetching disabled - data not displayed
+  return
 }
 
 // Spotify preview functionality
@@ -1629,6 +1568,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.search-input::placeholder {
+  text-align: center;
+}
+
+.search-input:focus::placeholder {
+  opacity: 0;
+}
 .similar-artists-screen {
   width: 100%;
   margin: 0;
