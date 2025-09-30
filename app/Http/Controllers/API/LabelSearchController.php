@@ -23,19 +23,24 @@ class LabelSearchController extends Controller
         }
 
         $label = $request->validated('label');
+        $includeNew = $request->validated('new', false);
         $includeHipster = $request->validated('hipster', false);
-        $releaseDateFilter = $request->validated('release_date');
+        $releaseYear = $request->validated('release_year');
 
         try {
             // Try exact label search first
             $query = 'label:"' . $label . '"';
 
+            if ($includeNew) {
+                $query .= ' tag:new';
+            }
+
             if ($includeHipster) {
                 $query .= ' tag:hipster';
             }
 
-            if ($releaseDateFilter) {
-                $query .= $this->buildDateFilter($releaseDateFilter);
+            if ($releaseYear) {
+                $query .= " year:$releaseYear";
             }
 
             // Search for albums with increased limit
@@ -45,12 +50,16 @@ class LabelSearchController extends Controller
             if (empty($searchResults['albums']['items'])) {
                 $broadQuery = '"' . $label . '"'; // Search album/artist names for label
 
+                if ($includeNew) {
+                    $broadQuery .= ' tag:new';
+                }
+
                 if ($includeHipster) {
                     $broadQuery .= ' tag:hipster';
                 }
 
-                if ($releaseDateFilter) {
-                    $broadQuery .= $this->buildDateFilter($releaseDateFilter);
+                if ($releaseYear) {
+                    $broadQuery .= " year:$releaseYear";
                 }
 
                 Log::info('Trying broader search', ['broad_query' => $broadQuery]);
@@ -197,27 +206,26 @@ class LabelSearchController extends Controller
             }
 
             if ($mostPopularTrack) {
-                // Determine if this is a single-track release or multi-track album
                 $trackCount = count($albumTracks);
                 $isSingleTrack = $trackCount === 1;
+                $actualLabel = $album['label'] ?? $searchLabel;
 
                 $track = [
                     'spotify_id' => $mostPopularTrack['id'],
-                    'album_id' => $album['id'], // Always include album ID
+                    'album_id' => $album['id'],
                     'isrc' => $mostPopularTrack['external_ids']['isrc'] ?? null,
                     'track_name' => $mostPopularTrack['name'],
-                    'release_name' => $album['name'], // Use album name as release name
+                    'release_name' => $album['name'],
                     'artist_name' => $mostPopularTrack['artists'][0]['name'] ?? 'Unknown Artist',
                     'artist_id' => $mostPopularTrack['artists'][0]['id'] ?? null,
                     'album_name' => $album['name'],
                     'album_cover' => $album['images'][0]['url'] ?? null,
-                    'label' => $searchLabel,
+                    'label' => $actualLabel,
                     'popularity' => $mostPopularTrack['popularity'] ?? 0,
                     'release_date' => $album['release_date'] ?? null,
                     'preview_url' => $mostPopularTrack['preview_url'] ?? null,
                     'track_count' => $trackCount,
                     'is_single_track' => $isSingleTrack,
-                    // Use track URL for singles, album URL for multi-track releases
                     'spotify_release_url' => $isSingleTrack
                         ? ($mostPopularTrack['external_urls']['spotify'] ?? null)
                         : ($album['external_urls']['spotify'] ?? null),
@@ -226,21 +234,56 @@ class LabelSearchController extends Controller
                     'spotify_artist_url' => $mostPopularTrack['artists'][0]['external_urls']['spotify'] ?? null,
                 ];
 
-                // Debug log preview URL status
                 Log::info('Track added to results', [
                     'track_name' => $track['track_name'],
-                    'preview_url' => $track['preview_url'] ? 'available' : 'null',
-                    'preview_url_value' => $track['preview_url']
+                    'actual_label' => $actualLabel,
+                    'search_label' => $searchLabel,
+                    'preview_url' => $track['preview_url'] ? 'available' : 'null'
                 ]);
 
                 $tracks[] = $track;
             }
         }
 
-        // Sort by popularity (highest first)
+        $tracks = $this->filterByLabelMatch($tracks, $searchLabel);
+
         usort($tracks, fn($a, $b) => $b['popularity'] <=> $a['popularity']);
 
-        return array_slice($tracks, 0, 20); // Limit to 20 tracks
+        return array_slice($tracks, 0, 20);
+    }
+
+    private function filterByLabelMatch(array $tracks, string $searchLabel): array
+    {
+        return array_filter($tracks, function($track) use ($searchLabel) {
+            $actualLabel = $track['label'] ?? '';
+
+            if (empty($actualLabel)) {
+                return false;
+            }
+
+            $searchLower = strtolower($searchLabel);
+            $actualLower = strtolower($actualLabel);
+
+            if (stripos($actualLabel, $searchLabel) !== false) {
+                return true;
+            }
+
+            if (stripos($searchLabel, $actualLabel) !== false) {
+                return true;
+            }
+
+            similar_text($actualLower, $searchLower, $percent);
+            $isMatch = $percent >= 70;
+
+            Log::info('Label match check', [
+                'search_label' => $searchLabel,
+                'actual_label' => $actualLabel,
+                'similarity_percent' => $percent,
+                'is_match' => $isMatch
+            ]);
+
+            return $isMatch;
+        });
     }
 
     private function addUserPreferenceStatus(array $tracks): array
@@ -267,37 +310,4 @@ class LabelSearchController extends Controller
         }, $tracks);
     }
 
-    /**
-     * Build Spotify date filter query based on time period
-     */
-    private function buildDateFilter(string $period): string
-    {
-        $now = now();
-
-        switch ($period) {
-            case '1w':
-                $startDate = $now->subWeek()->format('Y');
-                return " year:$startDate-" . now()->format('Y');
-            case '1m':
-                $startDate = $now->subMonth()->format('Y');
-                return " year:$startDate-" . now()->format('Y');
-            case '3m':
-                $startDate = $now->subMonths(3)->format('Y');
-                return " year:$startDate-" . now()->format('Y');
-            case '6m':
-                $startDate = $now->subMonths(6)->format('Y');
-                return " year:$startDate-" . now()->format('Y');
-            case '1y':
-                $startDate = $now->subYear()->format('Y');
-                return " year:$startDate-" . now()->format('Y');
-            case '2y':
-                $startDate = $now->subYears(2)->format('Y');
-                return " year:$startDate-" . now()->format('Y');
-            case '5y':
-                $startDate = $now->subYears(5)->format('Y');
-                return " year:$startDate-" . now()->format('Y');
-            default:
-                return '';
-        }
-    }
 }

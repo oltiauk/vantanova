@@ -10,105 +10,150 @@
     </template>
 
     <div class="wrapper">
-      <div class="search-form max-w-2xl mx-auto space-y-6">
+      <div class="search-form max-w-xl mx-auto space-y-6">
         <!-- Search Input -->
         <div class="relative">
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Enter label name (e.g., Warp Records)"
-            class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:border-k-accent focus:outline-none"
+            placeholder="Search for a Record Label  "
+            class="w-full px-4 py-3 rounded-lg bg-white/10 border-0 focus:outline-none search-input"
             @keyup.enter="performSearch"
-          />
+          >
         </div>
 
         <!-- Filters -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Popularity Toggle -->
-          <div class="flex items-center space-x-3">
+        <div class="flex items-center justify-center gap-32">
+          <!-- Fresh Drops Toggle -->
+          <div class="flex items-center gap-x-3">
+            <div class="flex flex-col items-center">
+              <span class="text-base font-medium text-white whitespace-nowrap">Fresh Drops</span>
+              <span class="text-xs text-white/60 whitespace-nowrap">(2 weeks)</span>
+            </div>
             <button
-              @click="popularityFilter = !popularityFilter"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                popularityFilter ? 'bg-k-accent' : 'bg-gray-600'
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none" :class="[
+                freshDropsFilter ? 'bg-k-accent' : 'bg-gray-600',
               ]"
+              @click="handleFreshDropsToggle"
             >
               <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  popularityFilter ? 'translate-x-5' : 'translate-x-0'
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[
+                  freshDropsFilter ? 'translate-x-5' : 'translate-x-0',
                 ]"
               />
             </button>
-            <span class="text-white/80">Popularity &lt;10%</span>
           </div>
 
-          <!-- Release Date Filter -->
-          <div>
-            <label class="block text-sm font-medium mb-2 text-white/80">Release Date</label>
-            <select
-              v-model="releaseDateFilter"
-              class="w-full p-2 bg-white/10 rounded focus:border-k-accent text-white"
+          <!-- Release Year Filter -->
+          <div class="flex items-center gap-3">
+            <label class="text-base font-medium text-white/80 whitespace-nowrap">Release Year</label>
+            <input
+              v-model="releaseYearFilter"
+              type="text"
+              placeholder="Type a year"
+              class="py-2.5 px-3 bg-white/10 rounded border-0 focus:outline-none text-white placeholder-white/40 placeholder:text-xs text-xs w-24 text-center"
+              @input="handleReleaseYearChange"
             >
-              <option value="" class="bg-gray-800">All Time</option>
-              <option value="1w" class="bg-gray-800">Last Week</option>
-              <option value="1m" class="bg-gray-800">Last Month</option>
-              <option value="3m" class="bg-gray-800">Last 3 Months</option>
-              <option value="6m" class="bg-gray-800">Last 6 Months</option>
-              <option value="1y" class="bg-gray-800">Last Year</option>
-              <option value="2y" class="bg-gray-800">Last 2 Years</option>
-              <option value="5y" class="bg-gray-800">Last 5 Years</option>
-            </select>
+          </div>
+
+          <!-- Hidden Gems Toggle -->
+          <div class="flex items-center gap-x-3">
+            <div class="flex flex-col items-center ">
+              <span class="text-base font-medium text-white whitespace-nowrap">Hidden Gems</span>
+            </div>
+            <button
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none" :class="[
+                popularityFilter ? 'bg-k-accent' : 'bg-gray-600',
+              ]"
+              @click="popularityFilter = !popularityFilter"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[
+                  popularityFilter ? 'translate-x-5' : 'translate-x-0',
+                ]"
+              />
+            </button>
           </div>
         </div>
 
         <!-- Search Button -->
         <div class="flex justify-center">
           <button
-            @click="performSearch"
             :disabled="!searchQuery.trim() || isLoading"
             class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-k-accent/90 transition-colors"
+            @click="performSearch"
           >
-            <Icon v-if="isLoading" :icon="faSpinner" spin class="mr-2" />
-            {{ isLoading ? 'Searching...' : 'Search' }}
+            Search
           </button>
         </div>
       </div>
 
+      <!-- Loading State -->
+      <div v-if="isLoading" class="text-center p-12">
+        <div class="inline-flex flex-col items-center">
+          <svg class="w-8 h-8 animate-spin text-[#9d0cc6] mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        </div>
+      </div>
+
       <!-- Error Message -->
-      <div v-if="errorMessage" class="mt-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-200 text-center">
+      <div v-else-if="errorMessage" class="mt-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-200 text-center">
         {{ errorMessage }}
       </div>
 
       <!-- Results Table -->
-      <div v-if="tracks.length > 0" class="mt-8"> 
-        <h3 class="text-xl font-medium mb-4">
-          Found {{ tracks.length }} tracks from "{{ lastSearchQuery }}"
-        </h3>
+      <div v-else-if="filteredTracks.length > 0" class="mt-8">
+        <!-- Results Header -->
+        <div class="mb-4">
+          <h3 class="text-lg font-medium text-white">Found {{ filteredTracks.length }} tracks from "{{ lastSearchQuery }}"</h3>
+        </div>
 
         <div class="bg-white/5 rounded-lg overflow-hidden">
           <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full">
               <thead>
                 <tr class="border-b border-white/10">
-                  <th class="text-left py-4 px-3 font-medium">#</th>
+                  <th class="text-left py-7 px-3 font-medium">#</th>
+                  <th class="text-left px-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
                   <th class="text-left px-3 font-medium w-auto min-w-48">Artist</th>
-                  <th class="text-left px-3 font-medium">Release Name</th>
+                  <th class="text-left px-3 font-medium">Release Title</th>
                   <th class="text-center px-3 font-medium">Popularity</th>
                   <th class="text-center px-3 font-medium whitespace-nowrap">Release Date</th>
-                  <th class="text-center px-3 font-medium">Actions</th>
-                  <th class="text-center px-3 font-medium">Preview</th>
+                  <th class="text-center px-3 font-medium" />
+                  <th class="text-center px-3 font-medium" />
                 </tr>
               </thead>
               <tbody>
-                <template v-for="(track, index) in tracks" :key="track.spotify_id">
+                <template v-for="(track, index) in filteredTracks" :key="track.spotify_id">
                   <tr
-                    class="transition h-16 border-b border-white/5 hover:bg-white/5"
-                    :class="expandedTrackId === getTrackKey(track) ? 'bg-white/5' : ''"
+                    class="transition h-16 border-b border-white/5" :class="[
+                      expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
+                      expandedTrackId !== getTrackKey(track) ? 'track-row' : '',
+                    ]"
+                    :style="expandedTrackId !== getTrackKey(track) ? { animationDelay: `${index * 50}ms` } : {}"
                   >
                     <!-- Index -->
                     <td class="p-3 align-middle">
                       <span class="text-white/60">{{ index + 1 }}</span>
+                    </td>
+
+                    <!-- Ban Artist Button -->
+                    <td class="p-3 align-middle">
+                      <div class="flex items-center justify-center">
+                        <button
+                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
+                            isArtistBanned(track)
+                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              : 'bg-[#484948] hover:bg-gray-500 text-white',
+                          ]"
+                          :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
+                          @click="banArtist(track)"
+                        >
+                          <Icon :icon="faUserSlash" class="text-xs" />
+                        </button>
+                      </div>
                     </td>
 
                     <!-- Artist -->
@@ -122,7 +167,7 @@
                       </button>
                     </td>
 
-                    <!-- Release Name -->
+                    <!-- Release Title -->
                     <td class="p-3 align-middle">
                       <button
                         class="text-white/80 hover:text-k-accent transition-colors cursor-pointer text-left"
@@ -149,26 +194,26 @@
                       <div class="flex gap-2 justify-center">
                         <!-- Save Button (24h) -->
                         <button
-                          @click="saveTrack(track)"
                           :disabled="processingTrack === getTrackKey(track)"
                           :class="track.isSaved
                             ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
                           :title="track.isSaved ? 'Click to unsave track' : 'Save track (24h)'"
+                          @click="saveTrack(track)"
                         >
                           <Icon :icon="faHeart" class="text-xs" />
                         </button>
 
                         <!-- Blacklist Button -->
                         <button
-                          @click="banTrack(track)"
                           :disabled="processingTrack === getTrackKey(track)"
                           :class="track.isBanned
                             ? 'bg-orange-600 hover:bg-orange-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
                           :title="track.isBanned ? 'Click to unblock track' : 'Block track'"
+                          @click="banTrack(track)"
                         >
                           <Icon :icon="faBan" class="text-xs" />
                         </button>
@@ -199,8 +244,8 @@
                   <!-- Spotify Player Dropdown Row -->
                   <Transition name="spotify-dropdown" mode="out-in">
                     <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                      <td colspan="7" class="p-0 overflow-hidden">
-                        <div class="p-4 bg-white/5 relative">
+                      <td colspan="8" class="p-0 overflow-hidden">
+                        <div class="p-4 bg-white/5 relative pb-8">
                           <div class="max-w-4xl mx-auto">
                             <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
                               <iframe
@@ -228,6 +273,19 @@
                               </div>
                             </div>
                           </div>
+
+                          <!-- Spotify Login Link -->
+                          <div class="absolute bottom-2 right-4">
+                            <span class="text-xs text-white/50 font-light">
+                              <a
+                                href="https://accounts.spotify.com/login"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-white/50 hover:text-white/70 transition-colors underline"
+                              >
+                                Connect</a> to Spotify to listen to the full track
+                            </span>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -241,26 +299,31 @@
 
       <!-- No Results -->
       <div v-else-if="hasSearched && !isLoading" class="mt-8 text-center text-gray-400">
-        <p>No tracks found for "{{ lastSearchQuery }}"</p>
-        <p class="text-sm mt-2">Try adjusting your search criteria or removing filters.</p>
+        <p>No releases found for "{{ lastSearchQuery }}"</p>
+        <p class="text-sm mt-2">Try different search criteria</p>
       </div>
     </div>
   </ScreenBase>
 </template>
 
 <script lang="ts" setup>
-import { faSpinner, faPlay, faPause, faHeart, faBan, faCheck, faTimes } from '@fortawesome/free-solid-svg-icons'
-import { ref, reactive } from 'vue'
+import { faBan, faCheck, faChevronDown, faHeart, faPause, faPlay, faSpinner, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { http } from '@/services/http'
 import { logger } from '@/utils/logger'
+import { useRouter } from '@/composables/useRouter'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
 
+// Initialize router
+const { onRouteChanged } = useRouter()
+
 // Reactive state
 const searchQuery = ref('')
 const popularityFilter = ref(false)
-const releaseDateFilter = ref('')
+const freshDropsFilter = ref(false)
+const releaseYearFilter = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
 const tracks = ref([])
@@ -269,9 +332,33 @@ const lastSearchQuery = ref('')
 const expandedTrackId = ref<string | null>(null)
 const processingTrack = ref<string | null>(null)
 const isPreviewProcessing = ref(false)
+const bannedArtists = ref(new Set<string>())
 
 // Audio for previews
 let currentAudio: HTMLAudioElement | null = null
+
+// Don't filter tracks in real-time - they stay visible until next search
+// This matches SimilarArtistsScreen behavior
+const filteredTracks = computed(() => {
+  return tracks.value
+})
+
+// Handler functions for mutually exclusive filters
+const handleFreshDropsToggle = () => {
+  freshDropsFilter.value = !freshDropsFilter.value
+
+  // If Fresh Drops is activated, clear Release Year
+  if (freshDropsFilter.value && releaseYearFilter.value) {
+    releaseYearFilter.value = ''
+  }
+}
+
+const handleReleaseYearChange = () => {
+  // If Release Year is entered, deactivate Fresh Drops
+  if (releaseYearFilter.value && freshDropsFilter.value) {
+    freshDropsFilter.value = false
+  }
+}
 
 // Helper function to get unique track key
 const getTrackKey = (track: any): string => {
@@ -295,31 +382,47 @@ const formatDate = (dateString: string): string => {
       const months = Math.floor(diffDays / 30)
       return `${months} month${months === 1 ? '' : 's'} ago`
     } else {
-      const years = Math.floor(diffDays / 365)
-      return `${years} year${years === 1 ? '' : 's'} ago`
+      return dateString.split('T')[0]
     }
   } catch (error) {
-    return dateString.split('T')[0] // Return just the date part if parsing fails
+    return dateString.split('T')[0]
   }
 }
 
 const performSearch = async () => {
-  if (!searchQuery.value.trim()) return
+  if (!searchQuery.value.trim()) {
+    return
+  }
 
   isLoading.value = true
   errorMessage.value = ''
   lastSearchQuery.value = searchQuery.value
 
   try {
-    const params = new URLSearchParams({
+    // Build parameters using the working backend format
+    const params: Record<string, any> = {
       label: searchQuery.value.trim(),
-      ...(popularityFilter.value && { hipster: '1' }),
-      ...(releaseDateFilter.value && { release_date: releaseDateFilter.value })
-    })
+    }
 
-    console.log('Making request to:', `label-search?${params}`)
+    // Add filter parameters (backend will convert to Spotify format)
+    if (freshDropsFilter.value) {
+      params.new = true // Send as boolean, not string
+    }
 
-    const response = await http.get(`label-search?${params}`)
+    if (popularityFilter.value) {
+      params.hipster = true // Send as boolean, not string
+    }
+
+    if (releaseYearFilter.value) {
+      params.release_year = releaseYearFilter.value
+    }
+
+    const queryString = new URLSearchParams(params).toString()
+
+    console.log('Making request to:', `label-search?${queryString}`)
+    console.log('Parameters:', params)
+
+    const response = await http.get(`label-search?${queryString}`)
 
     // Debug logging
     console.log('Raw response object:', response)
@@ -333,18 +436,45 @@ const performSearch = async () => {
       console.log('Response after wait:', response?.data?.tracks)
     }
 
-    // Handle response safely - tracks are directly on response object in Koel
     const responseTracks = response?.tracks || response?.data?.tracks || []
 
-    // Filter out blacklisted tracks from the new search results
-    const filteredTracks = responseTracks.filter(track => !track.is_banned)
+    console.log('Searching for label:', searchQuery.value.trim())
+    console.log('Total tracks received:', responseTracks.length)
 
-    tracks.value = filteredTracks.map(track => ({
-      ...track,
-      isPlaying: false,
-      isSaved: track.is_saved || false,
-      isBanned: track.is_banned || false
-    }))
+    // Debug: Log the first track to see its structure
+    if (responseTracks.length > 0) {
+      console.log('First track structure:', responseTracks[0])
+      console.log('Track keys:', Object.keys(responseTracks[0]))
+    }
+
+    // Filter out backend-banned tracks AND locally banned artists (from bannedArtists Set)
+    const filteredTracks = responseTracks.filter(track =>
+      !track.is_banned
+      && !track.is_artist_banned
+      && !bannedArtists.value.has(track.artist_name),
+    )
+    console.log('After filtering banned tracks and artists:', filteredTracks.length)
+    console.log('Locally banned artists:', Array.from(bannedArtists.value))
+
+    tracks.value = filteredTracks
+      .map(track => ({
+        ...track,
+        isPlaying: false,
+        isSaved: track.is_saved || false,
+        isBanned: track.is_banned || false,
+      }))
+      .sort((a, b) => {
+        const dateA = new Date(a.release_date || 0).getTime()
+        const dateB = new Date(b.release_date || 0).getTime()
+        return dateB - dateA
+      })
+
+    console.log('Final tracks assigned to tracks.value:', tracks.value.length)
+    if (tracks.value.length > 0) {
+      console.log('First final track:', tracks.value[0])
+      console.log('First track release date:', tracks.value[0].release_date)
+      console.log('All release dates:', tracks.value.map(t => ({ artist: t.artist_name, date: t.release_date })))
+    }
 
     hasSearched.value = true
   } catch (error) {
@@ -352,6 +482,8 @@ const performSearch = async () => {
     console.error('Full error object:', error)
     console.error('Error response:', error.response)
     console.error('Error request:', error.request)
+
+    // Both new=true and hipster=true should now be supported
 
     // More specific error messages
     if (error.response?.status === 503) {
@@ -368,7 +500,7 @@ const performSearch = async () => {
   }
 }
 
-const togglePreview = (track) => {
+const togglePreview = track => {
   // Stop any currently playing preview
   if (currentAudio) {
     currentAudio.pause()
@@ -392,7 +524,7 @@ const togglePreview = (track) => {
   }
 }
 
-const saveTrack = async (track) => {
+const saveTrack = async track => {
   try {
     if (track.isSaved) {
       // Remove from saved tracks - update UI immediately for better UX
@@ -404,7 +536,6 @@ const saveTrack = async (track) => {
 
       // Note: We could implement a DELETE endpoint in the future if needed,
       // but for now this client-side approach works well since tracks expire anyway
-
     } else {
       // Save track
       const response = await http.post('music-preferences/save-track', {
@@ -415,7 +546,7 @@ const saveTrack = async (track) => {
         label: track.label,
         popularity: track.popularity,
         release_date: track.release_date,
-        preview_url: track.preview_url
+        preview_url: track.preview_url,
       })
 
       if (response.success) {
@@ -430,7 +561,7 @@ const saveTrack = async (track) => {
   }
 }
 
-const banTrack = async (track) => {
+const banTrack = async track => {
   try {
     if (track.isBanned) {
       // Remove from blacklist - update UI immediately for better UX
@@ -440,7 +571,7 @@ const banTrack = async (track) => {
       const deleteData = {
         isrc: track.isrc,
         track_name: track.track_name,
-        artist_name: track.artist_name
+        artist_name: track.artist_name,
       }
       const params = new URLSearchParams(deleteData)
       const response = await http.delete(`music-preferences/blacklist-track?${params}`)
@@ -456,7 +587,7 @@ const banTrack = async (track) => {
         spotify_id: track.spotify_id,
         isrc: track.isrc,
         track_name: track.track_name,
-        artist_name: track.artist_name
+        artist_name: track.artist_name,
       })
 
       if (response.success) {
@@ -482,7 +613,7 @@ const isValidSpotifyId = (id: string | null): boolean => {
 }
 
 // Spotify player functionality
-const toggleSpotifyPlayer = async (track) => {
+const toggleSpotifyPlayer = async track => {
   const trackKey = getTrackKey(track)
 
   if (expandedTrackId.value === trackKey) {
@@ -527,20 +658,20 @@ const toggleSpotifyPlayer = async (track) => {
 }
 
 // Open Spotify pages
-const openSpotifyArtistPage = (track) => {
+const openSpotifyArtistPage = track => {
   if (track.spotify_artist_url) {
     window.open(track.spotify_artist_url, '_blank')
   }
 }
 
-const openSpotifyTrackPage = (track) => {
+const openSpotifyTrackPage = track => {
   if (track.spotify_track_url) {
     window.open(track.spotify_track_url, '_blank')
   }
 }
 
 // Open appropriate Spotify page based on release type
-const openSpotifyReleasePage = (track) => {
+const openSpotifyReleasePage = track => {
   if (track.is_single_track) {
     // For single tracks, open the track page
     if (track.spotify_track_url) {
@@ -555,7 +686,7 @@ const openSpotifyReleasePage = (track) => {
 }
 
 // Enhanced notification functions for better UX
-const showTrackNotFoundNotification = (track) => {
+const showTrackNotFoundNotification = track => {
   // Create a beautiful notification instead of alert
   const notification = document.createElement('div')
   notification.className = 'fixed top-4 right-4 bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-xl shadow-2xl p-4 max-w-md z-50 animate-slide-in'
@@ -630,11 +761,184 @@ const showPreviewErrorNotification = (track, errorMessage: string) => {
     setTimeout(() => notification.remove(), 300)
   }, 8000)
 }
+
+// Check if artist is banned
+const isArtistBanned = (track: any): boolean => {
+  return bannedArtists.value.has(track.artist_name)
+}
+
+// Load banned artists from localStorage
+const loadBannedArtists = () => {
+  try {
+    const stored = localStorage.getItem('koel-banned-artists')
+    if (stored) {
+      const bannedList = JSON.parse(stored)
+      bannedArtists.value = new Set(bannedList)
+      console.log('🔴 Loaded banned artists from localStorage:', Array.from(bannedArtists.value))
+    } else {
+      console.log('🔴 No banned artists in localStorage')
+    }
+  } catch (error) {
+    console.warn('Failed to load banned artists from localStorage:', error)
+  }
+}
+
+// Save banned artists to localStorage
+const saveBannedArtists = () => {
+  try {
+    const bannedList = Array.from(bannedArtists.value)
+    localStorage.setItem('koel-banned-artists', JSON.stringify(bannedList))
+  } catch (error) {
+    console.warn('Failed to save banned artists to localStorage:', error)
+  }
+}
+
+// Ban/Unban an artist
+const banArtist = async (track: any) => {
+  expandedTrackId.value = null
+
+  const artistName = track.artist_name
+  const isCurrentlyBanned = isArtistBanned(track)
+
+  if (isCurrentlyBanned) {
+    console.log(`🔓 UNBANNING artist: ${artistName}`)
+    bannedArtists.value.delete(artistName)
+    saveBannedArtists()
+    console.log(`🔴 Banned artists after unban:`, Array.from(bannedArtists.value))
+
+    try {
+      const spotifyArtistId = track.spotify_artist_id || track.artist_id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const deleteData = {
+        artist_name: artistName,
+        spotify_artist_id: spotifyArtistId,
+      }
+      const params = new URLSearchParams(deleteData)
+      await http.delete(`music-preferences/blacklist-artist?${params}`)
+    } catch (apiError: any) {
+      console.error('Failed to remove artist from blacklist:', apiError)
+    }
+  } else {
+    console.log(`🚫 BANNING artist: ${artistName}`)
+    bannedArtists.value.add(artistName)
+    saveBannedArtists()
+    console.log(`🔴 Banned artists after ban:`, Array.from(bannedArtists.value))
+
+    try {
+      const spotifyArtistId = track.spotify_artist_id || track.artist_id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      await http.post('music-preferences/blacklist-artist', {
+        artist_name: artistName,
+        spotify_artist_id: spotifyArtistId,
+      })
+    } catch (apiError: any) {
+      console.error('Failed to add artist to blacklist:', apiError)
+    }
+  }
+
+  // NOTE: Tracks from banned artists stay visible in current results
+  // Filtering only happens when you perform a new search (matches SimilarArtistsScreen behavior)
+  console.log(`${isCurrentlyBanned ? '✅ Unbanned' : '🚫 Banned'} artist "${artistName}" - stays visible in current results`)
+}
+
+// Check for label search query from other screens
+const checkForStoredLabelQuery = () => {
+  try {
+    const storedData = localStorage.getItem('koel-label-search-query')
+    if (storedData) {
+      const labelSearchData = JSON.parse(storedData)
+
+      // Only use if it's recent (within last 5 seconds)
+      if (Date.now() - labelSearchData.timestamp < 5000) {
+        console.log('🏷️ [LABEL SEARCH] Found stored label query:', labelSearchData.query)
+        searchQuery.value = labelSearchData.query
+
+        // Reset all filters when populating from external source
+        freshDropsFilter.value = false
+        popularityFilter.value = false
+        releaseYearFilter.value = ''
+
+        // Only populate the search bar, don't auto-perform search
+        // This allows users to select options before searching
+        console.log('🏷️ [LABEL SEARCH] Search query populated and filters reset, user can now select options before searching')
+
+        // Clear the stored data after using it
+        localStorage.removeItem('koel-label-search-query')
+      } else {
+        // Clear stale data
+        localStorage.removeItem('koel-label-search-query')
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load label search query from localStorage:', error)
+  }
+}
+
+// Check on mount
+onMounted(() => {
+  loadBannedArtists()
+  // Set initial banned count after loading
+  previousBannedCount.value = bannedArtists.value.size
+  checkForStoredLabelQuery()
+})
+
+// Track the banned artists count to detect changes
+const previousBannedCount = ref(0)
+
+// Reset filters to default state
+const resetFilters = () => {
+  freshDropsFilter.value = false
+  popularityFilter.value = false
+  releaseYearFilter.value = ''
+  console.log('🏷️ [LABEL SEARCH] Filters reset to default state')
+}
+
+// Also check when navigating to this screen
+onRouteChanged(route => {
+  if (route.screen === 'LabelSearch') {
+    console.log('🏷️ [LABEL SEARCH] Navigated to LabelSearch screen')
+
+    // Reset filters first to ensure clean state
+    resetFilters()
+
+    // Reload banned artists from localStorage to get latest changes
+    loadBannedArtists()
+
+    // Check if banned artists changed while we were away
+    const currentBannedCount = bannedArtists.value.size
+    const bannedCountChanged = previousBannedCount.value !== currentBannedCount
+
+    console.log('🏷️ [LABEL SEARCH] Previous banned count:', previousBannedCount.value, 'Current:', currentBannedCount)
+
+    // If we have search results AND the banned list changed, re-run the search
+    if (tracks.value.length > 0 && bannedCountChanged && lastSearchQuery.value) {
+      console.log('🏷️ [LABEL SEARCH] Banned artists changed, re-running search to update results')
+      searchQuery.value = lastSearchQuery.value
+      performSearch()
+    }
+
+    // Update the count for next comparison
+    previousBannedCount.value = currentBannedCount
+
+    // Check for stored query AFTER resetting filters
+    checkForStoredLabelQuery()
+  }
+})
 </script>
 
 <style lang="postcss" scoped>
 .wrapper {
   @apply p-6 max-w-7xl mx-auto;
+}
+
+/* Hide placeholders on focus */
+input:focus::placeholder {
+  opacity: 0;
+}
+
+/* Center placeholder text in search input */
+.search-input::placeholder {
+  text-align: center;
 }
 
 .spotify-dropdown-enter-active,
@@ -681,6 +985,34 @@ const showPreviewErrorNotification = (track, errorMessage: string) => {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* Dropdown transition */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* Track rows progressive display animation */
+.track-row {
+  animation: fadeInUp 0.6s ease-out both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

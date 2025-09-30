@@ -161,7 +161,19 @@
 
                   <!-- Label -->
                   <td class="p-3 align-middle text-center">
-                    <span class="text-white/80 text-sm">{{ track.label || '-' }}</span>
+                    <template v-if="track.label && track.label !== 'Unknown Label'">
+                      <template v-for="(label, labelIndex) in track.label.split('/')" :key="labelIndex">
+                        <button
+                          class="text-white/80 text-sm hover:text-[#9d0cc6] transition-colors cursor-pointer"
+                          :title="`Search for ${label.trim()} label`"
+                          @click="searchByLabel(label.trim())"
+                        >
+                          {{ label.trim() }}
+                        </button>
+                        <span v-if="labelIndex < track.label.split('/').length - 1" class="text-white/60 text-sm mx-1">/</span>
+                      </template>
+                    </template>
+                    <span v-else class="text-white/80 text-sm">{{ track.label || '-' }}</span>
                   </td>
 
                   <!-- Popularity -->
@@ -1026,6 +1038,23 @@ const copyTrackInfo = async (track: SavedTrack) => {
       console.error('Clipboard fallback also failed:', fallbackError)
     }
   }
+}
+
+const searchByLabel = (label: string) => {
+  console.log('🏷️ [SAVED TRACKS] Searching by label:', label)
+
+  // Store the label search query in localStorage for LabelSearchScreen to pick up
+  const labelSearchData = {
+    query: label,
+    source: 'savedTracks',
+    timestamp: Date.now()
+  }
+
+  localStorage.setItem('koel-label-search-query', JSON.stringify(labelSearchData))
+  console.log('🏷️ [SAVED TRACKS] Stored label search data:', labelSearchData)
+
+  // Navigate to label search screen
+  window.location.hash = '#/label-search'
 }
 
 // Reset pagination when search or sort changes

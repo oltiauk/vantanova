@@ -221,27 +221,27 @@
                     <td class="p-3 align-middle">
                       <div class="flex gap-2 justify-end">
                         <button
-                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition flex items-center gap-1 min-w-[90px] justify-center"
+                          class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                           title="Find Similar Artists"
                           @click="findSimilarArtists(artist)"
                         >
-                          <Icon :icon="faSearch" class="w-3 h-3" />
-                          Similars
+                          <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
+                          <span>Similars</span>
                         </button>
                         <button
                           :disabled="loadingPreviewArtist === artist.name"
-                          class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-[105px] justify-center"
+                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                           @click="previewArtist(artist)"
                         >
                           <!-- Loading spinner when processing -->
-                          <svg v-if="loadingPreviewArtist === artist.name" class="animate-spin h-3 w-3 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <svg v-if="loadingPreviewArtist === artist.name" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                             <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                           </svg>
                           <!-- Regular icon when not processing -->
-                          <img v-if="loadingPreviewArtist !== artist.name && currentlyPreviewingArtist !== artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain flex-shrink-0">
-                          <Icon v-else-if="loadingPreviewArtist !== artist.name && currentlyPreviewingArtist === artist.name" :icon="faTimes" class="w-3 h-3 flex-shrink-0" />
-                          <span>{{ loadingPreviewArtist === artist.name ? 'Loading' : (currentlyPreviewingArtist === artist.name ? 'Close' : 'Preview') }}</span>
+                          <img v-if="currentlyPreviewingArtist !== artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                          <Icon v-else :icon="faTimes" class="w-3 h-3" />
+                          <span :class="loadingPreviewArtist === artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close' : 'Preview') }}</span>
                         </button>
                       </div>
                     </td>
