@@ -87,8 +87,6 @@ import SidebarItem from '@/components/layout/main-wrapper/sidebar/SidebarItem.vu
 import SoundCloudSidebarItem from './SoundCloudSidebarItem.vue'
 
 const { onRouteChanged, url } = useRouter()
-const { isAdmin } = useAuthorization()
-const { allowsUpload } = useUpload()
 const { isPlus } = useKoelPlus()
 const { get: lsGet, set: lsSet } = useLocalStorage()
 
@@ -97,7 +95,7 @@ const expanded = ref(!lsGet('sidebar-collapsed', false))
 
 watch(expanded, value => lsSet('sidebar-collapsed', !value))
 
-const showManageSection = computed(() => isAdmin.value || allowsUpload.value)
+const showManageSection = true // Always show Manage section (Saved/Banned tracks available to all users)
 
 let tmpShowingHandler: number | undefined
 const tmpShowing = ref(false)

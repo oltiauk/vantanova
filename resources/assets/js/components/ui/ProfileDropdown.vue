@@ -1,0 +1,122 @@
+<template>
+  <div ref="dropdown" class="profile-dropdown-wrapper">
+    <button
+      ref="triggerButton"
+      class="profile-btn w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer"
+      @click="toggleMenu"
+    >
+      <Icon :icon="faUser" fixed-width />
+    </button>
+
+    <Teleport to="body">
+      <Transition name="dropdown">
+        <div
+          v-if="isOpen"
+          ref="dropdownMenu"
+          :style="{ top: dropdownTop, left: dropdownLeft }"
+          class="fixed w-48 bg-k-bg-secondary rounded-lg shadow-lg py-2 z-[9999] border border-white/10"
+        >
+          <button
+            class="w-full px-4 py-2.5 text-left hover:bg-white/10 transition flex items-center gap-3 text-k-text-primary"
+            @click="goToProfile"
+          >
+            <Icon :icon="faUser" fixed-width />
+            Profile
+          </button>
+          <button
+            v-if="isAdmin"
+            class="w-full px-4 py-2.5 text-left hover:bg-white/10 transition flex items-center gap-3 text-k-text-primary"
+            @click="goToUsers"
+          >
+            <Icon :icon="faUsers" fixed-width />
+            Users
+          </button>
+          <button
+            v-if="isAdmin"
+            class="w-full px-4 py-2.5 text-left hover:bg-white/10 transition flex items-center gap-3 text-k-text-primary"
+            @click="goToSettings"
+          >
+            <Icon :icon="faTools" fixed-width />
+            Settings
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { faUser, faUsers, faTools } from '@fortawesome/free-solid-svg-icons'
+import { ref, nextTick } from 'vue'
+import { onClickOutside } from '@vueuse/core'
+import { useAuthorization } from '@/composables/useAuthorization'
+import { useRouter } from '@/composables/useRouter'
+
+const { go, url } = useRouter()
+const { isAdmin } = useAuthorization()
+
+const dropdown = ref<HTMLElement>()
+const triggerButton = ref<HTMLButtonElement>()
+const dropdownMenu = ref<HTMLElement>()
+const isOpen = ref(false)
+const dropdownTop = ref('0px')
+const dropdownLeft = ref('0px')
+
+const updateDropdownPosition = () => {
+  if (!triggerButton.value) return
+
+  const rect = triggerButton.value.getBoundingClientRect()
+  dropdownTop.value = `${rect.bottom + 8}px`
+  dropdownLeft.value = `${rect.right - 192}px` // 192px = w-48 (12rem)
+}
+
+const toggleMenu = async () => {
+  isOpen.value = !isOpen.value
+  if (isOpen.value) {
+    await nextTick()
+    updateDropdownPosition()
+  }
+}
+
+const closeMenu = () => {
+  isOpen.value = false
+}
+
+const goToProfile = () => {
+  closeMenu()
+  go(url('profile'))
+}
+
+const goToUsers = () => {
+  closeMenu()
+  go(url('users.index'))
+}
+
+const goToSettings = () => {
+  closeMenu()
+  go(url('settings'))
+}
+
+onClickOutside(dropdownMenu, closeMenu, { ignore: [triggerButton] })
+</script>
+
+<style lang="postcss" scoped>
+.profile-btn {
+  @apply text-k-text-primary;
+
+  &:hover {
+    @apply text-k-highlight;
+  }
+}
+
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+</style>

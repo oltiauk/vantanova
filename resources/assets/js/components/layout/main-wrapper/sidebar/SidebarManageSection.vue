@@ -23,31 +23,12 @@
         </template>
         Banned Artists
       </SidebarItem>
-      <SidebarItem :href="url('profile')" screen="Profile">
-        <template #icon>
-          <Icon :icon="faUser" fixed-width />
-        </template>
-        Profile
-      </SidebarItem>
-      <SidebarItem v-if="isAdmin" :href="url('users.index')" screen="Users">
-        <template #icon>
-          <Icon :icon="faUsers" fixed-width />
-        </template>
-        Users
-      </SidebarItem>
-      <SidebarItem v-if="isAdmin" :href="url('settings')" screen="Settings">
-        <template #icon>
-          <Icon :icon="faTools" fixed-width />
-        </template>
-        Settings
-      </SidebarItem>
     </ul>
   </SidebarSection>
 </template>
 
 <script lang="ts" setup>
-import { faTools, faUsers, faUser, faBan, faUserSlash, faHeart } from '@fortawesome/free-solid-svg-icons'
-import { useAuthorization } from '@/composables/useAuthorization'
+import { faBan, faUserSlash, faHeart } from '@fortawesome/free-solid-svg-icons'
 import { useRouter } from '@/composables/useRouter'
 
 import SidebarSection from '@/components/layout/main-wrapper/sidebar/SidebarSection.vue'
@@ -55,5 +36,4 @@ import SidebarSectionHeader from '@/components/layout/main-wrapper/sidebar/Sideb
 import SidebarItem from '@/components/layout/main-wrapper/sidebar/SidebarItem.vue'
 
 const { url } = useRouter()
-const { isAdmin } = useAuthorization()
 </script>

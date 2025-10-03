@@ -56,12 +56,12 @@ if (screen) {
 <style lang="postcss" scoped>
 li.current {
   a {
-    @apply text-k-text-primary !important;
+    @apply text-k-text-primary font-bold !important;
   }
 
   &::before {
-    @apply bg-k-highlight !important;
-    box-shadow: 0 0 40px 10px var(--color-highlight);
+    @apply bg-white !important;
+    box-shadow: 0 0 40px 10px rgba(255, 255, 255, 0.8);
   }
 }
 </style>

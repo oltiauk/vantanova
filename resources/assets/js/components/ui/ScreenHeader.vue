@@ -8,21 +8,29 @@
       <slot name="thumbnail" />
     </aside>
 
-    <main class="flex flex-1 gap-5 items-center overflow-hidden">
-      <div class="w-full flex-1 overflow-hidden">
+    <main class="flex flex-1 gap-5 items-center">
+      <button
+        v-if="showBackButton"
+        class="back-btn flex-shrink-0 w-10 h-10 rounded-full bg-k-bg-secondary hover:bg-k-bg-tertiary flex items-center justify-center transition-colors cursor-pointer"
+        @click="goBack"
+      >
+        <Icon :icon="faArrowLeft" fixed-width />
+      </button>
+
+      <div class="flex-1 min-w-0">
         <!-- Header Image Display -->
         <div v-if="headerImage" class="flex justify-center items-center py-4">
-          <img 
-            :src="headerImage" 
+          <img
+            :src="headerImage"
             :alt="`${$slots.default?.[0]?.children || 'Screen'} Header`"
             :class="getImageSizeClass()"
             class="w-auto object-contain"
           />
         </div>
-        
+
         <!-- Fallback for non-image headers -->
-        <div v-else>
-          <h1 class="name">
+        <div v-else class="overflow-hidden">
+          <h1 class="name truncate">
             <slot />
           </h1>
           <span v-if="$slots.meta" class="meta text-k-text-secondary hidden text-[0.9rem] leading-loose space-x-2">
@@ -31,12 +39,20 @@
         </div>
       </div>
 
-      <slot name="controls" />
+      <div class="flex items-center gap-3 flex-shrink-0 ml-auto">
+        <slot name="controls" />
+        <ProfileDropdown />
+      </div>
     </main>
   </header>
 </template>
 
 <script lang="ts" setup>
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { computed } from 'vue'
+import ProfileDropdown from '@/components/ui/ProfileDropdown.vue'
+import { useRouter } from '@/composables/useRouter'
+
 const props = withDefaults(defineProps<{
   layout?: ScreenHeaderLayout
   disabled?: boolean
@@ -49,19 +65,29 @@ const props = withDefaults(defineProps<{
   headerImage: undefined,
 })
 
+const { go, isCurrentScreen } = useRouter()
+
+const showBackButton = computed(() => {
+  return isCurrentScreen('Profile', 'Users', 'Settings')
+})
+
+const goBack = () => {
+  go(-1)
+}
+
 const getImageSizeClass = () => {
   if (!props.headerImage) return 'max-h-12'
-  
+
   // Smaller size for LastFM images
   if (props.headerImage.includes('LastFM')) {
     return 'max-h-8' // 2rem = 32px (smaller)
   }
-  
-  // Slightly larger size for SoundCloud images  
+
+  // Slightly larger size for SoundCloud images
   if (props.headerImage.includes('SoundCloud') || props.headerImage.includes('Soundcloud')) {
     return 'max-h-14' // 3.5rem = 56px (slightly larger than the previous 48px)
   }
-  
+
   // Default size
   return 'max-h-12'
 }
@@ -97,10 +123,6 @@ header.screen-header {
     .meta {
       @apply block;
     }
-
-    main {
-      @apply flex-col items-start;
-    }
   }
 
   .thumbnail-wrapper {
@@ -129,6 +151,14 @@ header.screen-header {
 
     > :slotted(*) + :slotted(*) {
       @apply ml-1 inline-block before:content-['•'] before:mr-1 before:text-k-text-secondary;
+    }
+  }
+
+  .back-btn {
+    @apply text-k-text-primary;
+
+    &:hover {
+      @apply text-k-highlight;
     }
   }
 }
