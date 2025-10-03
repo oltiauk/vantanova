@@ -116,6 +116,9 @@ class MusicPreferencesController extends Controller
             'followers' => 'sometimes|integer|nullable|min:0',
             'release_date' => 'sometimes|string|nullable',
             'preview_url' => 'sometimes|string|nullable',
+            'track_count' => 'sometimes|integer|nullable|min:1',
+            'is_single_track' => 'sometimes|boolean|nullable',
+            'album_id' => 'sometimes|string|nullable',
         ]);
 
         if ($validator->fails()) {
@@ -145,7 +148,10 @@ class MusicPreferencesController extends Controller
                 $request->popularity,
                 $request->followers,
                 $request->release_date,
-                $request->preview_url
+                $request->preview_url,
+                $request->track_count,
+                $request->is_single_track ?? true,
+                $request->album_id
             );
 
             return response()->json([

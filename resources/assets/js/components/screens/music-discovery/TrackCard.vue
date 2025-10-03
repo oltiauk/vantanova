@@ -321,7 +321,9 @@
         isrc,
         track_name: props.track.name,
         artist_name: props.track.artist,
-        spotify_id: props.track.id
+        spotify_id: props.track.id,
+        track_count: 1,
+        is_single_track: true
       })
 
       if (response.success) {

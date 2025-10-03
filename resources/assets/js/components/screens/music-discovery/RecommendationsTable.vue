@@ -39,24 +39,24 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
-      <!-- Controls -->
-      <div class="flex justify-between items-center mb-4">
+      <!-- Title above table -->
+      <div class="mb-4 max-w-6xl mx-auto">
         <h3 class="text-lg font-semibold">
           Related Tracks ({{ filteredRecommendations.length }})
         </h3>
       </div>
       
-      <div class="bg-white/5 rounded-lg overflow-hidden">
+      <div class="bg-white/5 rounded-lg overflow-hidden max-w-6xl mx-auto">
         <div class="overflow-x-auto scrollbar-hide">
           <table class="w-full">
             <thead>
               <tr class="border-b border-white/10">
-                <th class="text-left p-3 py-7 font-medium">#</th>
-                <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
+                <th class="text-left pl-3 py-7 font-medium w-10">#</th>
+                <th class="text-center pr-3 font-medium w-16 whitespace-nowrap">Ban Artist</th>
                 <th class="text-left p-3 font-medium w-auto min-w-64">Name(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
-                <th class="text-center p-3 font-medium whitespace-nowrap">Save/Ban</th>
-                <th class="text-center p-3 font-medium whitespace-nowrap"></th>
+                <th class="text-center pl-3 font-medium whitespace-nowrap">Save/Ban</th>
+                <th class="text-center pr-3 font-medium whitespace-nowrap"></th>
               </tr>
             </thead>
             <tbody>
@@ -64,7 +64,7 @@
                 <tr
                   :class="[
                     'transition h-16 border-b border-white/5',
-                    expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
+                    (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5',
                     expandedTrackId !== getTrackKey(track) && allowAnimations ? 'track-row' : ''
                   ]"
                   :style="expandedTrackId !== getTrackKey(track) && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
@@ -105,7 +105,7 @@
                   </td>
 
                   <!-- Save/Ban Actions -->
-                  <td class="p-3 align-middle">
+                  <td class="pl-3 align-middle">
                     <div class="flex gap-2 justify-center">
                       <!-- Save Button (24h) -->
                       <button
@@ -114,7 +114,7 @@
                         :class="isTrackSaved(track)
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                        class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                        class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
                         :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
                       >
                         <Icon :icon="faHeart" class="text-xs" />
@@ -127,7 +127,7 @@
                         :class="isTrackBlacklisted(track)
                           ? 'bg-orange-600 hover:bg-orange-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                        class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                        class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
                         :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Block track'"
                       >
                         <Icon :icon="faBan" class="text-xs" />
@@ -136,7 +136,7 @@
                   </td>
 
                   <!-- Related/Preview Actions -->
-                  <td class="p-3 align-middle">
+                  <td class="pr-3 align-middle">
                     <div class="flex gap-2 justify-center">
                       <!-- Related Track Button -->
                       <button
@@ -151,19 +151,14 @@
 
                       <!-- Preview Button -->
                       <button
-                        @click="(track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track)"
+                        @click="expandedTrackId === getTrackKey(track) ? (expandedTrackId = null) : ((track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track))"
                         :disabled="processingTrack === getTrackKey(track)"
                         class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                       >
-                        <!-- Loading spinner when processing -->
-                        <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
                         <!-- Regular icon when not processing -->
-                        <img v-if="expandedTrackId !== getTrackKey(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                        <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                        <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
+                        <img v-if="expandedTrackId !== getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                        <Icon v-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
+                        <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
                       </button>
                     </div>
                   </td>
@@ -171,11 +166,20 @@
 
                 <!-- Spotify Player Dropdown Row with Animation -->
                 <Transition name="spotify-dropdown" mode="out-in">
-                  <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
+                  <tr v-if="expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
                     <td colspan="6" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative">
                         <div class="max-w-4xl mx-auto">
-                          <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'">
+                          <!-- Loading State -->
+                          <div v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
+                            <div class="flex items-center gap-3">
+                              <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
+                              <span class="text-k-text-secondary">Loading Track...</span>
+                            </div>
+                          </div>
+
+                          <!-- Spotify Embed -->
+                          <div v-else-if="track.id && track.id !== 'NO_TRACK_FOUND'">
                           <iframe
                             :key="track.id"
                             :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
@@ -190,18 +194,20 @@
                             @error="() => {}"
                           ></iframe>
                         </div>
+
+                          <!-- No Preview Available -->
                           <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
                           <div class="text-center text-white/60">
                             <div class="text-sm font-medium">No Spotify preview available</div>
                           </div>
                         </div>
-                        
+
                         <!-- Spotify Login Link -->
                         <div class="absolute bottom-2 right-4">
                           <span class="text-xs text-white/50 font-light">
-                            <a 
-                              href="https://accounts.spotify.com/login" 
-                              target="_blank" 
+                            <a
+                              href="https://accounts.spotify.com/login"
+                              target="_blank"
                               rel="noopener noreferrer"
                               class="text-white/50 hover:text-white/70 transition-colors underline"
                             >
@@ -706,7 +712,9 @@ const saveTrack = async (track: Track) => {
         popularity: popularity,
         followers: followers,
         release_date: releaseDate,
-        preview_url: previewUrl
+        preview_url: previewUrl,
+        track_count: 1,
+        is_single_track: true
       })
 
       if (!response.success) {
@@ -897,6 +905,8 @@ const toggleSpotifyPlayer = (track: Track) => {
     return
   }
 
+  // Close any existing preview before opening new one
+  expandedTrackId.value = null
   expandedTrackId.value = trackKey
 }
 
@@ -1070,6 +1080,10 @@ const cleanTrackForQuery = (text: string): string => {
 // Preview Last.fm tracks by converting to Spotify
 const previewLastfmTrack = async (track: Track) => {
   const trackKey = getTrackKey(track)
+  
+  // Close any existing preview before starting new one
+  expandedTrackId.value = null
+  
   processingTrack.value = trackKey
   isPreviewProcessing.value = true
   
@@ -1108,6 +1122,10 @@ const previewLastfmTrack = async (track: Track) => {
 // Preview tracks by converting to Spotify
 const previewShazamTrack = async (track: Track) => {
   const trackKey = getTrackKey(track)
+  
+  // Close any existing preview before starting new one
+  expandedTrackId.value = null
+  
   processingTrack.value = trackKey
   isPreviewProcessing.value = true
   

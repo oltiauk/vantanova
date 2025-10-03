@@ -19,11 +19,15 @@ class SavedTrack extends Model
         'followers',
         'release_date',
         'preview_url',
+        'track_count',
+        'is_single_track',
+        'album_id',
         'expires_at',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
+        'is_single_track' => 'boolean',
     ];
 
     public function user(): BelongsTo
@@ -66,7 +70,10 @@ class SavedTrack extends Model
         ?int $popularity = null,
         ?int $followers = null,
         ?string $releaseDate = null,
-        ?string $previewUrl = null
+        ?string $previewUrl = null,
+        ?int $trackCount = null,
+        ?bool $isSingleTrack = true,
+        ?string $albumId = null
     ): static {
         return static::updateOrCreate(
             ['user_id' => $userId, 'isrc' => $isrc],
@@ -79,6 +86,9 @@ class SavedTrack extends Model
                 'followers' => $followers,
                 'release_date' => $releaseDate,
                 'preview_url' => $previewUrl,
+                'track_count' => $trackCount,
+                'is_single_track' => $isSingleTrack,
+                'album_id' => $albumId,
                 'expires_at' => now()->addHours(24),
             ]
         );

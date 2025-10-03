@@ -27,7 +27,7 @@
           <!-- Fresh Drops Toggle -->
           <div class="flex items-center gap-x-3">
             <div class="flex flex-col items-center">
-              <span class="text-base font-medium text-white whitespace-nowrap">Fresh Drops</span>
+              <span class="text-base font-medium text-white whitespace-nowrap mt-4">Fresh Drops</span>
               <span class="text-xs text-white/60 whitespace-nowrap">(2 weeks)</span>
             </div>
             <button
@@ -128,11 +128,10 @@
               <tbody>
                 <template v-for="(track, index) in filteredTracks" :key="track.spotify_id">
                   <tr
-                    class="transition h-16 border-b border-white/5" :class="[
+                    class="transition h-16 border-b border-white/5 track-row" :class="[
                       expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
-                      expandedTrackId !== getTrackKey(track) ? 'track-row' : '',
                     ]"
-                    :style="expandedTrackId !== getTrackKey(track) ? { animationDelay: `${index * 50}ms` } : {}"
+                    :style="{ animationDelay: `${index * 50}ms` }"
                   >
                     <!-- Index -->
                     <td class="p-3 align-middle">
@@ -394,6 +393,9 @@ const performSearch = async () => {
     return
   }
 
+  // Close any open preview dropdown before new search (prevents animation glitch)
+  expandedTrackId.value = null
+
   isLoading.value = true
   errorMessage.value = ''
   lastSearchQuery.value = searchQuery.value
@@ -537,22 +539,98 @@ const saveTrack = async track => {
       // Note: We could implement a DELETE endpoint in the future if needed,
       // but for now this client-side approach works well since tracks expire anyway
     } else {
-      // Save track
-      const response = await http.post('music-preferences/save-track', {
-        spotify_id: track.spotify_id,
-        isrc: track.isrc,
-        track_name: track.track_name,
-        artist_name: track.artist_name,
-        label: track.label,
-        popularity: track.popularity,
-        release_date: track.release_date,
-        preview_url: track.preview_url,
-      })
+      // Save track - Update UI immediately for instant feedback
+      track.isSaved = true
 
-      if (response.success) {
-        track.isSaved = true
-      } else {
-        throw new Error(response.error || 'Failed to save track')
+      // Do backend work in background without blocking UI
+      try {
+        console.log('🎵 [LABEL SEARCH] Starting to save track:', track.track_name, 'by', track.artist_name)
+        console.log('🎵 [LABEL SEARCH] Track object:', track)
+
+        // Extract metadata from the track object
+        let label = track.label || ''
+        let popularity = track.popularity || 0
+        let followers = track.followers || 0
+        let releaseDate = track.release_date || ''
+        let previewUrl = track.preview_url || null
+
+        console.log('🎵 [LABEL SEARCH] Initial metadata - label:', label, 'popularity:', popularity, 'followers:', followers, 'releaseDate:', releaseDate)
+
+        // Check if we need to fetch additional metadata
+        // Always try to fetch followers data since label search doesn't provide it
+        const needsEnhancedMetadata = !followers || followers === 0
+
+        console.log('🎵 [LABEL SEARCH] needsEnhancedMetadata:', needsEnhancedMetadata)
+        console.log('🎵 [LABEL SEARCH] Current data - label:', label, 'releaseDate:', releaseDate, 'followers:', followers)
+
+        if (needsEnhancedMetadata) {
+          try {
+            console.log('🎵 [LABEL SEARCH] Fetching enhanced metadata from API...')
+            const response = await http.get('music-discovery/track-preview', {
+              params: {
+                artist_name: track.artist_name || 'Unknown',
+                track_title: track.track_name,
+                source: 'spotify',
+                track_id: track.spotify_id,
+              },
+            })
+
+            console.log('🎵 [LABEL SEARCH] Enhanced data response:', response)
+            console.log('🎵 [LABEL SEARCH] Response success:', response.success)
+            console.log('🎵 [LABEL SEARCH] Response data:', response.data)
+
+            if (response.success && response.data && response.data.metadata) {
+              const metadata = response.data.metadata
+              console.log('🎵 [LABEL SEARCH] Metadata received:', metadata)
+
+              label = metadata.label || label
+              popularity = metadata.popularity || popularity
+              followers = metadata.followers || followers
+              releaseDate = metadata.release_date || releaseDate
+              previewUrl = metadata.preview_url || previewUrl
+
+              console.log('🎵 [LABEL SEARCH] Updated metadata - label:', label, 'popularity:', popularity, 'followers:', followers, 'releaseDate:', releaseDate)
+            } else {
+              console.log('🎵 [LABEL SEARCH] No metadata in response or API call failed')
+            }
+          } catch (error) {
+            console.warn('🎵 [LABEL SEARCH] Failed to fetch enhanced metadata, using basic data:', error)
+          }
+        }
+
+        const savePayload = {
+          spotify_id: track.spotify_id,
+          isrc: track.isrc,
+          track_name: track.track_name,
+          artist_name: track.artist_name,
+          label,
+          popularity,
+          followers,
+          release_date: releaseDate,
+          preview_url: previewUrl,
+          track_count: track.track_count || 1,
+          is_single_track: track.is_single_track !== false,
+          album_id: track.album_id || null,
+        }
+
+        console.log('🎵 [LABEL SEARCH] Sending save request with payload:', savePayload)
+
+        const response = await http.post('music-preferences/save-track', savePayload)
+
+        console.log('🎵 [LABEL SEARCH] Save response:', response)
+
+        if (response.success) {
+          // Update localStorage timestamp to trigger cross-tab refresh
+          localStorage.setItem('track-saved-timestamp', Date.now().toString())
+        } else {
+          // Revert UI change on failure
+          track.isSaved = false
+          throw new Error(response.error || 'Failed to save track')
+        }
+      } catch (error) {
+        // Revert UI change on failure
+        track.isSaved = false
+        throw error
       }
     }
   } catch (error) {
@@ -795,6 +873,7 @@ const saveBannedArtists = () => {
 
 // Ban/Unban an artist
 const banArtist = async (track: any) => {
+  // Close dropdown before banning (prevents animation glitch)
   expandedTrackId.value = null
 
   const artistName = track.artist_name
@@ -841,6 +920,16 @@ const banArtist = async (track: any) => {
   console.log(`${isCurrentlyBanned ? '✅ Unbanned' : '🚫 Banned'} artist "${artistName}" - stays visible in current results`)
 }
 
+// Clear search state function
+const clearSearchState = () => {
+  tracks.value = []
+  hasSearched.value = false
+  lastSearchQuery.value = ''
+  errorMessage.value = ''
+  expandedTrackId.value = null
+  console.log('🏷️ [LABEL SEARCH] Search state cleared')
+}
+
 // Check for label search query from other screens
 const checkForStoredLabelQuery = () => {
   try {
@@ -851,6 +940,10 @@ const checkForStoredLabelQuery = () => {
       // Only use if it's recent (within last 5 seconds)
       if (Date.now() - labelSearchData.timestamp < 5000) {
         console.log('🏷️ [LABEL SEARCH] Found stored label query:', labelSearchData.query)
+
+        // Clear previous search results first
+        clearSearchState()
+
         searchQuery.value = labelSearchData.query
 
         // Reset all filters when populating from external source
@@ -860,7 +953,7 @@ const checkForStoredLabelQuery = () => {
 
         // Only populate the search bar, don't auto-perform search
         // This allows users to select options before searching
-        console.log('🏷️ [LABEL SEARCH] Search query populated and filters reset, user can now select options before searching')
+        console.log('🏷️ [LABEL SEARCH] Search query populated, previous results cleared, and filters reset')
 
         // Clear the stored data after using it
         localStorage.removeItem('koel-label-search-query')
@@ -895,6 +988,12 @@ const resetFilters = () => {
 
 // Also check when navigating to this screen
 onRouteChanged(route => {
+  // Close dropdown immediately when leaving this screen (not when returning)
+  if (route.screen !== 'LabelSearch' && expandedTrackId.value) {
+    expandedTrackId.value = null
+    console.log('🏷️ [LABEL SEARCH] Closed preview dropdown when leaving screen')
+  }
+
   if (route.screen === 'LabelSearch') {
     console.log('🏷️ [LABEL SEARCH] Navigated to LabelSearch screen')
 

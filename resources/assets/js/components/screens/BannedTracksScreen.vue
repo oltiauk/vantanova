@@ -55,32 +55,32 @@
       </div>
 
       <!-- Banned Tracks Table -->
-      <div v-else class="bg-white/5 rounded-lg overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full">
+      <div v-else class="bg-white/5 rounded-lg overflow-hidden max-w-4xl mx-auto">
+        <div class="overflow-x-auto scrollbar-hide">
+          <table class="w-full table-fixed">
             <thead>
               <tr class="border-b border-white/10">
-                <th class="text-left py-7 p-3 font-medium w-16">#</th>
-                <th class="text-center p-3 font-medium w-32 whitespace-nowrap">Ban Artist</th>
-                <th class="text-left p-3 font-medium">Artist</th>
-                <th class="text-left p-3 font-medium">Track Title</th>
-                <th class="text-center px-10 font-medium w-24 whitespace-nowrap">Unban Track</th>
+                <th class="text-left py-4 pl-3 font-medium w-10">#</th>
+                <th class="text-center pr-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
+                <th class="text-left px-3 pl-10 font-medium w-64">Artist</th>
+                <th class="text-left px-3 pl-24 font-medium">Track Title</th>
+                <th class="text-center px-3 font-medium w-24 whitespace-nowrap">Unban</th>
               </tr>
             </thead>
             <tbody>
               <tr
                 v-for="(track, index) in paginatedTracks"
                 :key="track.id"
-                class="transition h-16 border-b border-white/5 hover:bg-white/5 track-row"
+                class="transition h-12 border-b border-white/5 hover:bg-white/5 track-row"
                 :style="{ animationDelay: `${index * 50}ms` }"
               >
                 <!-- Index -->
-                <td class="p-3 align-middle">
-                  <span class="text-white/60">{{ (currentPage - 1) * tracksPerPage + index + 1 }}</span>
+                <td class="px-3 py-2 align-middle">
+                  <span class="text-white/60 text-sm">{{ (currentPage - 1) * tracksPerPage + index + 1 }}</span>
                 </td>
 
                 <!-- Ban Artist Button -->
-                <td class="p-3 px-6 align-middle">
+                <td class="px-3 py-2 align-middle">
                   <div class="flex items-center justify-center">
                     <button
                       :disabled="isProcessing"
@@ -98,17 +98,17 @@
                 </td>
 
                 <!-- Artist -->
-                <td class="p-3 align-middle">
-                  <span class="font-medium text-k-text-primary">{{ track.artist_name }}</span>
+                <td class="px-3 pl-10 py-2 align-middle">
+                  <span class="font-medium text-k-text-primary text-sm truncate block">{{ track.artist_name }}</span>
                 </td>
 
                 <!-- Track Title -->
-                <td class="p-3 align-middle">
-                  <span class="text-k-text-secondary">{{ track.track_name }}</span>
+                <td class="px-3 pl-24 py-2 align-middle">
+                  <span class="text-k-text-secondary text-sm truncate block">{{ track.track_name }}</span>
                 </td>
 
                 <!-- Unban Track Button -->
-                <td class="p-3 align-middle">
+                <td class="px-3 py-2 align-middle">
                   <div class="flex items-center justify-center">
                     <button
                       :disabled="isProcessing"
@@ -402,7 +402,7 @@ onUnmounted(() => {
 })
 
 // Refresh data when navigating back to this screen
-onRouteChanged((route) => {
+onRouteChanged(route => {
   if (route.screen === 'BannedTracks') {
     // Refresh the tracks data when coming back to this screen
     loadTracks()
@@ -413,6 +413,16 @@ watch(searchQuery, resetPagination)
 </script>
 
 <style scoped>
+/* Hide scrollbars */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
 /* Track rows progressive display animation */
 .track-row {
   animation: fadeInUp 0.6s ease-out both;

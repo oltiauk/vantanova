@@ -35,7 +35,8 @@
             <!-- Loading Animation -->
             <div
               v-if="isSearching && searchQuery.trim()"
-              class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
+              class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
+              style="background-color: #302f30;"
             >
               <div class="flex items-center justify-center py-8">
                 <div class="flex items-center gap-3">
@@ -48,7 +49,8 @@
             <!-- Search Dropdown -->
             <div
               v-if="searchResults.length > 0 && !isSearching"
-              class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
+              class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
+              style="background-color: #302f30;"
             >
               <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
                 <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
@@ -392,6 +394,8 @@ const saveTrack = async (track: Track) => {
         track_name: title,
         artist_name: artist,
         duration: Math.floor((track.duration_ms || 0) / 1000),
+        track_count: 1,
+        is_single_track: true
       })
 
       if (response.success) {

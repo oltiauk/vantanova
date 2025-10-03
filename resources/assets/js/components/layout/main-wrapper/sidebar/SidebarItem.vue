@@ -36,7 +36,17 @@ const current = ref(false)
 
 const { onRouteChanged } = useRouter()
 
-const onClick = () => eventBus.emit('TOGGLE_SIDEBAR')
+const onClick = () => {
+  eventBus.emit('TOGGLE_SIDEBAR')
+
+  // Scroll to top immediately
+  setTimeout(() => {
+    const mainContent = document.querySelector('#mainContent main')
+    if (mainContent) {
+      mainContent.scrollTop = 0
+    }
+  }, 0)
+}
 
 if (screen) {
   onRouteChanged(route => (current.value = route.screen === props.screen))

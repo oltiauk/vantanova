@@ -56,7 +56,8 @@
                 <!-- Loading Animation -->
                 <div
                   v-if="searchLoading && searchQuery.trim()"
-                  class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
+                  class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
+                  style="background-color: #302f30;"
                 >
                   <div class="flex items-center justify-center py-8">
                     <div class="flex items-center gap-3">
@@ -69,7 +70,8 @@
                 <!-- Search Dropdown -->
                 <div
                   v-if="searchResults.length > 0 && !searchLoading"
-                  class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
+                  class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
+                  style="background-color: #302f30;"
                 >
                   <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
                     <div v-for="(artist, index) in searchResults.slice(0, 10)" :key="`suggestion-${artist.mbid || artist.name}-${index}`">
@@ -85,7 +87,6 @@
                           <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
                             {{ artist.name }}
                           </div>
-                          <div v-if="artist.listeners" class="text-sm text-k-text-tertiary">{{ formatListeners(artist.listeners) }} listeners</div>
                         </div>
                       </div>
                     </div>
@@ -168,7 +169,6 @@
                   <th class="text-left p-3 py-7 font-medium">#</th>
                   <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
                   <th class="text-left p-3 font-medium w-1/3">Name(s)</th>
-                  <th class="text-center p-3 font-medium">Match</th>
                   <th class="text-left p-3 font-medium" />
                 </tr>
               </thead>
@@ -204,17 +204,11 @@
                       </div>
                     </td>
 
-
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
                       <span class="font-medium text-white">
                         {{ artist.name }}
                       </span>
-                    </td>
-
-                    <!-- Match Score -->
-                    <td class="p-3 align-middle text-center">
-                      <span class="text-white/80 font-medium">{{ Math.round(parseFloat(artist.match) * 100) }}%</span>
                     </td>
 
                     <!-- Actions -->
@@ -233,11 +227,6 @@
                           class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                           @click="previewArtist(artist)"
                         >
-                          <!-- Loading spinner when processing -->
-                          <svg v-if="loadingPreviewArtist === artist.name" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
                           <!-- Regular icon when not processing -->
                           <img v-if="currentlyPreviewingArtist !== artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                           <Icon v-else :icon="faTimes" class="w-3 h-3" />
@@ -524,7 +513,6 @@ const isArtistBanned = (artist: LastfmArtist): boolean => {
   return bannedArtists.value.has(artist.mbid)
 }
 
-
 // Sort options
 const sortOptions = [
   { value: 'match', label: 'Best Matches' },
@@ -785,8 +773,8 @@ const saveTrack = async (track: SpotifyTrack) => {
               artist_name: track.artists?.[0]?.name || 'Unknown',
               track_title: track.name,
               source: 'spotify',
-              track_id: track.id
-            }
+              track_id: track.id,
+            },
           })
 
           console.log('🎵 [SIMILAR ARTISTS] Enhanced data response:', response)
@@ -811,11 +799,13 @@ const saveTrack = async (track: SpotifyTrack) => {
         track_name: track.name,
         artist_name: track.artists?.[0]?.name || 'Unknown',
         spotify_id: track.id,
-        label: label,
-        popularity: popularity,
-        followers: followers,
+        label,
+        popularity,
+        followers,
         release_date: releaseDate,
-        preview_url: previewUrl
+        preview_url: previewUrl,
+        track_count: 1,
+        is_single_track: true,
       }
 
       console.log('🎵 [SIMILAR ARTISTS] Sending save request with payload:', savePayload)
@@ -988,7 +978,7 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
 // Load listeners counts for current page artists only
 const loadPageListenersCounts = async () => {
   // Last.fm listeners/playcount fetching disabled - data not displayed
-  return
+
 }
 
 // Spotify preview functionality
@@ -1413,7 +1403,6 @@ const loadClientUnsavedTracks = () => {
   }
 }
 
-
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {
   try {
@@ -1483,7 +1472,7 @@ onRouteChanged(async route => {
 
             // Find exact match in search results to get the MBID
             const exactMatch = searchResults.value.find(artist =>
-              artist.name.toLowerCase() === seedArtistData.name.toLowerCase()
+              artist.name.toLowerCase() === seedArtistData.name.toLowerCase(),
             )
 
             if (exactMatch && exactMatch.mbid) {
@@ -1784,5 +1773,4 @@ iframe {
 .scrollbar-hide::-webkit-scrollbar-thumb {
   display: none !important;
 }
-
 </style>

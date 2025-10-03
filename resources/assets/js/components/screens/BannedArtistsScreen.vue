@@ -55,14 +55,14 @@
       </div>
 
       <!-- Banned Artists Table -->
-      <div v-else class="bg-white/5 rounded-lg overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full">
+      <div v-else class="bg-white/5 rounded-lg overflow-hidden max-w-3xl mx-auto">
+        <div class="overflow-x-auto scrollbar-hide">
+          <table class="w-full table-fixed">
             <thead>
               <tr class="border-b border-white/10">
-                <th class="text-left p-3 py-7 font-medium">#</th>
-                <th class="text-left p-3 font-medium">Artist Name</th>
-                <th class="text-center p-3 font-medium">Unban Artist</th>
+                <th class="text-left px-3 py-4 font-medium w-12">#</th>
+                <th class="text-left px-3 font-medium">Artist Name</th>
+                <th class="text-center px-3 font-medium w-24">Unban</th>
               </tr>
             </thead>
             <tbody>
@@ -70,23 +70,23 @@
                 v-for="(artist, index) in paginatedArtists"
                 :key="artist.id"
                 :class="[
-                  'transition h-16 border-b border-white/5 hover:bg-white/5',
+                  'transition h-12 border-b border-white/5 hover:bg-white/5',
                   'artist-row'
                 ]"
                 :style="{ animationDelay: `${index * 50}ms` }"
               >
                 <!-- Index -->
-                <td class="p-3 align-middle">
-                  <span class="text-white/60">{{ (currentPage - 1) * artistsPerPage + index + 1 }}</span>
+                <td class="px-3 py-2 align-middle">
+                  <span class="text-white/60 text-sm">{{ (currentPage - 1) * artistsPerPage + index + 1 }}</span>
                 </td>
 
                 <!-- Artist Name -->
-                <td class="p-3 align-middle">
-                  <span class="font-medium text-k-text-primary">{{ artist.artist_name }}</span>
+                <td class="px-3 py-2 align-middle">
+                  <span class="font-medium text-k-text-primary text-sm truncate block">{{ artist.artist_name }}</span>
                 </td>
 
                 <!-- Unban Artist Button -->
-                <td class="p-3 align-middle">
+                <td class="px-3 py-2 align-middle">
                   <div class="flex items-center justify-center">
                     <button
                       @click="unbanArtist(artist)"
@@ -332,6 +332,16 @@ watch(searchQuery, resetPagination)
 </script>
 
 <style scoped>
+/* Hide scrollbars */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
 /* Artist rows progressive display animation */
 .artist-row {
   animation: fadeInUp 0.6s ease-out both;

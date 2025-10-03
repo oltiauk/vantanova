@@ -90,7 +90,7 @@
       </div>
 
       <!-- Saved Tracks Table -->
-      <div v-if="sortedTracks.length > 0 && !isLoading" class="bg-white/5 rounded-lg overflow-hidden">
+      <div v-if="sortedTracks.length > 0 && !isLoading" class="bg-white/5 rounded-lg overflow-visible">
         <div class="overflow-x-auto scrollbar-hide">
           <table class="w-full">
             <thead>
@@ -104,8 +104,7 @@
                 <th class="text-center px-2 font-medium">Followers</th>
                 <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
                 <th class="text-center px-2 font-medium whitespace-nowrap">Time</th>
-                <th class="text-center px-1 font-medium whitespace-nowrap">Related Tracks</th>
-                <th class="text-center px-1 font-medium whitespace-nowrap">Similar Artists</th>
+                <th class="text-center px-1 font-medium whitespace-nowrap"></th>
                 <th class="text-center px-1 font-medium"></th>
               </tr>
             </thead>
@@ -156,6 +155,7 @@
                       @click="openSpotifyTrackPage(track)"
                     >
                       {{ track.track_name }}
+                      <span v-if="track.track_count && track.track_count > 1" class="text-white/50 text-xs ml-1">({{ track.track_count }} tracks)</span>
                     </button>
                   </td>
 
@@ -188,7 +188,7 @@
 
                   <!-- Release Date -->
                   <td class="p-3 align-middle text-center">
-                    <span class="text-white/80 text-sm">{{ track.release_date || '-' }}</span>
+                    <span class="text-white/80 text-sm">{{ formatDate(track.release_date) }}</span>
                   </td>
 
                   <!-- Countdown -->
@@ -201,33 +201,47 @@
                     </div>
                   </td>
 
-                  <!-- Related Tracks -->
+                  <!-- Actions Dropdown -->
                   <td class="px-1 py-3 align-middle">
-                    <div class="flex items-center justify-center">
+                    <div class="flex items-center justify-center relative">
                       <button
                         :disabled="isProcessing"
                         class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                        title="Find Related Tracks"
-                        @click="viewRelatedTracks(track)"
+                        title="Actions"
+                        @click="toggleActionsDropdown(track.id)"
+                        @blur="hideActionsDropdown(track.id)"
                       >
-                        <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
-                        <span>Related</span>
+                        <span>Actions</span>
+                        <Icon :icon="faChevronDown" class="text-xs ml-1" />
                       </button>
-                    </div>
-                  </td>
 
-                  <!-- Similar Artists -->
-                  <td class="px-1 py-3 align-middle">
-                    <div class="flex items-center justify-center">
-                      <button
-                        :disabled="isProcessing"
-                        class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                        title="Find Similar Artists"
-                        @click="viewSimilarArtists(track)"
+                      <!-- Dropdown Menu -->
+                      <div
+                        v-if="openActionsDropdown === track.id"
+                        :class="[
+                          'absolute right-0 w-48 rounded-lg shadow-lg z-[9999]',
+                          index >= paginatedTracks.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'
+                        ]"
+                        style="background-color: rgb(67,67,67,255);"
                       >
-                        <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
-                        <span>Similars</span>
-                      </button>
+                        <button
+                          v-if="!track.track_count || track.track_count === 1 || track.is_single_track !== false"
+                          class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+                          :class="track.track_count && track.track_count > 1 ? 'rounded-b-lg' : 'rounded-t-lg'"
+                          @mousedown.prevent="viewRelatedTracks(track)"
+                        >
+                          <Icon :icon="faSearch" class="w-4 h-4" />
+                          Related Tracks
+                        </button>
+                        <button
+                          class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+                          :class="!track.track_count || track.track_count === 1 || track.is_single_track !== false ? 'rounded-b-lg' : 'rounded-t-lg rounded-b-lg'"
+                          @mousedown.prevent="viewSimilarArtists(track)"
+                        >
+                          <Icon :icon="faSearch" class="w-4 h-4" />
+                          Similar Artists
+                        </button>
+                      </div>
                     </div>
                   </td>
 
@@ -268,16 +282,22 @@
                 <!-- Spotify Player Dropdown Row with Animation -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="12" class="p-0 overflow-hidden">
+                    <td colspan="11" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
                             <iframe
-                              :key="track.spotify_id"
-                              :src="`https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`"
-                              :title="`${track.artist_name} - ${track.track_name}`"
+                              :key="track.track_count && track.track_count > 1 ? track.album_id : track.spotify_id"
+                              :src="track.track_count && track.track_count > 1
+                                ? `https://open.spotify.com/embed/album/${track.album_id}?utm_source=generator&theme=0`
+                                : `https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`"
+                              :title="track.track_count && track.track_count > 1
+                                ? `${track.artist_name} - ${track.track_name} (${track.track_count} tracks)`
+                                : `${track.artist_name} - ${track.track_name}`"
                               class="w-full spotify-embed"
-                              style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                              :style="track.track_count && track.track_count > 1
+                                ? 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
+                                : 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
                               frameBorder="0"
                               scrolling="no"
                               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -388,6 +408,9 @@ interface SavedTrack {
   popularity?: number
   release_date?: string
   preview_url?: string
+  track_count?: number
+  is_single_track?: boolean
+  album_id?: string
 }
 
 // Initialize router
@@ -411,6 +434,7 @@ const copiedTrackId = ref<number | null>(null)
 const expandedTrackId = ref<string | null>(null)
 const processingTrack = ref<string | null>(null)
 const isPreviewProcessing = ref(false)
+const openActionsDropdown = ref<number | null>(null)
 
 // Sort options for the dropdown
 const sortOptions = [
@@ -491,6 +515,30 @@ const getTrackKey = (track: SavedTrack): string => {
   return `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
 }
 
+// Format date helper function
+const formatDate = (dateString: string): string => {
+  if (!dateString) {
+    return 'Unknown'
+  }
+  try {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 30) {
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30)
+      return `${months} month${months === 1 ? '' : 's'} ago`
+    } else {
+      return dateString.split('T')[0]
+    }
+  } catch (error) {
+    return dateString.split('T')[0]
+  }
+}
+
 const formatNumber = (num: number): string => {
   if (num >= 1000000) {
     return `${(num / 1000000).toFixed(1)}M`
@@ -534,6 +582,18 @@ const hideSortDropdown = () => {
   }, 150)
 }
 
+const toggleActionsDropdown = (trackId: number) => {
+  openActionsDropdown.value = openActionsDropdown.value === trackId ? null : trackId
+}
+
+const hideActionsDropdown = (trackId: number) => {
+  setTimeout(() => {
+    if (openActionsDropdown.value === trackId) {
+      openActionsDropdown.value = null
+    }
+  }, 150)
+}
+
 const setSortFilter = (value: string) => {
   sortBy.value = value
   showSortDropdown.value = false
@@ -545,6 +605,8 @@ const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value && page !== currentPage.value) {
     // Close any open preview dropdown when changing pages
     expandedTrackId.value = null
+    // Close any open actions dropdown when changing pages
+    openActionsDropdown.value = null
 
     // Enable animations for page change
     allowAnimations.value = true
@@ -770,6 +832,8 @@ const unsaveTrack = async (track: SavedTrack) => {
 
   // Close any open preview dropdown when unsaving tracks
   expandedTrackId.value = null
+  // Close any open actions dropdown when unsaving tracks
+  openActionsDropdown.value = null
 
   isProcessing.value = true
 
@@ -837,6 +901,9 @@ const togglePreview = async (track: SavedTrack) => {
 const viewRelatedTracks = (track: SavedTrack) => {
   console.log('🔍 [SAVED TRACKS] viewRelatedTracks called with track:', track)
 
+  // Close the actions dropdown
+  openActionsDropdown.value = null
+
   // Store seed track data in localStorage for MusicDiscoveryScreen to pick up
   if (track.spotify_id && isValidSpotifyId(track.spotify_id)) {
     console.log('🔍 [SAVED TRACKS] Setting up seed track data for music discovery')
@@ -863,6 +930,9 @@ const viewRelatedTracks = (track: SavedTrack) => {
 
 const viewSimilarArtists = (track: SavedTrack) => {
   console.log('🔍 [SAVED TRACKS] viewSimilarArtists called with track:', track)
+
+  // Close the actions dropdown
+  openActionsDropdown.value = null
 
   // Store artist data in localStorage for SimilarArtistsScreen to pick up
   const seedArtistData = {
@@ -1060,6 +1130,8 @@ const searchByLabel = (label: string) => {
 // Reset pagination when search or sort changes
 const resetPagination = () => {
   currentPage.value = 1
+  // Close any open dropdowns when search/sort changes
+  openActionsDropdown.value = null
 }
 
 // Auto-refresh when tracks are saved or unsaved
