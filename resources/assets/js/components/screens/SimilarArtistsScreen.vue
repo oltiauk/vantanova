@@ -1,37 +1,21 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader
-        layout="collapsed"
-        header-image="/HeadersSVG/LastFM-SimilarArtists-header.svg"
-      >
+      <ScreenHeader layout="simple" class="text-center">
         Similar Artists
-        <template #meta>
+        <template #subtitle>
           <span v-if="selectedArtist" class="text-text-secondary">
             Similar to: {{ selectedArtist.name }}
           </span>
+          <span v-else>Find artists similar to your seed artist</span>
         </template>
       </ScreenHeader>
     </template>
 
     <div class="similar-artists-screen">
-      <!-- Last.fm Attribution -->
+      <!-- Attribution -->
       <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light ml-5 -mt-4">
-        Music metadata and metrics powered by <a href="https://www.last.fm" target="_blank" rel="noopener noreferrer" class="text-k-text-secondary underline hover:text-k-text-primary transition-colors">Last.fm</a>
-      </div>
-
-      <!-- Welcome Message - Only show when no results and no search -->
-      <div v-if="!selectedArtist && !similarArtists.length && !searchQuery.trim() && !errorMessage" class="">
-        <div class="max-w-4xl mx-auto">
-          <div class="flex justify-center items-center py-4">
-            <div class="text-center ml-6">
-              <h3 class="text-lg font-bold text-white mb-2">Search for a Seed Artist</h3>
-              <p class="text-k-text-secondary">
-                Search for a seed artist to find similar artists
-              </p>
-            </div>
-          </div>
-        </div>
+        Music recommendation by VantaNova and music preview by Spotify!
       </div>
 
       <!-- Search Container -->
@@ -40,18 +24,23 @@
           <div class="rounded-lg p-4">
             <div class="max-w-4xl mx-auto">
               <div ref="searchContainer" class="relative">
-                <!-- Search Icon -->
-                <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
-                  <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
+                <div class="flex">
+                  <input
+                    v-model="searchQuery"
+                    type="text"
+                    class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
+                    placeholder="Search for a Seed Artist"
+                    @keydown.enter="performSearch"
+                    @input="onSearchInput"
+                  >
+                  <button
+                    class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
+                    :disabled="!searchQuery.trim() || searchLoading"
+                    @click="performSearch"
+                  >
+                    <Icon :icon="faSearch" class="w-5 h-5" />
+                  </button>
                 </div>
-
-                <input
-                  v-model="searchQuery"
-                  type="text"
-                  class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
-                  placeholder="Search for an artist"
-                  @input="onSearchInput"
-                >
 
                 <!-- Loading Animation -->
                 <div
@@ -521,27 +510,29 @@ const sortOptions = [
   { value: 'ratio-desc', label: 'Best Ratio' },
 ]
 
-// Search functionality
+// Clear dropdown when user types
 const onSearchInput = () => {
-  // Clear existing timeout
+  // Clear search results when user edits the query
+  searchResults.value = []
+}
+
+// Manual search functionality
+const performSearch = () => {
+  if (!searchQuery.value.trim()) {
+    return
+  }
+
+  // Clear any existing timeout
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
   }
 
-  // Clear results immediately if query is empty
-  if (!searchQuery.value.trim()) {
-    searchResults.value = []
-    return
-  }
-
-  // Set new timeout for search
-  searchTimeout.value = setTimeout(() => {
-    searchArtists()
-  }, 500) // Wait 500ms after user stops typing
+  searchArtists()
 }
 
 const searchArtists = async () => {
   if (!searchQuery.value.trim()) {
+    searchResults.value = []
     return
   }
 

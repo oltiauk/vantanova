@@ -1,20 +1,20 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader 
-        show-music-discovery="true"
-        header-image="/HeadersSVG/LastFM-RelatedTracks-Header.svg"
-      >
+      <ScreenHeader layout="simple" class="text-center">
         Related Tracks
+        <template #subtitle>
+          Discover music similar to your seed track
+        </template>
       </ScreenHeader>
     </template>
 
     <div class="music-discovery-screen">
-      <!-- Last.fm Attribution -->
+      <!-- Attribution -->
       <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light ml-5 -mt-4">
-        Music metadata and metrics powered by <a href="https://www.last.fm" target="_blank" rel="noopener noreferrer" class="text-k-text-secondary underline hover:text-k-text-primary transition-colors">Last.fm</a>
+        Music recommendation by VantaNova and music preview by Spotify!
       </div>
-      
+
       <SeedTrackSelection
         v-model:selected-track="selectedSeedTrack"
         :has-recommendations="allRecommendations.length > 0 || isDiscovering"
@@ -44,13 +44,12 @@
           @tracks-blacklisted="onTracksBlacklisted"
         />
       </div>
-
     </div>
   </ScreenBase>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
@@ -145,7 +144,7 @@ const {
   filterTracks,
   loadBlacklistedItems,
   addTrackToBlacklist,
-  addArtistToBlacklist
+  addArtistToBlacklist,
 } = useBlacklistFiltering()
 
 // Initialize router for handling route parameters
@@ -167,7 +166,7 @@ const parameters = ref<Parameters>({
   liveness: 0.5,
   speechiness: 0.5,
   duration_ms: 240000,
-  key_compatibility: false
+  key_compatibility: false,
 })
 
 const enabledParameters = ref<EnabledParameters>({
@@ -182,7 +181,7 @@ const enabledParameters = ref<EnabledParameters>({
   speechiness: false,
   duration: false,
   key_compatibility: false,
-  key_selection: false
+  key_selection: false,
 })
 
 const selectedKeyMode = ref('off')
@@ -201,7 +200,7 @@ const onTrackSelected = async (track: Track) => {
   keyAnalysisResults.value = []
   allRecommendations.value = []
   errorMessage.value = ''
-  
+
   if (track) {
     await getSeedTrackKey(track.id)
   }
@@ -225,17 +224,17 @@ const onRelatedTracksRequested = async (track: Track) => {
   // Clear previous results
   allRecommendations.value = []
   errorMessage.value = ''
-  
+
   // Get related tracks immediately
   await getRelatedTracks(track)
-  
+
   // Auto-scroll to results after a brief delay
   setTimeout(() => {
     const element = document.getElementById('related-tracks-section')
     if (element) {
-      element.scrollIntoView({ 
+      element.scrollIntoView({
         behavior: 'smooth',
-        block: 'start'
+        block: 'start',
       })
     }
   }, 300)
@@ -274,20 +273,24 @@ const getKeyMatchClass = (trackKey: number) => {
 }
 
 const getCompatibleKeys = (key: number) => {
-  if (key === -1) return []
-  
+  if (key === -1) {
+    return []
+  }
+
   return [
-    (key + 7) % 12,  // Perfect 5th
-    (key + 5) % 12,  // Perfect 4th
-    (key + 2) % 12,  // Major 2nd (relative)
-    (key + 9) % 12,  // Major 6th (relative)
+    (key + 7) % 12, // Perfect 5th
+    (key + 5) % 12, // Perfect 4th
+    (key + 2) % 12, // Major 2nd (relative)
+    (key + 9) % 12, // Major 6th (relative)
   ]
 }
 
 // Key analysis batch function removed to avoid 404 errors
 
 const discoverMusicSoundStats = async () => {
-  if (!selectedSeedTrack.value) return
+  if (!selectedSeedTrack.value) {
+    return
+  }
 
   isDiscovering.value = true
   errorMessage.value = ''
@@ -297,20 +300,19 @@ const discoverMusicSoundStats = async () => {
     const response: ApiResponse<Track[]> = await http.post('music-discovery/discover-soundstats', {
       seed_track: selectedSeedTrack.value.id,
       parameters: hasEnabledParameters.value ? parameters.value : null,
-      enabled_parameters: enabledParameters.value
+      enabled_parameters: enabledParameters.value,
     })
 
     if (response.success && response.data) {
       // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
-      
+
       // console.log(`📋 SoundStats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
-      
+
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
-
 
       // IMPORTANT: Don't block the UI - analyze keys in background
       // This will complete after the UI updates
@@ -326,16 +328,17 @@ const discoverMusicSoundStats = async () => {
 }
 
 const discoverMusicReccoBeats = async () => {
-  if (!selectedSeedTrack.value) return
+  if (!selectedSeedTrack.value) {
+    return
+  }
 
   isDiscovering.value = true
   errorMessage.value = ''
   currentProvider.value = 'ReccoBeats'
 
-
   const reccoBeatsParams: any = {
     seed_track_id: selectedSeedTrack.value.id,
-    limit: 50
+    limit: 50,
   }
 
   // Add enabled parameters
@@ -388,7 +391,6 @@ const discoverMusicReccoBeats = async () => {
     }
   }
 
-
   try {
     const response: ApiResponse<Track[]> = await http.post('music-discovery/discover-reccobeats', reccoBeatsParams)
 
@@ -396,9 +398,9 @@ const discoverMusicReccoBeats = async () => {
       // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
-      
+
       // console.log(`📋 ReccoBeats: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
-      
+
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
@@ -414,12 +416,13 @@ const discoverMusicReccoBeats = async () => {
 }
 
 const discoverMusicRapidApi = async () => {
-  if (!selectedSeedTrack.value) return
+  if (!selectedSeedTrack.value) {
+    return
+  }
 
   isDiscovering.value = true
   errorMessage.value = ''
   currentProvider.value = 'RapidAPI'
-
 
   try {
     const response: ApiResponse<Track[]> = await http.post('music-discovery/discover-rapidapi', {
@@ -428,16 +431,16 @@ const discoverMusicRapidApi = async () => {
       apply_popularity_filter: enabledParameters.value.popularity,
       limit: 50,
       offset: 0,
-      exclude_track_ids: []
+      exclude_track_ids: [],
     })
 
     if (response.success && response.data) {
       // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
-      
+
       // console.log(`📋 RapidAPI: Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
-      
+
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
@@ -452,14 +455,16 @@ const discoverMusicRapidApi = async () => {
 }
 
 const analyzeRecommendationKeys = async (tracks: Track[]) => {
-  if (tracks.length === 0) return
+  if (tracks.length === 0) {
+    return
+  }
 
   keyAnalysisResults.value = []
 
   // Run all API calls in parallel instead of sequential
   // Run key analysis in background without blocking UI
   keyAnalysisResults.value = [] // Reset results
-  
+
   tracks.forEach(async track => {
     try {
       const key = await analyzeTrack(track.id)
@@ -470,11 +475,12 @@ const analyzeRecommendationKeys = async (tracks: Track[]) => {
     } catch (error) {
     }
   })
-
 }
 
 const getRelatedTracks = async (track: Track) => {
-  if (!track) return
+  if (!track) {
+    return
+  }
 
   // Set this track as the selected seed track if it isn't already
   if (!selectedSeedTrack.value || selectedSeedTrack.value.id !== track.id) {
@@ -487,34 +493,34 @@ const getRelatedTracks = async (track: Track) => {
 
   try {
     // console.log('🎵 Getting related tracks for:', track.name, 'by', track.artist)
-    
+
     const response: ApiResponse<Track[]> = await http.get('music-discovery/related-tracks', {
       params: {
         track_id: track.id,
         artist_name: track.artist,
         track_title: track.name,
-        limit: 100
-      }
+        limit: 100,
+      },
     })
 
     if (response.success && response.data) {
       // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
       const filteredTracks = filterTracks(allTracks)
-      
+
       // console.log(`📋 Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
-      
+
       allRecommendations.value = filteredTracks
       totalTracks.value = filteredTracks.length
       currentPage.value = 1 // Reset to first page
-      
+
       // console.log(`✅ Found ${filteredTracks.length} similar tracks (${allTracks.length} total, ${allTracks.length - filteredTracks.length} blacklisted)`)
 
       // Auto-scroll to bottom of page after a brief delay
       setTimeout(() => {
         window.scrollTo({
           top: document.documentElement.scrollHeight,
-          behavior: 'smooth'
+          behavior: 'smooth',
         })
       }, 500)
 
@@ -535,7 +541,7 @@ const discoverRelatedTracks = async () => {
     errorMessage.value = 'Please select a seed track first'
     return
   }
-  
+
   await getRelatedTracks(selectedSeedTrack.value)
 }
 
@@ -546,7 +552,7 @@ const onTracksBlacklisted = (trackKeys: string[]) => {
   // Don't immediately filter - let banned items stay visible until next search
   // The filtering will only happen when new recommendations are fetched
   // console.log(`📋 Parent: ${trackKeys.length} tracks were blacklisted, but keeping them visible until next search`)
-  
+
   // Just log the event, don't re-filter current recommendations
   // Filtering will happen automatically when getRelatedTracks() or getSimilarTracks() is called next
 }
@@ -570,7 +576,7 @@ onMounted(async () => {
 })
 
 // Handle route changes to set seed track from SavedTracksScreen
-onRouteChanged(async (route) => {
+onRouteChanged(async route => {
   console.log('🔍 [MUSIC DISCOVERY] onRouteChanged called with route:', route)
 
   if (route.screen === 'MusicDiscovery') {
@@ -619,10 +625,10 @@ const handleSpotifyTrackSeed = async (spotifyTrackId: string, trackName?: string
     // Create seed track object with known information
     const seedTrack: Track = {
       id: spotifyTrackId,
-      name: name,
-      artist: artist,
+      name,
+      artist,
       album: 'Unknown Album',
-      external_url: `https://open.spotify.com/track/${spotifyTrackId}`
+      external_url: `https://open.spotify.com/track/${spotifyTrackId}`,
     }
 
     // Set as selected seed track IMMEDIATELY for fast UI update
@@ -638,8 +644,8 @@ const handleSpotifyTrackSeed = async (spotifyTrackId: string, trackName?: string
         artist_name: artist,
         track_title: name,
         source: 'spotify',
-        track_id: spotifyTrackId
-      }
+        track_id: spotifyTrackId,
+      },
     }).then(response => {
       if (response.success && response.data) {
         // Update seed track with preview and image data

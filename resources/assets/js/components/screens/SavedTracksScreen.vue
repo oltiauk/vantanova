@@ -33,7 +33,6 @@
             </div>
           </div>
         </div>
-        
       </div>
 
       <!-- Sort Controls -->
@@ -96,7 +95,7 @@
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left py-7 px-2 font-medium">#</th>
-                <th class="text-center px-2 font-medium w-12"></th>
+                <th class="text-center px-2 font-medium w-12" />
                 <th class="text-left px-2 font-medium w-auto min-w-48">Artist</th>
                 <th class="text-left px-2 font-medium">Track Title</th>
                 <th class="text-center px-2 font-medium">Label</th>
@@ -104,8 +103,8 @@
                 <th class="text-center px-2 font-medium">Followers</th>
                 <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
                 <th class="text-center px-2 font-medium whitespace-nowrap">Time</th>
-                <th class="text-center px-1 font-medium whitespace-nowrap"></th>
-                <th class="text-center px-1 font-medium"></th>
+                <th class="text-center px-1 font-medium whitespace-nowrap w-20" />
+                <th class="text-center px-1 font-medium w-20" />
               </tr>
             </thead>
             <tbody>
@@ -218,9 +217,8 @@
                       <!-- Dropdown Menu -->
                       <div
                         v-if="openActionsDropdown === track.id"
-                        :class="[
-                          'absolute right-0 w-48 rounded-lg shadow-lg z-[9999]',
-                          index >= paginatedTracks.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'
+                        class="absolute right-0 w-48 rounded-lg shadow-lg z-[9999]" :class="[
+                          index >= paginatedTracks.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1',
                         ]"
                         style="background-color: rgb(67,67,67,255);"
                       >
@@ -1117,7 +1115,7 @@ const searchByLabel = (label: string) => {
   const labelSearchData = {
     query: label,
     source: 'savedTracks',
-    timestamp: Date.now()
+    timestamp: Date.now(),
   }
 
   localStorage.setItem('koel-label-search-query', JSON.stringify(labelSearchData))

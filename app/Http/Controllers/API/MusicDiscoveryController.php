@@ -2653,10 +2653,27 @@ class MusicDiscoveryController extends Controller
                 'strategy' => 'full_query',
                 'timestamp' => now()->toISOString()
             ]);
-            
+
             if ($searchResponse && $searchResponse->successful()) {
                 $searchData = $searchResponse->json();
-                $shazamTrackId = $this->findMatchingShazamTrack($searchData, $artistName, $trackTitle);
+
+                // Check if API returned an error even with 200 status
+                if (isset($searchData['status']) && $searchData['status'] === false) {
+                    \Log::error("🎵 ❌ SHAZAM API ERROR (HTTP 200 but error response)", [
+                        'strategy' => 'full_query',
+                        'error_message' => $searchData['message'] ?? 'Unknown error',
+                        'full_response' => $searchData,
+                        'headers' => $searchResponse->headers(),
+                        'possible_causes' => [
+                            'Invalid API key',
+                            'Subscription expired',
+                            'API provider issue',
+                            'Rate limit (soft limit)'
+                        ]
+                    ]);
+                } else {
+                    $shazamTrackId = $this->findMatchingShazamTrack($searchData, $artistName, $trackTitle);
+                }
             }
             
             // Strategy 2: If full query failed, try artist name only (original strategy)
@@ -2685,6 +2702,26 @@ class MusicDiscoveryController extends Controller
                     'strategy' => 'artist_only_fallback',
                     'timestamp' => now()->toISOString()
                 ]);
+
+                if ($searchResponse && $searchResponse->successful()) {
+                    $searchData = $searchResponse->json();
+
+                    // Check if API returned an error even with 200 status
+                    if (isset($searchData['status']) && $searchData['status'] === false) {
+                        \Log::error("🎵 ❌ SHAZAM API ERROR (HTTP 200 but error response)", [
+                            'strategy' => 'artist_only_fallback',
+                            'error_message' => $searchData['message'] ?? 'Unknown error',
+                            'full_response' => $searchData,
+                            'headers' => $searchResponse->headers(),
+                            'possible_causes' => [
+                                'Invalid API key',
+                                'Subscription expired',
+                                'API provider issue',
+                                'Rate limit (soft limit)'
+                            ]
+                        ]);
+                    }
+                }
             }
 
             \Log::info("🎵 Shazam search response", [
@@ -2771,6 +2808,24 @@ class MusicDiscoveryController extends Controller
             }
 
             $relatedData = $relatedResponse->json();
+
+            // Check if API returned an error even with 200 status
+            if (isset($relatedData['status']) && $relatedData['status'] === false) {
+                \Log::error("🎵 ❌ SHAZAM RECOMMENDATIONS API ERROR (HTTP 200 but error response)", [
+                    'track_id' => $shazamTrackId,
+                    'error_message' => $relatedData['message'] ?? 'Unknown error',
+                    'full_response' => $relatedData,
+                    'headers' => $relatedResponse->headers(),
+                    'possible_causes' => [
+                        'Invalid API key',
+                        'Subscription expired',
+                        'API provider issue',
+                        'Rate limit (soft limit)'
+                    ]
+                ]);
+                return [];
+            }
+
             $tracks = [];
 
             \Log::info("🎵 Shazam recommendations response", [

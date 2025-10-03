@@ -55,7 +55,6 @@
         </ul>
       </SidebarSection>
 
-      <SidebarPlaylistsSection />
       <SidebarManageSection v-if="showManageSection" />
     </section>
 
@@ -81,7 +80,6 @@ import { useRouter } from '@/composables/useRouter'
 import HomeButton from '@/components/layout/main-wrapper/sidebar/HomeButton.vue'
 import SideSheetButton from '@/components/layout/main-wrapper/side-sheet/SideSheetButton.vue'
 import SidebarManageSection from './SidebarManageSection.vue'
-import SidebarPlaylistsSection from './SidebarPlaylistsSection.vue'
 import SidebarToggleButton from '@/components/layout/main-wrapper/sidebar/SidebarToggleButton.vue'
 import SidebarSection from '@/components/layout/main-wrapper/sidebar/SidebarSection.vue'
 import SidebarSectionHeader from '@/components/layout/main-wrapper/sidebar/SidebarSectionHeader.vue'

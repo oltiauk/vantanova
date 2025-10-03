@@ -19,15 +19,10 @@
         <div class="rounded-lg p-4">
           <div class="max-w-4xl mx-auto">
             <div class="relative">
-              <!-- Search Icon -->
-              <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
-                <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
-              </div>
-
               <input
                 v-model="searchQuery"
                 type="text"
-                class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg text-center"
+                class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
                 placeholder="Search for a track..."
               >
             </div>
@@ -381,11 +376,35 @@ const setupEventListeners = () => {
     console.log(`🔄 Received ARTIST_UNBANNED event for: ${artistName}`)
     // State is already updated by the shared composable, UI will automatically update
   })
+
+  // Listen for track blacklist events from other screens (e.g., when saving tracks)
+  const handleTrackBlacklisted = (event: CustomEvent) => {
+    console.log('🔄 Track blacklisted from another screen, refreshing list...')
+    loadTracks()
+  }
+
+  const handleTrackUnblacklisted = (event: CustomEvent) => {
+    console.log('🔄 Track removed from blacklist from another screen, refreshing list...')
+    loadTracks()
+  }
+
+  // Listen for localStorage changes (cross-tab communication)
+  const handleStorageChange = (event: StorageEvent) => {
+    if (event.key === 'track-blacklisted-timestamp') {
+      console.log('🔄 Track blacklist updated in another tab, refreshing...')
+      loadTracks()
+    }
+  }
+
+  window.addEventListener('track-blacklisted', handleTrackBlacklisted as EventListener)
+  window.addEventListener('storage', handleStorageChange)
 }
 
 const cleanupEventListeners = () => {
   eventBus.off('ARTIST_BANNED')
   eventBus.off('ARTIST_UNBANNED')
+  window.removeEventListener('track-blacklisted', () => {})
+  window.removeEventListener('storage', () => {})
 }
 
 // Lifecycle
@@ -413,6 +432,14 @@ watch(searchQuery, resetPagination)
 </script>
 
 <style scoped>
+.search-input::placeholder {
+  text-align: center;
+}
+
+.search-input:focus::placeholder {
+  opacity: 0;
+}
+
 /* Hide scrollbars */
 .scrollbar-hide {
   -ms-overflow-style: none; /* Internet Explorer 10+ */

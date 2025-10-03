@@ -101,7 +101,21 @@
 
                   <!-- Title -->
                   <td class="p-3 align-middle">
-                    <span class="text-white/80">{{ track.name }}</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-white/80">{{ track.name }}</span>
+                      <span
+                        v-if="track.source"
+                        :class="[
+                          'text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide',
+                          track.source === 'spotify' ? 'bg-green-600/20 text-green-400' :
+                          track.source === 'shazam' || track.source === 'shazam_fallback' ? 'bg-blue-600/20 text-blue-400' :
+                          track.source === 'lastfm' ? 'bg-red-600/20 text-red-400' :
+                          'bg-gray-600/20 text-gray-400'
+                        ]"
+                      >
+                        {{ track.source === 'shazam_fallback' ? 'shazam' : track.source }}
+                      </span>
+                    </div>
                   </td>
 
                   <!-- Save/Ban Actions -->
@@ -114,7 +128,7 @@
                         :class="isTrackSaved(track)
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                        class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
+                        class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                         :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
                       >
                         <Icon :icon="faHeart" class="text-xs" />
@@ -127,7 +141,7 @@
                         :class="isTrackBlacklisted(track)
                           ? 'bg-orange-600 hover:bg-orange-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                        class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
+                        class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                         :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Block track'"
                       >
                         <Icon :icon="faBan" class="text-xs" />
@@ -631,6 +645,35 @@ const saveTrack = async (track: Track) => {
       // Failed to save unsaved tracks to localStorage
     }
 
+    // ALSO remove from blacklist when unsaving from discovery sections
+    try {
+      const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const deleteData = {
+        isrc: isrcValue,
+        track_name: track.name,
+        artist_name: track.artist
+      }
+      const params = new URLSearchParams(deleteData)
+      const response = await http.delete(`music-preferences/blacklist-track?${params}`)
+
+      if (response.success) {
+        // Update local blacklist state
+        blacklistedTracks.value.delete(trackKey)
+        console.log('✅ Track removed from blacklist on unsave:', track.name)
+
+        // Trigger BannedTracksScreen refresh
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track: track, trackKey: trackKey }
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } else {
+        console.warn('Failed to remove track from blacklist (API returned error):', response.error)
+      }
+    } catch (error) {
+      console.warn('Failed to remove track from blacklist on unsave:', error)
+    }
+
     // Trigger SavedTracksScreen refresh when track is unsaved
     try {
       // Dispatch custom event
@@ -721,6 +764,31 @@ const saveTrack = async (track: Track) => {
         // Revert on failure
         savedTracks.value.delete(trackKey)
         throw new Error(response.error || 'Failed to save track')
+      }
+
+      // ALSO add to blacklist when saving (for fresh discovery results)
+      // BUT don't update the UI blacklist state - only the backend
+      try {
+        const blacklistResponse = await http.post('music-preferences/blacklist-track', {
+          isrc: isrcValue,
+          track_name: track.name,
+          artist_name: track.artist
+        })
+
+        if (blacklistResponse.success) {
+          // DON'T update blacklistedTracks.value - keep ban button gray
+          // The track is blacklisted in the backend, but we don't show it as "banned" in the UI
+          console.log('✅ Track added to blacklist on save (silent):', track.name)
+
+          // Trigger BannedTracksScreen refresh
+          window.dispatchEvent(new CustomEvent('track-blacklisted', {
+            detail: { track: track, trackKey: trackKey }
+          }))
+          localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+        }
+      } catch (error) {
+        console.warn('Failed to add track to blacklist on save:', error)
+        // Don't fail the save operation if blacklisting fails
       }
 
       // Update localStorage

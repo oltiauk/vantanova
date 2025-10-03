@@ -1,36 +1,27 @@
 <template>
   <div class="seed-selection mb-8">
-    <!-- Welcome Message with Last.fm Logo -->
-    <div v-if="!selectedTrack && searchResults.length === 0 && !searchQuery.trim() && !isSearching" class="">
-      <div class="max-w-4xl mx-auto">
-        <div class="flex justify-center items-center py-4">
-          <div class="text-center ml-6">
-            <h3 class="text-lg font-bold text-white mb-2">Search for a Seed Track</h3>
-            <p class="text-k-text-secondary">
-              Search for a seed track to find related tracks
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Search Container -->
     <div class="search-container mb-6">
       <div class="rounded-lg p-4">
         <div class="max-w-4xl mx-auto">
           <div ref="searchContainer" class="relative">
-            <!-- Search Icon -->
-            <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
-              <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
+            <div class="flex">
+              <input
+                v-model="searchQuery"
+                type="text"
+                class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
+                placeholder="Search for a Seed Track"
+                @keydown.enter="performSearch"
+                @input="onSearchInput"
+              >
+              <button
+                class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
+                :disabled="!searchQuery.trim() || isSearching"
+                @click="performSearch"
+              >
+                <Icon :icon="faSearch" class="w-5 h-5" />
+              </button>
             </div>
-
-            <input
-              v-model="searchQuery"
-              type="text"
-              class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
-              placeholder="Search for a track"
-              @input="onSearchInput"
-            >
 
             <!-- Loading Animation -->
             <div
@@ -87,26 +78,25 @@
     </div>
 
     <!-- Selected Seed Track Display - Compact -->
-   
-    </div> <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
-      <div class="max-w-4xl mx-auto">
-        <div class="text-sm font-medium mb-2">Seed Track:</div>
-        <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 flex-1 min-w-0">
-              <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
-              <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
-            </div>
-            <button
-              class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
-              title="Clear seed track"
-              @click="clearSeedTrack"
-            >
-              <Icon :icon="faTimes" class="w-4 h-4" />
-            </button>
+  </div> <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-sm font-medium mb-2">Seed Track:</div>
+      <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
+            <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
           </div>
+          <button
+            class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
+            title="Clear seed track"
+            @click="clearSeedTrack"
+          >
+            <Icon :icon="faTimes" class="w-4 h-4" />
+          </button>
         </div>
       </div>
+    </div>
 
     <!-- Error State -->
     <div v-if="searchError" class="bg-red-500/20 border border-red-500/40 rounded-lg p-4 max-w-2xl mx-auto">
@@ -186,9 +176,8 @@ const searchResults = ref<Track[]>([])
 const searchError = ref('')
 const currentPage = ref(1)
 const isSearching = ref(false)
-const expandedTrackId = ref<string | null>(null)
 const searchContainer = ref<HTMLElement | null>(null)
-let searchTimeout: NodeJS.Timeout | null = null
+const searchTimeout = ref<NodeJS.Timeout | null>(null)
 
 // Music preferences state
 const savedTracks = ref<Set<string>>(new Set())
@@ -224,12 +213,6 @@ const filteredSearchResults = computed(() => {
   })
 })
 
-const displayedTracks = computed(() => {
-  const start = (currentPage.value - 1) * 20
-  const end = start + 20
-  return filteredSearchResults.value.slice(start, end)
-})
-
 // Helper functions
 const getTrackKey = (track: Track): string => {
   return `${track.artist}-${track.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
@@ -263,31 +246,31 @@ const formatArtists = (track: Track): string => {
   return track.artist
 }
 
-// Auto-search functionality with debouncing
+// Clear dropdown when user types
 const onSearchInput = () => {
-  // Clear existing timeout
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
+  // Clear search results when user edits the query
+  searchResults.value = []
+}
 
-  // Clear results immediately if query is empty
+// Manual search functionality
+const performSearch = () => {
   if (!searchQuery.value.trim()) {
-    searchResults.value = []
-    searchError.value = ''
     return
   }
 
-  // Search works normally - recommendations will be hidden when search results show
+  // Clear any existing timeout
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value)
+  }
 
-  // Set new timeout for search
-  searchTimeout = setTimeout(() => {
-    searchTracks()
-  }, 500) // Wait 500ms after user stops typing
+  searchTracks()
 }
 
 // Search functionality
 const searchTracks = async () => {
   if (!searchQuery.value.trim()) {
+    searchResults.value = []
+    searchError.value = ''
     return
   }
 
@@ -395,7 +378,7 @@ const saveTrack = async (track: Track) => {
         artist_name: artist,
         duration: Math.floor((track.duration_ms || 0) / 1000),
         track_count: 1,
-        is_single_track: true
+        is_single_track: true,
       })
 
       if (response.success) {
@@ -564,19 +547,6 @@ const blacklistArtist = async (track: Track) => {
     }
   } finally {
     processingTrack.value = null
-  }
-}
-
-// Pagination
-const nextPage = () => {
-  if (currentPage.value * 20 < filteredSearchResults.value.length) {
-    currentPage.value++
-  }
-}
-
-const previousPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value--
   }
 }
 

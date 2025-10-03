@@ -536,6 +536,36 @@ const saveTrack = async track => {
       // we'll handle this client-side by marking it as unsaved
       // This provides the expected toggle UX while tracks naturally expire
 
+      // ALSO remove from blacklist when unsaving from discovery sections
+      try {
+        const deleteData = {
+          isrc: track.isrc,
+          track_name: track.track_name,
+          artist_name: track.artist_name,
+        }
+        const params = new URLSearchParams(deleteData)
+        const response = await http.delete(`music-preferences/blacklist-track?${params}`)
+
+        if (response.success) {
+          // Update local state if we're tracking it
+          if (track.isBanned !== undefined) {
+            track.isBanned = false
+          }
+
+          console.log('✅ Track removed from blacklist on unsave:', track.track_name)
+
+          // Trigger BannedTracksScreen refresh
+          window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+            detail: { track, trackKey: getTrackKey(track) },
+          }))
+          localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+        } else {
+          console.warn('Failed to remove track from blacklist (API returned error):', response.error)
+        }
+      } catch (error) {
+        console.warn('Failed to remove track from blacklist on unsave:', error)
+      }
+
       // Note: We could implement a DELETE endpoint in the future if needed,
       // but for now this client-side approach works well since tracks expire anyway
     } else {
@@ -620,6 +650,31 @@ const saveTrack = async track => {
         console.log('🎵 [LABEL SEARCH] Save response:', response)
 
         if (response.success) {
+          // ALSO add to blacklist when saving (for fresh discovery results)
+          // BUT don't update the UI blacklist state - only the backend
+          try {
+            const blacklistResponse = await http.post('music-preferences/blacklist-track', {
+              isrc: track.isrc,
+              track_name: track.track_name,
+              artist_name: track.artist_name,
+            })
+
+            if (blacklistResponse.success) {
+              // DON'T update track.isBanned - keep ban button gray
+              // The track is blacklisted in the backend, but we don't show it as "banned" in the UI
+              console.log('✅ Track added to blacklist on save (silent):', track.track_name)
+
+              // Trigger BannedTracksScreen refresh
+              window.dispatchEvent(new CustomEvent('track-blacklisted', {
+                detail: { track, trackKey: getTrackKey(track) },
+              }))
+              localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+            }
+          } catch (error) {
+            console.warn('Failed to add track to blacklist on save:', error)
+            // Don't fail the save operation if blacklisting fails
+          }
+
           // Update localStorage timestamp to trigger cross-tab refresh
           localStorage.setItem('track-saved-timestamp', Date.now().toString())
         } else {
