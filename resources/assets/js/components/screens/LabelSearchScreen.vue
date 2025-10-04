@@ -10,13 +10,13 @@
     </template>
 
     <div class="wrapper">
-      <div class="search-form max-w-xl mx-auto space-y-6">
+      <div class="search-form max-w-[45.5rem] mx-auto space-y-6">
         <!-- Search Input -->
         <div class="relative">
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search for a Record Label  "
+            placeholder="Search for a Record Label"
             class="w-full px-4 py-3 rounded-lg bg-white/10 border-0 focus:outline-none search-input"
             @keyup.enter="performSearch"
           >
@@ -80,7 +80,7 @@
         <div class="flex justify-center">
           <button
             :disabled="!searchQuery.trim() || isLoading"
-            class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-k-accent/90 transition-colors"
+            class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors"
             @click="performSearch"
           >
             Search
@@ -105,20 +105,15 @@
 
       <!-- Results Table -->
       <div v-else-if="filteredTracks.length > 0" class="mt-8">
-        <!-- Results Header -->
-        <div class="mb-4">
-          <h3 class="text-lg font-medium text-white">Found {{ filteredTracks.length }} tracks from "{{ lastSearchQuery }}"</h3>
-        </div>
-
         <div class="bg-white/5 rounded-lg overflow-hidden">
           <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full">
               <thead>
                 <tr class="border-b border-white/10">
                   <th class="text-left py-7 px-3 font-medium">#</th>
-                  <th class="text-left px-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
-                  <th class="text-left px-3 font-medium w-auto min-w-48">Artist</th>
-                  <th class="text-left px-3 font-medium">Release Title</th>
+                  <th class="text-center px-3 font-medium w-20 whitespace-nowrap" />
+                  <th class="text-left px-3 font-medium w-auto min-w-48">Artist(s)</th>
+                  <th class="text-left px-3 font-medium">Title</th>
                   <th class="text-center px-3 font-medium">Popularity</th>
                   <th class="text-center px-3 font-medium whitespace-nowrap">Release Date</th>
                   <th class="text-center px-3 font-medium" />
@@ -128,10 +123,9 @@
               <tbody>
                 <template v-for="(track, index) in filteredTracks" :key="track.spotify_id">
                   <tr
-                    class="transition h-16 border-b border-white/5 track-row" :class="[
+                    class="transition h-16 border-b border-white/5" :class="[
                       expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
                     ]"
-                    :style="{ animationDelay: `${index * 50}ms` }"
                   >
                     <!-- Index -->
                     <td class="p-3 align-middle">
@@ -158,7 +152,7 @@
                     <!-- Artist -->
                     <td class="p-3 align-middle">
                       <button
-                        class="font-medium text-white hover:text-k-accent transition-colors cursor-pointer text-left leading-none"
+                        class="font-medium text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left leading-none"
                         :title="`View ${track.artist_name} on Spotify`"
                         @click="openSpotifyArtistPage(track)"
                       >
@@ -169,7 +163,7 @@
                     <!-- Release Title -->
                     <td class="p-3 align-middle">
                       <button
-                        class="text-white/80 hover:text-k-accent transition-colors cursor-pointer text-left"
+                        class="text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left"
                         :title="track.is_single_track ? `View '${track.track_name}' on Spotify` : `View '${track.release_name}' album on Spotify`"
                         @click="openSpotifyReleasePage(track)"
                       >
@@ -189,7 +183,7 @@
                     </td>
 
                     <!-- Actions -->
-                    <td class="p-3 align-middle">
+                    <td class="pl-3 align-middle">
                       <div class="flex gap-2 justify-center">
                         <!-- Save Button (24h) -->
                         <button
@@ -198,10 +192,10 @@
                             ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
-                          :title="track.isSaved ? 'Click to unsave track' : 'Save track (24h)'"
+                          :title="track.isSaved ? 'Click to unsave track' : 'Save the Track (24h)'"
                           @click="saveTrack(track)"
                         >
-                          <Icon :icon="faHeart" class="text-xs" />
+                          <Icon :icon="faHeart" class="text-sm" />
                         </button>
 
                         <!-- Blacklist Button -->
@@ -211,19 +205,19 @@
                             ? 'bg-orange-600 hover:bg-orange-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
-                          :title="track.isBanned ? 'Click to unblock track' : 'Block track'"
+                          :title="track.isBanned ? 'Click to unblock track' : 'Ban the Track'"
                           @click="banTrack(track)"
                         >
-                          <Icon :icon="faBan" class="text-xs" />
+                          <Icon :icon="faBan" class="text-sm" />
                         </button>
                       </div>
                     </td>
 
                     <!-- Preview Button -->
-                    <td class="p-3 align-middle text-center">
+                    <td class="pr-3 pl-4 align-middle text-center">
                       <button
                         :disabled="processingTrack === getTrackKey(track)"
-                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[15px] justify-center mx-auto"
+                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-[100px] h-[34px] justify-center mx-auto"
                         :title="expandedTrackId === getTrackKey(track) ? 'Close preview' : 'Preview track'"
                         @click="toggleSpotifyPlayer(track)"
                       >
@@ -241,54 +235,52 @@
                   </tr>
 
                   <!-- Spotify Player Dropdown Row -->
-                  <Transition name="spotify-dropdown" mode="out-in">
-                    <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                      <td colspan="8" class="p-0 overflow-hidden">
-                        <div class="p-4 bg-white/5 relative pb-8">
-                          <div class="max-w-4xl mx-auto">
-                            <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
-                              <iframe
-                                :key="track.is_single_track ? track.spotify_id : track.album_id"
-                                :src="track.is_single_track
-                                  ? `https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`
-                                  : `https://open.spotify.com/embed/album/${track.album_id}?utm_source=generator&theme=0`"
-                                :title="track.is_single_track
-                                  ? `${track.artist_name} - ${track.track_name}`
-                                  : `${track.artist_name} - ${track.release_name || track.album_name} (${track.track_count} tracks)`"
-                                class="w-full spotify-embed"
-                                :style="track.is_single_track
-                                  ? 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
-                                  : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
-                                frameBorder="0"
-                                scrolling="no"
-                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                loading="lazy"
-                                @load="(event) => { event.target.style.opacity = '1' }"
-                              />
-                            </div>
-                            <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
-                              <div class="text-center text-white/60">
-                                <div class="text-sm font-medium">No Spotify preview available</div>
-                              </div>
-                            </div>
+                  <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
+                    <td colspan="8" class="p-0 overflow-hidden">
+                      <div class="p-4 bg-white/5 relative pb-8">
+                        <div class="max-w-4xl mx-auto">
+                          <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
+                            <iframe
+                              :key="track.is_single_track ? track.spotify_id : track.album_id"
+                              :src="track.is_single_track
+                                ? `https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`
+                                : `https://open.spotify.com/embed/album/${track.album_id}?utm_source=generator&theme=0`"
+                              :title="track.is_single_track
+                                ? `${track.artist_name} - ${track.track_name}`
+                                : `${track.artist_name} - ${track.release_name || track.album_name} (${track.track_count} tracks)`"
+                              class="w-full spotify-embed"
+                              :style="track.is_single_track
+                                ? 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
+                                : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
+                              frameBorder="0"
+                              scrolling="no"
+                              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                              loading="lazy"
+                              @load="(event) => { event.target.style.opacity = '1' }"
+                            />
                           </div>
-
-                          <!-- Spotify Login Link -->
-                          <div class="absolute bottom-2 right-4">
-                            <span class="text-xs text-white/50 font-light">
-                              <a
-                                href="https://accounts.spotify.com/login"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-white/50 hover:text-white/70 transition-colors underline"
-                              >
-                                Connect</a> to Spotify to listen to the full track
-                            </span>
+                          <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
+                            <div class="text-center text-white/60">
+                              <div class="text-sm font-medium">No Spotify preview available</div>
+                            </div>
                           </div>
                         </div>
-                      </td>
-                    </tr>
-                  </Transition>
+
+                        <!-- Spotify Login Link -->
+                        <div class="absolute bottom-2 right-4">
+                          <span class="text-xs text-white/50 font-light">
+                            <a
+                              href="https://accounts.spotify.com/login"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-white/50 hover:text-white/70 transition-colors underline"
+                            >
+                              Connect</a> to Spotify to listen to the full track
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 </template>
               </tbody>
             </table>
@@ -1043,10 +1035,10 @@ const resetFilters = () => {
 
 // Also check when navigating to this screen
 onRouteChanged(route => {
-  // Close dropdown immediately when leaving this screen (not when returning)
-  if (route.screen !== 'LabelSearch' && expandedTrackId.value) {
+  // Close dropdown immediately when navigating to ANY screen (including when leaving or returning)
+  if (expandedTrackId.value) {
     expandedTrackId.value = null
-    console.log('🏷️ [LABEL SEARCH] Closed preview dropdown when leaving screen')
+    console.log('🏷️ [LABEL SEARCH] Closed preview dropdown on navigation')
   }
 
   if (route.screen === 'LabelSearch') {
@@ -1152,21 +1144,5 @@ input:focus::placeholder {
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(-4px);
-}
-
-/* Track rows progressive display animation */
-.track-row {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>

@@ -2,14 +2,11 @@
   <ScreenBase>
     <template #header>
       <ScreenHeader>
-        <div class="text-center">
-          Banned Artists
-        </div>
-        <template #meta>
-          <div class="text-center">
-            <span class="text-k-text-secondary text-lg">Manage your blacklisted artists</span>
+        <div class="rounded-lg px-4 ml-9">
+          <div class="max-w-4xl mx-auto text-center">
+            Banned Artists
           </div>
-        </template>
+        </div>
       </ScreenHeader>
     </template>
 
@@ -17,13 +14,13 @@
       <!-- Search Container -->
       <div class="search-container mb-8">
         <div class="rounded-lg p-4">
-          <div class="max-w-4xl mx-auto">
+          <div class="max-w-3xl mx-auto">
             <div class="relative">
               <input
                 v-model="searchQuery"
                 type="text"
                 class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
-                placeholder="Search for an artist..."
+                placeholder="Search for a banned artist"
               >
             </div>
           </div>
@@ -33,7 +30,7 @@
       <!-- Loading State -->
       <div v-if="isLoading" class="text-center p-12">
         <div class="inline-flex flex-col items-center">
-          <div class="animate-spin rounded-full h-8 w-8 border-2 border-k-accent border-t-transparent mb-4"></div>
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-k-accent border-t-transparent mb-4" />
           <span class="text-k-text-secondary">Loading banned artists...</span>
         </div>
       </div>
@@ -56,7 +53,7 @@
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left px-3 py-4 font-medium w-12">#</th>
-                <th class="text-left px-3 font-medium">Artist Name</th>
+                <th class="text-left px-3 font-medium">Artist</th>
                 <th class="text-center px-3 font-medium w-24">Unban</th>
               </tr>
             </thead>
@@ -64,11 +61,7 @@
               <tr
                 v-for="(artist, index) in paginatedArtists"
                 :key="artist.id"
-                :class="[
-                  'transition h-12 border-b border-white/5 hover:bg-white/5',
-                  'artist-row'
-                ]"
-                :style="{ animationDelay: `${index * 50}ms` }"
+                class="transition h-12 border-b border-white/5 hover:bg-white/5"
               >
                 <!-- Index -->
                 <td class="px-3 py-2 align-middle">
@@ -84,10 +77,10 @@
                 <td class="px-3 py-2 align-middle">
                   <div class="flex items-center justify-center">
                     <button
-                      @click="unbanArtist(artist)"
                       :disabled="isProcessing"
                       class="p-2 rounded-full transition-colors text-red-400 hover:text-red-300 hover:bg-red-500/20"
                       title="Remove artist from blacklist"
+                      @click="unbanArtist(artist)"
                     >
                       <Icon :icon="faTrash" class="w-4 h-4" />
                     </button>
@@ -134,8 +127,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { faSearch, faUserSlash, faTrash } from '@fortawesome/free-solid-svg-icons'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { faSearch, faTrash, faUserSlash } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
@@ -155,7 +148,7 @@ interface BlacklistedArtist {
 // Initialize shared blacklist state
 const {
   removeArtistFromBlacklist,
-  loadBlacklistedItems
+  loadBlacklistedItems,
 } = useBlacklistFiltering()
 
 // Initialize router
@@ -171,11 +164,13 @@ const artists = ref<BlacklistedArtist[]>([])
 
 // Computed properties
 const filteredArtists = computed(() => {
-  if (!searchQuery.value.trim()) return artists.value
+  if (!searchQuery.value.trim()) {
+    return artists.value
+  }
 
   const query = searchQuery.value.toLowerCase()
   return artists.value.filter(artist =>
-    artist.artist_name.toLowerCase().includes(query)
+    artist.artist_name.toLowerCase().includes(query),
   )
 })
 
@@ -226,7 +221,7 @@ const loadArtists = async () => {
     if (response.success && response.data) {
       // Sort by most recent first (created_at descending)
       artists.value = response.data.sort((a: BlacklistedArtist, b: BlacklistedArtist) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       )
     } else {
       artists.value = []
@@ -240,14 +235,16 @@ const loadArtists = async () => {
 }
 
 const unbanArtist = async (artist: BlacklistedArtist) => {
-  if (isProcessing.value) return
+  if (isProcessing.value) {
+    return
+  }
 
   isProcessing.value = true
 
   try {
     const deleteData = {
       spotify_artist_id: artist.spotify_artist_id,
-      artist_name: artist.artist_name
+      artist_name: artist.artist_name,
     }
     const params = new URLSearchParams(deleteData)
     const response = await http.delete(`music-preferences/blacklist-artist?${params}`)
@@ -306,7 +303,7 @@ onMounted(async () => {
   setupEventListeners()
   await Promise.all([
     loadArtists(),
-    loadBlacklistedItems() // Load shared blacklist state
+    loadBlacklistedItems(), // Load shared blacklist state
   ])
 })
 
@@ -315,7 +312,7 @@ onUnmounted(() => {
 })
 
 // Refresh data when navigating back to this screen
-onRouteChanged((route) => {
+onRouteChanged(route => {
   if (route.screen === 'BannedArtists') {
     // Refresh the artists data when coming back to this screen
     loadArtists()
@@ -343,21 +340,5 @@ watch(searchQuery, resetPagination)
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none; /* Safari and Chrome */
-}
-
-/* Artist rows progressive display animation */
-.artist-row {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>

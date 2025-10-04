@@ -2,14 +2,11 @@
   <ScreenBase>
     <template #header>
       <ScreenHeader>
-        <div class="text-center">
-          Saved Tracks
-        </div>
-        <template #meta>
-          <div class="text-center">
-            <span class="text-k-text-secondary text-lg">Manage your saved tracks (24h expiration)</span>
+        <div class="rounded-lg px-4 ml-8">
+          <div class="max-w-4xl mx-auto text-center">
+            Saved Tracks
           </div>
-        </template>
+        </div> 
       </ScreenHeader>
     </template>
 
@@ -28,7 +25,7 @@
                 v-model="searchQuery"
                 type="text"
                 class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
-                placeholder="Search for a saved track..."
+                placeholder="Search for a saved track"
               >
             </div>
           </div>
@@ -53,7 +50,7 @@
           <div
             v-if="showSortDropdown"
             class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-50"
-            style="background-color: rgb(67,67,67,255);"
+            style="background-color: rgba(47, 47, 47, 255);"
           >
             <button
               v-for="option in sortOptions"
@@ -96,13 +93,13 @@
               <tr class="border-b border-white/10">
                 <th class="text-left py-7 px-2 font-medium">#</th>
                 <th class="text-center px-2 font-medium w-12" />
-                <th class="text-left px-2 font-medium w-auto min-w-48">Artist</th>
-                <th class="text-left px-2 font-medium">Track Title</th>
-                <th class="text-center px-2 font-medium">Label</th>
+                <th class="text-left px-2 font-medium w-auto min-w-48">Artist(s)</th>
+                <th class="text-left px-2 font-medium">Title</th>
+                <th class="text-center px-2 font-medium">Record Label</th>
                 <th class="text-center px-2 font-medium">Popularity</th>
                 <th class="text-center px-2 font-medium">Followers</th>
                 <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
-                <th class="text-center px-2 font-medium whitespace-nowrap">Time</th>
+                <th class="text-center px-2 font-medium whitespace-nowrap" />
                 <th class="text-center px-1 font-medium whitespace-nowrap w-20" />
                 <th class="text-center px-1 font-medium w-20" />
               </tr>
@@ -112,9 +109,7 @@
                 <tr
                   class="transition h-16 border-b border-white/5" :class="[
                     expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
-                    expandedTrackId !== getTrackKey(track) && allowAnimations ? 'track-row' : '',
                   ]"
-                  :style="expandedTrackId !== getTrackKey(track) && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
                 >
                   <!-- Index -->
                   <td class="p-3 align-middle">
@@ -124,7 +119,7 @@
                   <!-- Clipboard -->
                   <td class="p-3 align-middle text-center">
                     <button
-                      class="transition disabled:opacity-50 hover:text-[#9d0cc6] text-white/70"
+                      class="transition disabled:opacity-50 text-gray-300 hover:text-gray-100"
                       title="Copy artist and title"
                       @click="copyTrackInfo(track)"
                     >
@@ -138,7 +133,7 @@
                   <!-- Artist -->
                   <td class="p-3 align-middle">
                     <button
-                      class="font-medium text-white hover:text-[#9d0cc6] transition-colors cursor-pointer text-left leading-none"
+                      class="font-medium text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left leading-none"
                       :title="`View ${track.artist_name} on Spotify`"
                       @click="openSpotifyArtistPage(track)"
                     >
@@ -149,7 +144,7 @@
                   <!-- Track Title -->
                   <td class="p-3 align-middle">
                     <button
-                      class="text-white/80 hover:text-[#9d0cc6] transition-colors cursor-pointer text-left"
+                      class="text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left"
                       :title="`View '${track.track_name}' on Spotify`"
                       @click="openSpotifyTrackPage(track)"
                     >
@@ -163,7 +158,7 @@
                     <template v-if="track.label && track.label !== 'Unknown Label'">
                       <template v-for="(label, labelIndex) in track.label.split('/')" :key="labelIndex">
                         <button
-                          class="text-white/80 text-sm hover:text-[#9d0cc6] transition-colors cursor-pointer"
+                          class="text-gray-300 text-sm hover:text-gray-100 transition-colors cursor-pointer"
                           :title="`Search for ${label.trim()} label`"
                           @click="searchByLabel(label.trim())"
                         >
@@ -205,7 +200,7 @@
                     <div class="flex items-center justify-center relative">
                       <button
                         :disabled="isProcessing"
-                        class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                         title="Actions"
                         @click="toggleActionsDropdown(track.id)"
                         @blur="hideActionsDropdown(track.id)"
@@ -436,7 +431,8 @@ const openActionsDropdown = ref<number | null>(null)
 
 // Sort options for the dropdown
 const sortOptions = [
-  { value: 'most_recent', label: 'Most Recent' },
+  { value: 'most_recent', label: 'Recently saved' },
+  { value: 'latest_releases', label: 'Latest Releases' },
   { value: 'highest_popularity', label: 'Highest Popularity' },
   { value: 'most_followers', label: 'Most Followers' },
 ]
@@ -458,6 +454,12 @@ const sortedTracks = computed(() => {
   const tracksToSort = [...filteredTracks.value]
 
   switch (sortBy.value) {
+    case 'latest_releases':
+      return tracksToSort.sort((a, b) => {
+        const dateA = a.release_date && a.release_date !== 'Unknown' ? new Date(a.release_date).getTime() : 0
+        const dateB = b.release_date && b.release_date !== 'Unknown' ? new Date(b.release_date).getTime() : 0
+        return dateB - dateA
+      })
     case 'highest_popularity':
       return tracksToSort.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
     case 'most_followers':
@@ -632,7 +634,7 @@ const goToPage = (page: number) => {
 
 const getSortText = () => {
   const option = sortOptions.find(opt => opt.value === sortBy.value)
-  return option ? `Sort by: ${option.label}` : 'Sort by: Most Recent'
+  return option ? `Sort by: ${option.label}` : 'Sort by: Recently saved'
 }
 
 // Load client-side unsaved tracks from localStorage
@@ -1211,21 +1213,6 @@ watch([searchQuery, sortBy], resetPagination)
 
 .search-input:focus::placeholder {
   opacity: 0;
-}
-/* Track rows progressive display animation */
-.track-row {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* Hide scrollbars */

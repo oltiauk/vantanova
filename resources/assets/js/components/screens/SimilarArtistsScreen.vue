@@ -2,27 +2,35 @@
   <ScreenBase>
     <template #header>
       <ScreenHeader layout="simple" class="text-center">
-        Similar Artists
+        <div class="rounded-lg px-4 mr-12">
+          <div class="max-w-4xl mx-auto text-center">
+            Similar Artists
+          </div>
+        </div>
         <template #subtitle>
-          <span v-if="selectedArtist" class="text-text-secondary">
-            Similar to: {{ selectedArtist.name }}
-          </span>
-          <span v-else>Find artists similar to your seed artist</span>
+          <div class="rounded-lg px-4 mr-16">
+            <div class="max-w-4xl mx-auto text-center">
+              <span v-if="selectedArtist" class="text-text-secondary">
+                Similar to: {{ selectedArtist.name }}
+              </span>
+              <span v-else>Find artists similar to your seed artist</span>
+            </div>
+          </div>
         </template>
       </ScreenHeader>
     </template>
 
     <div class="similar-artists-screen">
       <!-- Attribution -->
-      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light ml-5 -mt-4">
-        Music recommendation by VantaNova and music preview by Spotify!
+      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light -mt-4  px-4 mr-20">
+        Music recommendation by VantaNova and music preview by Spotify
       </div>
 
       <!-- Search Container -->
       <div class="seed-selection mb-8">
         <div class="search-container mb-6">
           <div class="rounded-lg p-4">
-            <div class="max-w-4xl mx-auto">
+            <div class="max-w-[39rem] mx-auto">
               <div ref="searchContainer" class="relative">
                 <div class="flex">
                   <input
@@ -94,7 +102,7 @@
 
       <!-- Selected Seed Track Display - Compact -->
       <div v-if="selectedArtist" class="selected-seed mb-8 relative z-20">
-        <div class="max-w-4xl mx-auto">
+        <div class="max-w-[39rem] mx-auto">
           <div class="text-sm font-medium mb-2">Seed Artist:</div>
           <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
             <div class="flex items-center justify-between">
@@ -143,21 +151,14 @@
       </div>
 
       <div v-else-if="displayedArtists.length > 0" class="results-section">
-        <!-- Controls -->
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold">
-            Similar Artists ({{ filteredArtists.length }})
-          </h3>
-        </div>
-
-        <div class="bg-white/5 rounded-lg overflow-hidden relative z-10">
+        <div class="bg-white/5 rounded-lg overflow-hidden relative z-10 max-w-4xl mx-auto">
           <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full relative z-10">
               <thead>
                 <tr class="border-b border-white/10">
                   <th class="text-left p-3 py-7 font-medium">#</th>
-                  <th class="text-left p-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
-                  <th class="text-left p-3 font-medium w-1/3">Name(s)</th>
+                  <th class="text-center p-3 font-medium w-20 whitespace-nowrap" />
+                  <th class="text-left p-3 font-medium w-1/3">Artist</th>
                   <th class="text-left p-3 font-medium" />
                 </tr>
               </thead>
@@ -166,10 +167,8 @@
                   <tr
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
-                      currentlyPreviewingArtist !== artist.name && allowAnimations ? 'artist-row' : '',
                       currentlyPreviewingArtist === artist.name ? 'bg-white/5' : '',
                     ]"
-                    :style="currentlyPreviewingArtist !== artist.name && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
                   >
                     <!-- Index -->
                     <td class="p-3 align-middle">
@@ -238,9 +237,9 @@
                         </div>
 
                         <!-- Tracks Display -->
-                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="max-w-4xl mx-auto">
                           <div
-                            v-for="track in artist.spotifyTracks.slice(0, 3)"
+                            v-for="track in artist.spotifyTracks.slice(0, 1)"
                             :key="track.id"
                             class="w-full"
                           >
@@ -254,10 +253,10 @@
                                     ? 'bg-green-600 hover:bg-green-700 text-white'
                                     : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
                                   @click="saveTrack(track)"
                                 >
-                                  <Icon :icon="faHeart" class="text-xs" />
+                                  <Icon :icon="faHeart" class="text-sm" />
                                 </button>
 
                                 <!-- Ban Button -->
@@ -267,10 +266,10 @@
                                     ? 'bg-orange-600 hover:bg-orange-700 text-white'
                                     : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
+                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Ban the Track'"
                                   @click="banTrack(track)"
                                 >
-                                  <Icon :icon="faBan" class="text-xs" />
+                                  <Icon :icon="faBan" class="text-sm" />
                                 </button>
                               </div>
 
@@ -280,7 +279,7 @@
                                 :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
                                 :title="`${track.artists?.[0]?.name || 'Unknown'} - ${track.name}`"
                                 class="flex-1 spotify-embed"
-                                style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);"
+                                style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
                                 frameBorder="0"
                                 scrolling="no"
                                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -299,10 +298,10 @@
                                     ? 'bg-green-600 hover:bg-green-700 text-white'
                                     : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
                                   @click="saveTrack(track)"
                                 >
-                                  <Icon :icon="faHeart" class="text-xs" />
+                                  <Icon :icon="faHeart" class="text-sm" />
                                 </button>
 
                                 <!-- Ban Button -->
@@ -312,15 +311,15 @@
                                     ? 'bg-orange-600 hover:bg-orange-700 text-white'
                                     : 'bg-[#484948] hover:bg-gray-500 text-white'"
                                   class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Block track'"
+                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Ban the Track'"
                                   @click="banTrack(track)"
                                 >
-                                  <Icon :icon="faBan" class="text-xs" />
+                                  <Icon :icon="faBan" class="text-sm" />
                                 </button>
                               </div>
 
                               <!-- No Preview Available -->
-                              <div class="flex-1 flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgb(67,67,67);">
+                              <div class="flex-1 flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);">
                                 <div class="text-center text-white/60">
                                   <div class="text-sm font-medium">No Spotify preview available</div>
                                 </div>
@@ -1004,11 +1003,11 @@ const previewArtist = async (artist: LastfmArtist) => {
     if (response.success && response.data && response.data.tracks.length > 0) {
       // Filter out blacklisted tracks when initially opening preview (not during session)
       const filteredTracks = response.data.tracks.filter(track => !isTrackBanned(track))
-      const tracksToShow = filteredTracks.slice(0, 3)
+      const tracksToShow = filteredTracks.slice(0, 1)
 
       // Store all original tracks for reference and show filtered tracks
       artist.allSpotifyTracks = response.data.tracks // Store all tracks
-      artist.spotifyTracks = tracksToShow // Show first 3 non-blacklisted tracks
+      artist.spotifyTracks = tracksToShow // Show first 1 non-blacklisted track
 
       // Stop any currently playing Spotify tracks
       stopAllSpotifyPlayers()
@@ -1564,22 +1563,6 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .similar-artists-screen {
     padding: 0 1rem;
-  }
-}
-
-/* Similar artists table animations */
-.artist-row {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 

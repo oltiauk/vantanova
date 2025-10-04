@@ -2,7 +2,7 @@
   <div ref="dropdown" class="profile-dropdown-wrapper">
     <button
       ref="triggerButton"
-      class="profile-btn w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer"
+      class="profile-btn w-10 h-10 rounded-full bg-white/10 flex items-center justify-center transition-colors cursor-pointer"
       @click="toggleMenu"
     >
       <Icon :icon="faUser" fixed-width />
@@ -13,8 +13,9 @@
         <div
           v-if="isOpen"
           ref="dropdownMenu"
-          :style="{ top: dropdownTop, left: dropdownLeft }"
-          class="fixed w-48 bg-k-bg-secondary rounded-lg shadow-lg py-2 z-[9999] border border-white/10"
+          :style="{ top: dropdownTop, right: dropdownRight }"
+          class="fixed w-48 rounded-lg shadow-lg py-2 z-[9999] border border-white/10"
+          style="background-color: #303030;"
         >
           <button
             class="w-full px-4 py-2.5 text-left hover:bg-white/10 transition flex items-center gap-3 text-k-text-primary"
@@ -60,14 +61,14 @@ const triggerButton = ref<HTMLButtonElement>()
 const dropdownMenu = ref<HTMLElement>()
 const isOpen = ref(false)
 const dropdownTop = ref('0px')
-const dropdownLeft = ref('0px')
+const dropdownRight = ref('0px')
 
 const updateDropdownPosition = () => {
   if (!triggerButton.value) return
 
   const rect = triggerButton.value.getBoundingClientRect()
   dropdownTop.value = `${rect.bottom + 8}px`
-  dropdownLeft.value = `${rect.right - 192}px` // 192px = w-48 (12rem)
+  dropdownRight.value = `${window.innerWidth - rect.right}px`
 }
 
 const toggleMenu = async () => {
@@ -105,7 +106,7 @@ onClickOutside(dropdownMenu, closeMenu, { ignore: [triggerButton] })
   @apply text-k-text-primary;
 
   &:hover {
-    @apply text-k-highlight;
+    @apply bg-k-highlight;
   }
 }
 

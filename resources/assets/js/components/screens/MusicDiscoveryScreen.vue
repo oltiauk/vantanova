@@ -2,17 +2,25 @@
   <ScreenBase>
     <template #header>
       <ScreenHeader layout="simple" class="text-center">
-        Related Tracks
+        <div class="rounded-lg px-4 mr-12">
+          <div class="max-w-4xl mx-auto text-center">
+            Related Tracks
+          </div>
+        </div>
         <template #subtitle>
-          Discover music similar to your seed track
+          <div class="rounded-lg px-4 mr-16">
+            <div class="max-w-4xl mx-auto text-center">
+              Discover music similar to your seed track
+            </div>
+          </div>
         </template>
       </ScreenHeader>
     </template>
 
     <div class="music-discovery-screen">
       <!-- Attribution -->
-      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light ml-5 -mt-4">
-        Music recommendation by VantaNova and music preview by Spotify!
+      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light -mt-4 px-4 mr-16">
+        Music recommendation by VantaNova and music preview by Spotify
       </div>
 
       <SeedTrackSelection

@@ -39,23 +39,16 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
-      <!-- Title above table -->
-      <div class="mb-4 max-w-6xl mx-auto">
-        <h3 class="text-lg font-semibold">
-          Related Tracks ({{ filteredRecommendations.length }})
-        </h3>
-      </div>
-      
       <div class="bg-white/5 rounded-lg overflow-hidden max-w-6xl mx-auto">
         <div class="overflow-x-auto scrollbar-hide">
           <table class="w-full">
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left pl-3 py-7 font-medium w-10">#</th>
-                <th class="text-center pr-3 font-medium w-16 whitespace-nowrap">Ban Artist</th>
+                <th class="text-center pr-3 font-medium w-16 whitespace-nowrap"></th>
                 <th class="text-left p-3 font-medium w-auto min-w-64">Name(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
-                <th class="text-center pl-3 font-medium whitespace-nowrap">Save/Ban</th>
+                <th class="text-center pl-3 font-medium whitespace-nowrap"></th>
                 <th class="text-center pr-3 font-medium whitespace-nowrap"></th>
               </tr>
             </thead>
@@ -64,10 +57,8 @@
                 <tr
                   :class="[
                     'transition h-16 border-b border-white/5',
-                    (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5',
-                    expandedTrackId !== getTrackKey(track) && allowAnimations ? 'track-row' : ''
+                    (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5'
                   ]"
-                  :style="expandedTrackId !== getTrackKey(track) && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
                 >
                   <!-- Index -->
                   <td class="p-3 align-middle">
@@ -129,9 +120,9 @@
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                        :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save track (24h)'"
+                        :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
                       >
-                        <Icon :icon="faHeart" class="text-xs" />
+                        <Icon :icon="faHeart" class="text-sm" />
                       </button>
 
                       <!-- Blacklist Button -->
@@ -142,21 +133,21 @@
                           ? 'bg-orange-600 hover:bg-orange-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                        :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Block track'"
+                        :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Ban the Track'"
                       >
-                        <Icon :icon="faBan" class="text-xs" />
+                        <Icon :icon="faBan" class="text-sm" />
                       </button>
                     </div>
                   </td>
 
                   <!-- Related/Preview Actions -->
-                  <td class="pr-3 align-middle">
+                  <td class="pr-3 pl-4 align-middle">
                     <div class="flex gap-2 justify-center">
                       <!-- Related Track Button -->
                       <button
                         @click="getRelatedTracks(track)"
                         :disabled="processingTrack === getTrackKey(track)"
-                        class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                         title="Find Related Tracks"
                       >
                         <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
@@ -183,6 +174,18 @@
                   <tr v-if="expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
                     <td colspan="6" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative">
+                        <!-- Spotify Login Link -->
+                        <div class="text-right mb-2">
+                          <span class="text-xs text-white/50 font-light">
+                            <a
+                              href="https://accounts.spotify.com/login"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-white/50 hover:text-white/70 transition-colors underline"
+                            >
+                              Connect</a> to Spotify to listen to the full track
+                          </span>
+                        </div>
                         <div class="max-w-4xl mx-auto">
                           <!-- Loading State -->
                           <div v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
@@ -214,19 +217,6 @@
                           <div class="text-center text-white/60">
                             <div class="text-sm font-medium">No Spotify preview available</div>
                           </div>
-                        </div>
-
-                        <!-- Spotify Login Link -->
-                        <div class="absolute bottom-2 right-4">
-                          <span class="text-xs text-white/50 font-light">
-                            <a
-                              href="https://accounts.spotify.com/login"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="text-white/50 hover:text-white/70 transition-colors underline"
-                            >
-                              Connect</a> to Spotify to listen to the full track
-                          </span>
                         </div>
                       </div>
                       </div>
@@ -1856,26 +1846,10 @@ const loadUserPreferences = async () => {
   }
 }
 
-/* Track rows progressive display animation */
-.track-row {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
 /* Prevent layout shifts during player animations */
 .player-row {
   position: relative;
   contain: layout;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* Animation for notification slide-in */

@@ -2,14 +2,11 @@
   <ScreenBase>
     <template #header>
       <ScreenHeader>
-        <div class="text-center">
-          Banned Tracks
-        </div>
-        <template #meta>
-          <div class="text-center">
-            <span class="text-k-text-secondary text-lg">Manage your blacklisted tracks</span>
+        <div class="rounded-lg px-4 ml-9">
+          <div class="max-w-4xl mx-auto text-center">
+            Banned Tracks
           </div>
-        </template>
+        </div>
       </ScreenHeader>
     </template>
 
@@ -23,7 +20,7 @@
                 v-model="searchQuery"
                 type="text"
                 class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
-                placeholder="Search for a track..."
+                placeholder="Search for a banned track"
               >
             </div>
           </div>
@@ -56,9 +53,9 @@
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left py-4 pl-3 font-medium w-10">#</th>
-                <th class="text-center pr-3 font-medium w-20 whitespace-nowrap">Ban Artist</th>
-                <th class="text-left px-3 pl-10 font-medium w-64">Artist</th>
-                <th class="text-left px-3 pl-24 font-medium">Track Title</th>
+                <th class="text-center pr-3 font-medium w-20 whitespace-nowrap" />
+                <th class="text-left px-3 pl-10 font-medium w-64">Artist(s)</th>
+                <th class="text-left px-3 pl-24 font-medium">Title</th>
                 <th class="text-center px-3 font-medium w-24 whitespace-nowrap">Unban</th>
               </tr>
             </thead>
@@ -66,8 +63,7 @@
               <tr
                 v-for="(track, index) in paginatedTracks"
                 :key="track.id"
-                class="transition h-12 border-b border-white/5 hover:bg-white/5 track-row"
-                :style="{ animationDelay: `${index * 50}ms` }"
+                class="transition h-12 border-b border-white/5 hover:bg-white/5"
               >
                 <!-- Index -->
                 <td class="px-3 py-2 align-middle">
@@ -448,21 +444,5 @@ watch(searchQuery, resetPagination)
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none; /* Safari and Chrome */
-}
-
-/* Track rows progressive display animation */
-.track-row {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>
