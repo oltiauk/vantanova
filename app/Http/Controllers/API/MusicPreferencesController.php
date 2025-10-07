@@ -9,6 +9,7 @@ use App\Models\BlacklistedArtist;
 use App\Models\SavedArtist;
 use App\Models\SpotifyCache;
 use App\Services\SpotifyService;
+use App\Services\RapidApiSpotifyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,8 +18,10 @@ use Illuminate\Support\Facades\Schema;
 
 class MusicPreferencesController extends Controller
 {
-    public function __construct(private readonly SpotifyService $spotifyService)
-    {
+    public function __construct(
+        private readonly SpotifyService $spotifyService,
+        private readonly ?RapidApiSpotifyService $rapidApiSpotifyService = null
+    ) {
     }
     /**
      * Check if all required tables exist
@@ -99,6 +102,7 @@ class MusicPreferencesController extends Controller
 
     /**
      * Save a track by ISRC (24-hour expiration)
+     * Fetches track and artist stats via RapidAPI if enabled
      */
     public function saveTrack(Request $request): JsonResponse
     {
@@ -129,24 +133,93 @@ class MusicPreferencesController extends Controller
         }
 
         $userId = Auth::id();
-        
+
         if (!$userId) {
             return response()->json([
                 'success' => false,
                 'error' => 'Authentication required'
             ], 401);
         }
-        
+
         try {
+            $spotifyId = $request->spotify_id;
+            $popularity = $request->popularity;
+            $followers = $request->followers;
+
+            // Try to fetch track stats via RapidAPI if enabled and spotify_id not provided
+            if ($this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
+                \Log::info('💾 Save Track: Using RapidAPI to fetch stats', [
+                    'track_name' => $request->track_name,
+                    'artist_name' => $request->artist_name,
+                    'spotify_id_provided' => !empty($spotifyId)
+                ]);
+
+                // Step 1: If no spotify_id, search for it
+                if (!$spotifyId) {
+                    $query = "{$request->artist_name} {$request->track_name}";
+                    $searchResult = $this->rapidApiSpotifyService->searchTracks($query, 10, 'tracks');
+
+                    if ($searchResult['success']) {
+                        $spotifyId = $this->rapidApiSpotifyService->findExactMatch(
+                            $searchResult,
+                            $request->artist_name,
+                            $request->track_name
+                        );
+
+                        if ($spotifyId) {
+                            \Log::info('💾 Save Track: Found Spotify ID via search', [
+                                'spotify_id' => $spotifyId
+                            ]);
+                        }
+                    }
+                }
+
+                // Step 2: If we have spotify_id, fetch track details for popularity and artist_id
+                if ($spotifyId) {
+                    $trackResult = $this->rapidApiSpotifyService->getTrackById($spotifyId);
+
+                    if ($trackResult['success'] && isset($trackResult['data'])) {
+                        $trackData = $trackResult['data'];
+
+                        // Extract popularity
+                        $popularity = $trackData['popularity'] ?? $popularity;
+
+                        // Extract artist ID
+                        $artistId = $trackData['artists']['items'][0]['uri'] ?? null;
+                        if ($artistId) {
+                            // Extract just the ID part from spotify:artist:ID format
+                            $artistId = str_replace('spotify:artist:', '', $artistId);
+
+                            \Log::info('💾 Save Track: Got track details', [
+                                'popularity' => $popularity,
+                                'artist_id' => $artistId
+                            ]);
+
+                            // Step 3: Fetch artist details for followers count
+                            $artistResult = $this->rapidApiSpotifyService->getArtistById($artistId);
+
+                            if ($artistResult['success'] && isset($artistResult['data'])) {
+                                $artistData = $artistResult['data'];
+                                $followers = $artistData['stats']['followers'] ?? $followers;
+
+                                \Log::info('💾 Save Track: Got artist followers', [
+                                    'followers' => $followers
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+
             SavedTrack::saveTrack(
                 $userId,
                 $request->isrc,
                 $request->track_name,
                 $request->artist_name,
-                $request->spotify_id,
+                $spotifyId,
                 $request->label,
-                $request->popularity,
-                $request->followers,
+                $popularity,
+                $followers,
                 $request->release_date,
                 $request->preview_url,
                 $request->track_count,
@@ -154,9 +227,21 @@ class MusicPreferencesController extends Controller
                 $request->album_id
             );
 
+            \Log::info('💾 Save Track: Successfully saved', [
+                'track_name' => $request->track_name,
+                'spotify_id' => $spotifyId,
+                'popularity' => $popularity,
+                'followers' => $followers
+            ]);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Track saved successfully (expires in 24 hours)'
+                'message' => 'Track saved successfully (expires in 24 hours)',
+                'data' => [
+                    'spotify_id' => $spotifyId,
+                    'popularity' => $popularity,
+                    'followers' => $followers
+                ]
             ]);
         } catch (\Exception $e) {
             \Log::error('Save track failed: ' . $e->getMessage(), [
@@ -165,7 +250,7 @@ class MusicPreferencesController extends Controller
                 'isrc' => $request->isrc,
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to save track: ' . $e->getMessage()

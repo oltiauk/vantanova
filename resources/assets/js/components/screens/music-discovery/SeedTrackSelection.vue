@@ -198,6 +198,8 @@ const {
 // This allows users to select tracks by blacklisted artists as seed tracks
 // but prevents blacklisted individual tracks from appearing
 const filteredSearchResults = computed(() => {
+  // Deduplicate by normalized artist + title to avoid duplicate entries from backend/providers
+  const seen = new Set<string>()
   return searchResults.value.filter(track => {
     // Basic validation
     if (!track || !track.name || !track.artist) {
@@ -209,6 +211,13 @@ const filteredSearchResults = computed(() => {
       return false
     }
 
+    const normalizedArtist = track.artist.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+    const normalizedTitle = track.name.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+    const key = `${normalizedArtist}|${normalizedTitle}`
+    if (seen.has(key)) {
+      return false
+    }
+    seen.add(key)
     return true
   })
 })
@@ -287,7 +296,7 @@ const searchTracks = async () => {
     // Use the updated search-seed endpoint with Spotify fallback
     const response = await http.post('music-discovery/search-seed', {
       query: searchQuery.value.trim(),
-      limit: 100,
+      limit: 20,
     })
 
     // console.log('🔍 [FRONTEND] API Response received:', {

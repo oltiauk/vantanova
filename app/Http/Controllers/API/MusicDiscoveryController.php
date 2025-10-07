@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\SpotifyService;
 use App\Services\SoundStatsService;
 use App\Services\RapidApiService;
+use App\Services\RapidApiSpotifyService;
 use App\Services\LastfmService;
 use App\Models\BlacklistedTrack;
 use App\Models\SavedTrack;
@@ -21,7 +22,8 @@ class MusicDiscoveryController extends Controller
     public function __construct(
         private ?SpotifyService $spotifyService = null,
         private ?SoundStatsService $soundStatsService = null,
-        private ?RapidApiService $rapidApiService = null
+        private ?RapidApiService $rapidApiService = null,
+        private ?RapidApiSpotifyService $rapidApiSpotifyService = null
     ) {}
 
     /**
@@ -120,138 +122,70 @@ class MusicDiscoveryController extends Controller
         try {
             $allTracks = [];
             $spotifyTracks = [];
-            $shazamTracks = [];
-            $lastfmTracks = [];
 
-            // 1. Search for the track on Spotify to get Track ID
-            $spotifySearchResults = $this->searchSpotifyForTrack($artistName, $trackTitle);
-            \Log::info("🔍 Spotify search results", [
+            // 1. Search for the track on RapidAPI Spotify to get Track ID
+            $rapidApiSearchResults = null;
+            if ($this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
+                $query = "{$artistName} {$trackTitle}";
+                $rapidApiSearchResults = $this->rapidApiSpotifyService->searchTracks($query, 20, 'tracks');
+            }
+
+            \Log::info("🔍 RapidAPI Spotify search results", [
                 'artist' => $artistName,
                 'title' => $trackTitle,
-                'found_results' => !empty($spotifySearchResults),
-                'has_tracks' => isset($spotifySearchResults['tracks']),
-                'track_count' => isset($spotifySearchResults['tracks']['items']) ? count($spotifySearchResults['tracks']['items']) : 0
+                'found_results' => !empty($rapidApiSearchResults),
+                'has_data' => isset($rapidApiSearchResults['data']),
+                'track_count' => isset($rapidApiSearchResults['data']['tracks']) ? count($rapidApiSearchResults['data']['tracks']) : 0
             ]);
             $spotifyTrackId = null;
 
-            if ($spotifySearchResults && isset($spotifySearchResults['tracks']['items'])) {
-                // Use the search results we already have (not a different search)
-                \Log::info("🔍 Using existing Spotify search results for track matching", [
-                    'total_results' => count($spotifySearchResults['tracks']['items']),
+            if ($rapidApiSearchResults && isset($rapidApiSearchResults['data']['tracks'])) {
+                $tracks = $rapidApiSearchResults['data']['tracks'];
+
+                \Log::info("🔍 Using RapidAPI search results for track matching", [
+                    'total_results' => count($tracks),
                     'first_result' => [
-                        'id' => $spotifySearchResults['tracks']['items'][0]['id'] ?? 'unknown',
-                        'artist' => $spotifySearchResults['tracks']['items'][0]['artists'][0]['name'] ?? 'unknown',
-                        'title' => $spotifySearchResults['tracks']['items'][0]['name'] ?? 'unknown'
+                        'id' => $tracks[0]['data']['id'] ?? 'unknown',
+                        'artist' => $tracks[0]['data']['artists']['items'][0]['profile']['name'] ?? 'unknown',
+                        'title' => $tracks[0]['data']['name'] ?? 'unknown'
                     ]
                 ]);
-                
-                // Log all search results before calling findBestSpotifyMatch
-                \Log::info("🔍 About to call findBestSpotifyMatch with these results:");
-                foreach ($spotifySearchResults['tracks']['items'] as $index => $item) {
-                    \Log::info("🔍 Search Result #{$index}", [
-                        'track_id' => $item['id'] ?? 'unknown',
-                        'artist' => $item['artists'][0]['name'] ?? 'unknown',
-                        'title' => $item['name'] ?? 'unknown',
-                        'album' => $item['album']['name'] ?? 'unknown'
-                    ]);
-                }
-                
-                // Find the best matching track from the SAME search results
-                $spotifyTrack = $this->findBestSpotifyMatch($spotifySearchResults['tracks']['items'], $artistName, $trackTitle);
-                
-                if ($spotifyTrack) {
-                    $spotifyTrackId = $spotifyTrack['id'];
-                    \Log::info("🔍 Selected Spotify track", [
+
+                // Find exact match using RapidAPI service
+                $spotifyTrackId = $this->rapidApiSpotifyService->findExactMatch(
+                    $rapidApiSearchResults,
+                    $artistName,
+                    $trackTitle
+                );
+
+                if ($spotifyTrackId) {
+                    \Log::info("🔍 Selected Spotify track via RapidAPI", [
                         'selected_id' => $spotifyTrackId,
-                        'selected_artist' => $spotifyTrack['artists'][0]['name'] ?? 'Unknown',
-                        'selected_title' => $spotifyTrack['name'] ?? 'Unknown',
                         'expected_artist' => $artistName,
                         'expected_title' => $trackTitle
                     ]);
 
-                    // Also log to response for debugging (temporary)
                     \Log::info("DEBUG: SELECTED TRACK ID FOR {$artistName} - {$trackTitle}: {$spotifyTrackId}");
 
-                    // Get Spotify recommendations with genre awareness
-                    $spotifyTracks = $this->getSpotifyRelatedTracks($spotifyTrackId, $limit, $spotifyTrack);
-                    \Log::info("🎧 Got Spotify tracks", ['count' => count($spotifyTracks)]);
+                    // Get Spotify recommendations using RapidAPI seed_to_playlist
+                    $spotifyTracks = $this->getSpotifyRelatedTracks($spotifyTrackId, $limit, null);
+                    \Log::info("🎧 Got Spotify tracks via RapidAPI", ['count' => count($spotifyTracks)]);
                 } else {
-                    \Log::warning("🔍 No suitable Spotify track match found", [
+                    \Log::warning("🔍 No suitable Spotify track match found via RapidAPI", [
                         'artist' => $artistName,
                         'title' => $trackTitle,
-                        'search_results_count' => count($spotifySearchResults['tracks']['items'])
+                        'search_results_count' => count($tracks)
                     ]);
                 }
             }
 
-            // 3. Search on Shazam and get related tracks
-            $shazamTracks = $this->getShazamRelatedTracks($artistName, $trackTitle, $limit);
-            $shazamQuotaExceeded = false;
-
-            \Log::info("🎧 Got Shazam tracks", ['count' => count($shazamTracks)]);
-
-            // Check if Shazam returned empty due to quota issues  
-            if (empty($shazamTracks)) {
-                $shazamQuotaExceeded = true; // Assume quota exceeded if no tracks returned
-            }
-
-            // 4. Get Last.fm similar tracks
-            \Log::info("LASTFM_BEFORE_RESOLVE");
-            $lastfmService = $this->getLastfmService();
-            \Log::info("LASTFM_AFTER_RESOLVE");
-            \Log::info("LASTFM_INTEGRATION_CHECK", [
-                'service_exists' => $lastfmService !== null,
-                'artist' => $artistName,
-                'track' => $trackTitle
-            ]);
-
-            if ($lastfmService) {
-                try {
-                    \Log::info("🔥 API_REQUEST_LASTFM_SIMILAR_TRACKS", [
-                        'artist' => $artistName,
-                        'track' => $trackTitle,
-                        'limit' => $limit,
-                        'timestamp' => now()->toISOString()
-                    ]);
-
-                    $lastfmTracks = $lastfmService->getSimilarTracks($artistName, $trackTitle, $limit);
-
-                    \Log::info("🔥 API_RESPONSE_LASTFM_SIMILAR_TRACKS", [
-                        'count' => count($lastfmTracks),
-                        'success' => true,
-                        'timestamp' => now()->toISOString()
-                    ]);
-
-                    if (!empty($lastfmTracks)) {
-                        \Log::info("LASTFM_SAMPLE_TRACK", ['sample' => $lastfmTracks[0] ?? null]);
-                    }
-                } catch (\Exception $e) {
-                    \Log::error("🔥 API_RESPONSE_LASTFM_SIMILAR_TRACKS", [
-                        'success' => false,
-                        'error' => $e->getMessage(),
-                        'timestamp' => now()->toISOString()
-                    ]);
-                    $lastfmTracks = [];
-                }
-            } else {
-                \Log::warning("🔥 API_REQUEST_LASTFM_SIMILAR_TRACKS", [
-                    'error' => 'Service not available',
-                    'timestamp' => now()->toISOString()
-                ]);
-                $lastfmTracks = [];
-            }
-
-            // 5. Combine all tracks
-            $allTracks = array_merge($spotifyTracks, $shazamTracks, $lastfmTracks);
+            // Only use Spotify recommendations (Shazam and Last.fm removed)
+            $allTracks = $spotifyTracks;
 
             // Log API usage summary
             \Log::info("🔥 API_USAGE_SUMMARY", [
                 'total_spotify_calls' => count($spotifyTracks) > 0 ? 3 : 1, // Search + Seed-to-playlist + Playlist-tracks (if successful)
-                'total_shazam_calls' => count($shazamTracks) > 0 ? 3 : 2, // 1-2 search calls + 1 similar tracks call (if successful)
-                'total_lastfm_calls' => count($lastfmTracks) > 0 ? 1 : 0, // Similar tracks call
                 'spotify_tracks_count' => count($spotifyTracks),
-                'shazam_tracks_count' => count($shazamTracks),
-                'lastfm_tracks_count' => count($lastfmTracks),
                 'combined_tracks_count' => count($allTracks),
                 'timestamp' => now()->toISOString()
             ]);
@@ -286,11 +220,9 @@ class MusicDiscoveryController extends Controller
             // Debug: Count tracks by source
             $sourceCounts = [
                 'spotify' => 0,
-                'shazam' => 0,
-                'lastfm' => 0,
                 'unknown' => 0
             ];
-            
+
             foreach ($formattedTracks as $track) {
                 $source = $track['source'] ?? 'unknown';
                 if (isset($sourceCounts[$source])) {
@@ -299,7 +231,7 @@ class MusicDiscoveryController extends Controller
                     $sourceCounts['unknown']++;
                 }
             }
-            
+
             \Log::info("🎧 Final track source distribution", $sourceCounts);
 
             return response()->json([
@@ -307,12 +239,9 @@ class MusicDiscoveryController extends Controller
                 'data' => $formattedTracks,
                 'total' => count($formattedTracks),
                 'spotify_count' => count($spotifyTracks),
-                'shazam_count' => count($shazamTracks),
-                'lastfm_count' => count($lastfmTracks),
                 'after_deduplication' => count($formattedTracks),
                 'requested' => $limit,
-                'source_debug' => $sourceCounts,  // Add debug info to response
-                'shazam_quota_exceeded' => $shazamQuotaExceeded
+                'source_debug' => $sourceCounts
             ]);
 
         } catch (\Exception $e) {
@@ -353,7 +282,7 @@ class MusicDiscoveryController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'query' => 'required|string|min:1|max:100',
-            'limit' => 'sometimes|integer|min:1|max:100'
+            'limit' => 'sometimes|integer|min:1|max:20'
         ]);
 
         if ($validator->fails()) {
@@ -364,73 +293,81 @@ class MusicDiscoveryController extends Controller
         }
 
         $query = $request->input('query');
-        $limit = $request->input('limit', 20);
+        $limit = min($request->input('limit', 20), 20); // Cap at 20
 
         \Log::info('🔍 [BACKEND] searchSeedTracks called', [
             'query' => $query,
             'limit' => $limit,
-            'spotify_enabled' => SpotifyService::enabled(),
-            'has_spotify_service' => !!$this->spotifyService
+            'rapidapi_spotify_enabled' => RapidApiSpotifyService::enabled(),
+            'has_rapidapi_spotify_service' => !!$this->rapidApiSpotifyService
         ]);
 
-        // Try Spotify first
-        if ($this->spotifyService && SpotifyService::enabled()) {
+        // Try RapidAPI Spotify first (with automatic fallback to backup provider)
+        if ($this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
             try {
-                \Log::info('🔍 [BACKEND] Using Spotify for search', ['query' => $query, 'limit' => $limit]);
-                $results = $this->spotifyService->searchTracks($query, $limit);
+                \Log::info('🔍 [BACKEND] Using RapidAPI Spotify for search', ['query' => $query, 'limit' => $limit]);
+                $result = $this->rapidApiSpotifyService->searchTracks($query, $limit, 'tracks');
 
-                \Log::info('🔍 [BACKEND] Spotify raw results', [
-                    'has_tracks' => isset($results['tracks']),
-                    'items_count' => count($results['tracks']['items'] ?? []),
-                    'first_track' => $results['tracks']['items'][0] ?? null
+                // RapidAPI returns data.tracks[] not data.tracks.items[]
+                $tracks = $result['data']['tracks'] ?? [];
+
+                \Log::info('🔍 [BACKEND] RapidAPI Spotify search results', [
+                    'success' => $result['success'] ?? false,
+                    'has_data' => isset($result['data']),
+                    'items_count' => count($tracks),
+                    'structure' => isset($result['data']['tracks']['items']) ? 'official_spotify' : 'rapidapi'
                 ]);
 
-                if (!empty($results['tracks']['items'])) {
-                    $allTracks = $this->formatSpotifyTracksArray($results['tracks']['items']);
-                    
+                if ($result['success'] && !empty($tracks)) {
+                    $allTracks = $this->parseRawRapidApiTracks($tracks);
+
                     // Filter tracks to include keywords in metadata
                     $filteredTracks = array_filter($allTracks, function($track) use ($query) {
                         $queryWords = array_filter(explode(' ', strtolower(trim($query))));
-                        
+
                         // Get all searchable metadata
                         $artistNames = array_map(fn($artist) => strtolower($artist['name']), $track['artists']);
                         $trackTitle = strtolower($track['name']);
                         $allMetadata = implode(' ', array_merge($artistNames, [$trackTitle]));
-                        
+
                         // Check if each query word appears in the metadata
                         foreach ($queryWords as $word) {
                             if (str_contains($allMetadata, $word)) {
                                 return true; // At least one keyword matches
                             }
                         }
-                        
+
                         return false; // No keywords found in metadata
                     });
-                    
+
+                    // Remove duplicates (by normalized artist + title)
+                    $dedupedTracks = $this->removeDuplicateTracks(array_values($filteredTracks));
+
                     \Log::info('🔍 [BACKEND] Filtered tracks by keyword inclusion', [
                         'original_count' => count($allTracks),
                         'filtered_count' => count($filteredTracks),
+                        'after_dedup' => count($dedupedTracks),
                         'query' => $query,
                         'sample_tracks' => array_slice(array_map(fn($t) => $t['artist'] . ' - ' . $t['name'], $filteredTracks), 0, 5)
                     ]);
-                    
+
                     return response()->json([
                         'success' => true,
-                        'data' => array_values($filteredTracks) // Re-index array
+                        'data' => array_values($dedupedTracks) // Re-index array
                     ]);
                 } else {
-                    \Log::warning('🔍 [BACKEND] Spotify returned empty results');
+                    \Log::warning('🔍 [BACKEND] RapidAPI Spotify returned empty results or failed');
                 }
             } catch (\Exception $e) {
-                \Log::error('🔍 [BACKEND] Spotify search failed, falling back to Deezer', [
+                \Log::error('🔍 [BACKEND] RapidAPI Spotify search failed, falling back to Deezer', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
             }
         } else {
-            \Log::warning('🔍 [BACKEND] Spotify not enabled or service not available', [
-                'spotify_enabled' => SpotifyService::enabled(),
-                'has_service' => !!$this->spotifyService
+            \Log::warning('🔍 [BACKEND] RapidAPI Spotify not enabled or service not available', [
+                'rapidapi_spotify_enabled' => RapidApiSpotifyService::enabled(),
+                'has_service' => !!$this->rapidApiSpotifyService
             ]);
         }
 
@@ -462,6 +399,9 @@ class MusicDiscoveryController extends Controller
                     'uri' => "deezer:track:{$track['id']}"
                 ];
             }, $data['data'] ?? []);
+
+            // Remove duplicates (by normalized artist + title)
+            $tracks = $this->removeDuplicateTracks($tracks);
 
             return response()->json([
                 'success' => true,
@@ -1089,6 +1029,40 @@ class MusicDiscoveryController extends Controller
                 'release_date' => $track['album']['release_date'] ?? null,
                 'label' => null, // Will be populated by enhanced metadata calls
                 'followers' => null, // Will be populated by enhanced metadata calls
+            ];
+        }, $tracks);
+    }
+
+    /**
+     * Parse raw RapidAPI search response and format for frontend
+     * RapidAPI structure: data.tracks[].data.{id, name, artists.items[].profile.name, ...}
+     */
+    private function parseRawRapidApiTracks(array $tracks): array
+    {
+        return array_map(function ($trackWrapper) {
+            // Each track is wrapped in a 'data' object
+            $track = $trackWrapper['data'] ?? $trackWrapper;
+
+            return [
+                'id' => $track['id'] ?? '',
+                'name' => $track['name'] ?? '',
+                'artist' => $track['artists']['items'][0]['profile']['name'] ?? 'Unknown Artist',
+                'artists' => array_map(fn($artist) => [
+                    'id' => str_replace('spotify:artist:', '', $artist['uri'] ?? ''),
+                    'name' => $artist['profile']['name'] ?? 'Unknown'
+                ], $track['artists']['items'] ?? []),
+                'album' => $track['albumOfTrack']['name'] ?? 'Unknown Album',
+                'album_image' => $track['albumOfTrack']['coverArt']['sources'][0]['url'] ?? null,
+                'image' => $track['albumOfTrack']['coverArt']['sources'][0]['url'] ?? null,
+                'duration_ms' => $track['duration']['totalMilliseconds'] ?? 0,
+                'duration' => $this->formatDuration($track['duration']['totalMilliseconds'] ?? 0),
+                'preview_url' => null, // RapidAPI doesn't provide preview URLs
+                'external_url' => "https://open.spotify.com/track/{$track['id']}" ?? null,
+                'popularity' => 0, // Not available in search response
+                'release_date' => null, // Not available in search response
+                'label' => null,
+                'followers' => null,
+                'external_ids' => [], // Add ISRC if available
             ];
         }, $tracks);
     }
@@ -3180,9 +3154,9 @@ class MusicDiscoveryController extends Controller
                     'title' => $trackTitle
                 ]);
             } else {
-                // For Shazam/Last.fm tracks, try cleaned names first, then fallback to ISRC with originals
-                $spotifyTrackId = $this->getSpotifyTrackIdFromShazam($artistName, $trackTitle, $originalArtist, $originalTitle);
-                
+                // For Shazam/Last.fm tracks, use RapidAPI search-based matching
+                $spotifyTrackId = $this->getSpotifyTrackIdViaSearch($artistName, $trackTitle, $originalArtist, $originalTitle);
+
                 if (!$spotifyTrackId) {
                     return response()->json([
                         'success' => false,
@@ -3201,41 +3175,49 @@ class MusicDiscoveryController extends Controller
                 ], 404);
             }
 
-            // Try to get track metadata for the found Spotify track
+            // Try to get track metadata using RapidAPI
             $trackMetadata = null;
             try {
-                $trackData = $this->spotifyService->getTrackDetails($spotifyTrackId);
+                if ($this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
+                    \Log::info("🎵 Preview: Fetching track metadata via RapidAPI", [
+                        'track_id' => $spotifyTrackId
+                    ]);
 
-                if ($trackData) {
-                    $trackMetadata = [
-                        'popularity' => $trackData['popularity'] ?? null,
-                        'release_date' => $trackData['album']['release_date'] ?? null,
-                        'preview_url' => $trackData['preview_url'] ?? null
-                    ];
+                    $trackResult = $this->rapidApiSpotifyService->getTrackById($spotifyTrackId);
 
-                    // Get artist followers if artist ID is available
-                    if (isset($trackData['artists'][0]['id'])) {
-                        $artistId = $trackData['artists'][0]['id'];
-                        try {
-                            $artistData = $this->spotifyService->getArtist($artistId);
-                            if ($artistData && isset($artistData['followers']['total'])) {
-                                $trackMetadata['followers'] = $artistData['followers']['total'];
+                    if ($trackResult['success'] && isset($trackResult['data'])) {
+                        $trackData = $trackResult['data'];
+
+                        $trackMetadata = [
+                            'popularity' => $trackData['popularity'] ?? null,
+                            'release_date' => $trackData['album']['release_date'] ?? null,
+                            'preview_url' => $trackData['preview_url'] ?? null
+                        ];
+
+                        // Get artist followers if artist ID is available
+                        if (isset($trackData['artists'][0]['id'])) {
+                            $artistId = $trackData['artists'][0]['id'];
+                            try {
+                                $artistResult = $this->rapidApiSpotifyService->getArtistById($artistId);
+                                if ($artistResult['success'] && isset($artistResult['data']['followers']['total'])) {
+                                    $trackMetadata['followers'] = $artistResult['data']['followers']['total'];
+                                }
+                            } catch (\Exception $e) {
+                                \Log::warning('Failed to get artist data via RapidAPI: ' . $e->getMessage());
                             }
-                        } catch (\Exception $e) {
-                            \Log::warning('Failed to get artist data: ' . $e->getMessage());
                         }
-                    }
 
-                    // Get album label if album ID is available
-                    if (isset($trackData['album']['id'])) {
-                        $albumId = $trackData['album']['id'];
-                        try {
-                            $albumData = $this->spotifyService->getAlbum($albumId);
-                            if ($albumData && isset($albumData['label'])) {
-                                $trackMetadata['label'] = $albumData['label'];
+                        // Get album label using official Spotify API (as per requirements)
+                        if (isset($trackData['album']['id'])) {
+                            $albumId = $trackData['album']['id'];
+                            try {
+                                $albumData = $this->spotifyService->getAlbum($albumId);
+                                if ($albumData && isset($albumData['label'])) {
+                                    $trackMetadata['label'] = $albumData['label'];
+                                }
+                            } catch (\Exception $e) {
+                                \Log::warning('Failed to get album label: ' . $e->getMessage());
                             }
-                        } catch (\Exception $e) {
-                            \Log::warning('Failed to get album data: ' . $e->getMessage());
                         }
                     }
                 }
@@ -3266,144 +3248,90 @@ class MusicDiscoveryController extends Controller
     }
 
     /**
-     * Get Spotify track ID from Shazam track with fallback strategy
-     * Strategy 1: Try with cleaned artist/title names for direct matching
-     * Strategy 2: If failed, use ISRC method with original names
+     * Get Spotify track ID using RapidAPI search-based matching
+     * Uses multiple search strategies with cleaned and original artist/title names
      */
-    private function getSpotifyTrackIdFromShazam(string $cleanedArtist, string $cleanedTitle, string $originalArtist, string $originalTitle): ?string
+    private function getSpotifyTrackIdViaSearch(string $cleanedArtist, string $cleanedTitle, string $originalArtist, string $originalTitle): ?string
     {
+        if (!$this->rapidApiSpotifyService || !RapidApiSpotifyService::enabled()) {
+            \Log::warning("🎵 Preview: RapidAPI Spotify service not available");
+            return null;
+        }
+
         try {
-            // Strategy 1: Try multiple search variations with different cleaning levels
-            \Log::info("🎵 Preview Strategy 1: Multiple Spotify search variations", [
+            // Strategy 1: Try cleaned names first
+            \Log::info("🎵 Preview Strategy 1: RapidAPI search with cleaned names", [
                 'cleaned_artist' => $cleanedArtist,
-                'cleaned_title' => $cleanedTitle,
-                'original_artist' => $originalArtist,
-                'original_title' => $originalTitle
+                'cleaned_title' => $cleanedTitle
             ]);
 
-            // Try 1: Lightly cleaned names
-            $spotifyTrackId = $this->searchSpotifyByArtistAndTitle($cleanedArtist, $cleanedTitle);
-            
-            if ($spotifyTrackId) {
-                \Log::info("✅ Preview Strategy 1a: Success with light cleaning!", [
-                    'spotify_track_id' => $spotifyTrackId
-                ]);
-                return $spotifyTrackId;
-            }
+            $query = "{$cleanedArtist} {$cleanedTitle}";
+            $cleanedTrackTitle = $this->rapidApiSpotifyService->cleanTrackName($cleanedTitle);
 
-            // Try 2: Original names
-            \Log::info("🎵 Preview Strategy 1b: Trying original names");
-            $spotifyTrackId = $this->searchSpotifyByArtistAndTitle($originalArtist, $originalTitle);
-            
-            if ($spotifyTrackId) {
-                \Log::info("✅ Preview Strategy 1b: Success with original names!", [
-                    'spotify_track_id' => $spotifyTrackId
-                ]);
-                return $spotifyTrackId;
-            }
+            $result = $this->rapidApiSpotifyService->searchTracks($query, 20, 'tracks');
 
-            // Try 3: Just artist and main title (without feat, remix etc)
-            $mainTitle = preg_replace('/\s*\([^)]*\)/', '', $originalTitle);
-            $mainTitle = preg_replace('/\s*\[[^\]]*\]/', '', $mainTitle);
-            $mainTitle = trim($mainTitle);
-            
-            if ($mainTitle !== $originalTitle) {
-                \Log::info("🎵 Preview Strategy 1c: Trying main title only", [
-                    'main_title' => $mainTitle
-                ]);
-                $spotifyTrackId = $this->searchSpotifyByArtistAndTitle($originalArtist, $mainTitle);
-                
-                if ($spotifyTrackId) {
-                    \Log::info("✅ Preview Strategy 1c: Success with main title!", [
-                        'spotify_track_id' => $spotifyTrackId
+            if ($result['success']) {
+                $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $cleanedArtist, $cleanedTrackTitle);
+                if ($trackId) {
+                    \Log::info("✅ Preview Strategy 1: Success with cleaned names!", [
+                        'spotify_track_id' => $trackId
                     ]);
-                    return $spotifyTrackId;
+                    return $trackId;
                 }
             }
 
-            // Strategy 2: Fallback to complex ISRC method with original names
-            \Log::info("🎵 Preview Strategy 2: ISRC method with original names", [
+            // Strategy 2: Try original names
+            \Log::info("🎵 Preview Strategy 2: RapidAPI search with original names", [
                 'original_artist' => $originalArtist,
                 'original_title' => $originalTitle
             ]);
 
-            // Step 1: Search Shazam for the track using original names
-            $originalQuery = $this->cleanTrackQuery($originalArtist, $originalTitle);
-            
-            $searchResponse = Http::withHeaders([
-                'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
-                'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
-            ])->get("https://shazam-api6.p.rapidapi.com/shazam/search_track/", [
-                'query' => $originalQuery,
-                'limit' => 10
-            ]);
+            $query = "{$originalArtist} {$originalTitle}";
+            $originalTrackTitle = $this->rapidApiSpotifyService->cleanTrackName($originalTitle);
 
-            if (!$searchResponse->successful()) {
-                \Log::warning("🎵 Preview Strategy 2: Shazam search failed", [
-                    'status' => $searchResponse->status(),
-                    'query' => $originalQuery
-                ]);
-                return null;
+            $result = $this->rapidApiSpotifyService->searchTracks($query, 20, 'tracks');
+
+            if ($result['success']) {
+                $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $originalArtist, $originalTrackTitle);
+                if ($trackId) {
+                    \Log::info("✅ Preview Strategy 2: Success with original names!", [
+                        'spotify_track_id' => $trackId
+                    ]);
+                    return $trackId;
+                }
             }
 
-            $searchData = $searchResponse->json();
-            $shazamTrackId = $this->findMatchingShazamTrack($searchData, $originalArtist, $originalTitle);
+            // Strategy 3: Try with main title only (without feat, remix, etc)
+            $mainTitle = preg_replace('/\s*\([^)]*\)/', '', $originalTitle);
+            $mainTitle = preg_replace('/\s*\[[^\]]*\]/', '', $mainTitle);
+            $mainTitle = trim($mainTitle);
 
-            if (!$shazamTrackId) {
-                \Log::warning("🎵 Preview Strategy 2: No matching Shazam track found", [
-                    'artist' => $originalArtist,
-                    'title' => $originalTitle
+            if ($mainTitle !== $originalTitle) {
+                \Log::info("🎵 Preview Strategy 3: RapidAPI search with main title only", [
+                    'main_title' => $mainTitle
                 ]);
-                return null;
+
+                $query = "{$originalArtist} {$mainTitle}";
+                $cleanedMainTitle = $this->rapidApiSpotifyService->cleanTrackName($mainTitle);
+
+                $result = $this->rapidApiSpotifyService->searchTracks($query, 20, 'tracks');
+
+                if ($result['success']) {
+                    $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $originalArtist, $cleanedMainTitle);
+                    if ($trackId) {
+                        \Log::info("✅ Preview Strategy 3: Success with main title!", [
+                            'spotify_track_id' => $trackId
+                        ]);
+                        return $trackId;
+                    }
+                }
             }
 
-            // Step 2: Get track details from Shazam to extract ISRC
-            \Log::info("🎵 Preview Strategy 2: Getting Shazam track details", [
-                'shazam_track_id' => $shazamTrackId
-            ]);
-
-            $detailsResponse = Http::withHeaders([
-                'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
-                'X-RapidAPI-Host' => 'shazam-api6.p.rapidapi.com'
-            ])->get("https://shazam-api6.p.rapidapi.com/shazam/track_details", [
-                'id' => $shazamTrackId
-            ]);
-
-            if (!$detailsResponse->successful()) {
-                \Log::warning("🎵 Preview Strategy 2: Shazam track details failed", [
-                    'status' => $detailsResponse->status(),
-                    'track_id' => $shazamTrackId
-                ]);
-                return null;
-            }
-
-            $detailsData = $detailsResponse->json();
-            $isrc = $this->extractIsrcFromShazamDetails($detailsData);
-
-            if (!$isrc) {
-                \Log::warning("🎵 Preview Strategy 2: No ISRC found in Shazam track details", [
-                    'track_id' => $shazamTrackId
-                ]);
-                return null;
-            }
-
-            // Step 3: Search Spotify by ISRC
-            \Log::info("🎵 Preview Strategy 2: Searching Spotify by ISRC", [
-                'isrc' => $isrc
-            ]);
-
-            $spotifyTrackId = $this->searchSpotifyByIsrc($isrc);
-            
-            if ($spotifyTrackId) {
-                \Log::info("✅ Preview Strategy 2: Success! Found track via ISRC", [
-                    'spotify_track_id' => $spotifyTrackId
-                ]);
-            }
-
-            return $spotifyTrackId;
+            \Log::warning("🎵 Preview: No matching track found via RapidAPI search");
+            return null;
 
         } catch (\Exception $e) {
-            \Log::error('Preview: Failed to get Spotify track ID from Shazam: ' . $e->getMessage());
+            \Log::error('Preview: Failed to get Spotify track ID via search: ' . $e->getMessage());
             return null;
         }
     }
@@ -3538,103 +3466,35 @@ class MusicDiscoveryController extends Controller
      */
     private function searchSpotifyByArtistAndTitle(string $artistName, string $trackTitle): ?string
     {
+        if (!$this->rapidApiSpotifyService || !RapidApiSpotifyService::enabled()) {
+            \Log::warning("🎵 RapidAPI Spotify service not available for search");
+            return null;
+        }
+
         try {
-            \Log::info("🎵 Preview Fallback: Searching Spotify directly", [
+            \Log::info("🎵 Searching via RapidAPI", [
                 'artist' => $artistName,
                 'title' => $trackTitle
             ]);
-            
-            $query = $this->cleanTrackQuery($artistName, $trackTitle);
-            $accessToken = $this->getSpotifyAccessToken();
-            
-            if (!$accessToken) {
-                \Log::warning("🎵 Preview Fallback: No Spotify access token");
-                return null;
-            }
-            
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $accessToken,
-            ])->get('https://api.spotify.com/v1/search', [
-                'q' => $query,
-                'type' => 'track',
-                'limit' => 5
-            ]);
-            
-            if (!$response->successful()) {
-                \Log::warning("🎵 Preview Fallback: Spotify search failed", [
-                    'status' => $response->status()
-                ]);
-                return null;
-            }
-            
-            $data = $response->json();
-            $tracks = $data['tracks']['items'] ?? [];
-            
-            // Find best matching track - prioritize exact matches
-            $exactMatches = [];
-            $goodMatches = [];
-            
-            foreach ($tracks as $track) {
-                $spotifyArtist = $track['artists'][0]['name'] ?? '';
-                $spotifyTitle = $track['name'] ?? '';
-                
-                \Log::info("🎵 Preview Fallback: Checking Spotify match", [
-                    'spotify_artist' => $spotifyArtist,
-                    'spotify_title' => $spotifyTitle,
-                    'search_artist' => $artistName,
-                    'search_title' => $trackTitle
-                ]);
-                
-                // Check for exact title and artist match first
-                $artistNorm = $this->normalizeForMatching($artistName);
-                $titleNorm = $this->normalizeForMatching($trackTitle);
-                $spotifyArtistNorm = $this->normalizeForMatching($spotifyArtist);
-                $spotifyTitleNorm = $this->normalizeForMatching($spotifyTitle);
-                
-                if ($artistNorm === $spotifyArtistNorm && $titleNorm === $spotifyTitleNorm) {
-                    \Log::info("🎵 Preview Fallback: Found EXACT match", [
-                        'spotify_id' => $track['id']
+
+            $query = "{$artistName} {$trackTitle}";
+            $cleanedTitle = $this->rapidApiSpotifyService->cleanTrackName($trackTitle);
+
+            $result = $this->rapidApiSpotifyService->searchTracks($query, 10, 'tracks');
+
+            if ($result['success']) {
+                $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $artistName, $cleanedTitle);
+                if ($trackId) {
+                    \Log::info("✅ Found exact match via RapidAPI", [
+                        'spotify_track_id' => $trackId
                     ]);
-                    return $track['id']; // Return immediately for exact match
-                }
-                
-                // Check if it's a good match using our verification logic
-                if ($this->verifyTrackMatch($artistName, $trackTitle, [
-                    'name' => $spotifyTitle,
-                    'artists' => [['name' => $spotifyArtist]]
-                ])) {
-                    // Prioritize based on version match
-                    if (strpos(strtolower($spotifyTitle), strtolower($trackTitle)) !== false ||
-                        strpos(strtolower($trackTitle), strtolower($spotifyTitle)) !== false) {
-                        $exactMatches[] = $track;
-                    } else {
-                        $goodMatches[] = $track;
-                    }
+                    return $trackId;
                 }
             }
-            
-            // Return best match found
-            if (!empty($exactMatches)) {
-                $bestMatch = $exactMatches[0];
-                \Log::info("🎵 Preview Fallback: Found exact version match", [
-                    'spotify_id' => $bestMatch['id'],
-                    'title' => $bestMatch['name']
-                ]);
-                return $bestMatch['id'];
-            }
-            
-            if (!empty($goodMatches)) {
-                $bestMatch = $goodMatches[0];
-                \Log::info("🎵 Preview Fallback: Found good match", [
-                    'spotify_id' => $bestMatch['id'],
-                    'title' => $bestMatch['name']
-                ]);
-                return $bestMatch['id'];
-            }
-            
-            \Log::warning("🎵 Preview Fallback: No matching Spotify track found");
+
+            \Log::warning("🎵 No matching track found via RapidAPI");
             return null;
-            
+
         } catch (\Exception $e) {
             \Log::error("🎵 Preview Fallback: Spotify search error", [
                 'error' => $e->getMessage()

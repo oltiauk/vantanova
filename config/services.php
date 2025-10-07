@@ -60,6 +60,14 @@ return [
         'key' => env('RAPIDAPI_KEY'),
         'base_url' => env('RAPIDAPI_BASE_URL', 'https://spotify23.p.rapidapi.com'),
     ],
+
+    'rapidapi_spotify' => [
+        'primary_host' => env('RAPIDAPI_SPOTIFY_PRIMARY_HOST', env('RAPIDAPI_HOST', 'spotify81.p.rapidapi.com')),
+        'primary_key' => env('RAPIDAPI_SPOTIFY_PRIMARY_KEY', env('RAPIDAPI_KEY')),
+        'backup_host' => env('RAPIDAPI_SPOTIFY_BACKUP_HOST', 'spotify-web2.p.rapidapi.com'),
+        'backup_key' => env('RAPIDAPI_SPOTIFY_BACKUP_KEY', env('RAPIDAPI_KEY')),
+        'key' => env('RAPIDAPI_KEY'), // Use existing RAPIDAPI_KEY
+    ],
     
     'soundcloud' => [
         'client_id' => env('SOUNDCLOUD_CLIENT_ID'),
