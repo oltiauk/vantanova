@@ -290,6 +290,7 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::get('info', [SimilarArtistsController::class, 'getArtistInfo'])->name('info');
             Route::post('batch-listeners', [SimilarArtistsController::class, 'batchGetArtistListeners'])->name('batch-listeners');
             Route::get('spotify-preview', [SimilarArtistsController::class, 'getSpotifyPreview'])->name('spotify-preview');
+            Route::get('track-popularity', [SimilarArtistsController::class, 'getTrackPopularity'])->name('track-popularity');
         });
 
     });

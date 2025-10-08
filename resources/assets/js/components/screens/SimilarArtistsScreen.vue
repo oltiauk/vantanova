@@ -159,6 +159,7 @@
                   <th class="text-left p-3 py-7 font-medium">#</th>
                   <th class="text-center p-3 font-medium w-20 whitespace-nowrap" />
                   <th class="text-left p-3 font-medium w-1/3">Artist</th>
+                  <th class="text-right p-3 font-medium whitespace-nowrap">Followers</th>
                   <th class="text-left p-3 font-medium" />
                 </tr>
               </thead>
@@ -197,6 +198,11 @@
                       <span class="font-medium text-white">
                         {{ artist.name }}
                       </span>
+                    </td>
+
+                    <!-- Followers -->
+                    <td class="p-3 align-middle text-right">
+                      <span class="text-white/80">{{ formatFollowers(artist.followers || 0) }}</span>
                     </td>
 
                     <!-- Actions -->
@@ -276,7 +282,7 @@
                               <!-- Spotify Embed -->
                               <iframe
                                 :key="track.id"
-                                :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
+                                :src="`https://open.spotify.com/embed/${track.embed_type || 'track'}/${track.id}?utm_source=generator&theme=0`"
                                 :title="`${track.artists?.[0]?.name || 'Unknown'} - ${track.name}`"
                                 class="flex-1 spotify-embed"
                                 style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
@@ -425,6 +431,13 @@ interface LastfmArtist {
   match?: string
   spotifyTracks?: SpotifyTrack[]
   allSpotifyTracks?: SpotifyTrack[] // Store all tracks for re-filtering
+  // New Spotify fields
+  id?: string // Spotify artist ID
+  followers?: number
+  popularity?: number
+  genres?: string[]
+  external_url?: string
+  images?: Array<{ url: string, height: number, width: number }>
 }
 
 interface SpotifyTrack {
@@ -538,12 +551,39 @@ const searchArtists = async () => {
   searchLoading.value = true
 
   try {
+    console.log('🔍 [FRONTEND] Starting artist search', {
+      query: searchQuery.value,
+      timestamp: new Date().toISOString(),
+    })
+
     const response = await http.get('similar-artists/search', {
-      params: { query: searchQuery.value },
+      params: {
+        query: searchQuery.value,
+        limit: 20,
+      },
+    })
+
+    console.log('🔍 [FRONTEND] Search response received', {
+      success: response.success,
+      dataLength: response.data?.length,
+      error: response.error,
     })
 
     if (response.success && response.data) {
-      // Filter out invalid results and sort: prioritize artists with MBIDs, then by name
+      // Helper: normalize artist names to dedupe variants (e.g., "Eminem", "Eminem - Topic")
+      const normalizeArtistName = (name: string): string => {
+        return name
+          .normalize('NFKD') // split accents
+          .replace(/[\u0300-\u036F]/g, '') // remove diacritics
+          .replace(/\(.*?\)|\[.*?\]/g, '') // drop parentheticals
+          .replace(/\s*-\s*topic$/i, '') // drop trailing "- Topic"
+          .replace(/official/gi, '') // drop word "official"
+          .replace(/\s+/g, ' ') // collapse spaces
+          .trim()
+          .toLowerCase()
+      }
+
+      // Filter out invalid results
       const validResults = response.data.filter(artist => {
         // Must have a name
         if (!artist || !artist.name || typeof artist.name !== 'string') {
@@ -552,7 +592,23 @@ const searchArtists = async () => {
         return true
       })
 
-      const sortedResults = validResults.sort((a, b) => {
+      // Deduplicate by normalized name (primary), fallback to Spotify ID
+      const seen = new Set<string>()
+      const dedupedResults = validResults.filter(a => {
+        const normalized = normalizeArtistName(a.name)
+        const fallbackId = (a.id && a.id.trim()) || ''
+        const key = normalized || fallbackId
+        if (!key) {
+          return false
+        }
+        if (seen.has(key)) {
+          return false
+        }
+        seen.add(key)
+        return true
+      })
+
+      const sortedResults = dedupedResults.sort((a, b) => {
         // First priority: exact match with search query
         const queryLower = searchQuery.value.toLowerCase()
         const aExact = a.name.toLowerCase() === queryLower
@@ -565,18 +621,26 @@ const searchArtists = async () => {
           return 1
         }
 
-        // Second priority: artists with MBIDs (for similarity search capability)
-        const aMbid = a.mbid && a.mbid.trim()
-        const bMbid = b.mbid && b.mbid.trim()
+        // Second priority: artists with Spotify IDs (for similarity search capability)
+        const aSpotifyId = a.id && a.id.trim()
+        const bSpotifyId = b.id && b.id.trim()
 
-        if (aMbid && !bMbid) {
+        if (aSpotifyId && !bSpotifyId) {
           return -1
         }
-        if (!aMbid && bMbid) {
+        if (!aSpotifyId && bSpotifyId) {
           return 1
         }
 
-        // Third priority: listener count (higher first)
+        // Third priority: followers count (higher first) - Spotify data
+        const aFollowers = a.followers || 0
+        const bFollowers = b.followers || 0
+
+        if (aFollowers !== bFollowers) {
+          return bFollowers - aFollowers
+        }
+
+        // Fourth priority: listener count (higher first) - Last.fm data
         const aListeners = Number.parseInt(a.listeners || '0', 10)
         const bListeners = Number.parseInt(b.listeners || '0', 10)
 
@@ -589,11 +653,19 @@ const searchArtists = async () => {
       })
 
       searchResults.value = sortedResults
+      console.log('🔍 [FRONTEND] Search results processed', {
+        originalCount: response.data.length,
+        validCount: validResults.length,
+        dedupedCount: dedupedResults.length,
+        totalResults: sortedResults.length,
+        sampleArtists: sortedResults.slice(0, 3).map(a => a.name),
+      })
     } else {
+      console.warn('🔍 [FRONTEND] Search returned no valid results')
       searchResults.value = []
     }
   } catch (error: any) {
-    console.error('Search error:', error)
+    console.error('🔍 [FRONTEND] Search error:', error)
     searchResults.value = []
   } finally {
     searchLoading.value = false
@@ -623,8 +695,8 @@ const selectArtist = (artist: LastfmArtist) => {
   allowAnimations.value = false
   initialLoadComplete.value = false
 
-  // Automatically find similar artists if the artist has an MBID
-  if (artist.mbid && artist.mbid.trim()) {
+  // Automatically find similar artists if the artist has an ID (Spotify or MBID)
+  if ((artist.id && artist.id.trim()) || (artist.mbid && artist.mbid.trim())) {
     findSimilarArtists(artist)
   }
 }
@@ -900,7 +972,11 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
     return
   }
 
-  if (!targetArtist.mbid || !targetArtist.mbid.trim()) {
+  // Check if artist has either Spotify ID or MBID
+  const hasSpotifyId = targetArtist.id && targetArtist.id.trim()
+  const hasMbid = targetArtist.mbid && targetArtist.mbid.trim()
+
+  if (!hasSpotifyId && !hasMbid) {
     const artistName = targetArtist.name || 'the selected artist'
     errorMessage.value = `Sorry, "${artistName}" doesn't have the required music database ID for similarity search. Try searching for a different artist or a more specific artist name.`
     return
@@ -915,24 +991,56 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
   errorMessage.value = ''
 
   try {
-    // Get similar artists from Last.fm
-    const response = await http.get('similar-artists/similar', {
-      params: { mbid: targetArtist.mbid },
+    console.log('🎵 [FRONTEND] Starting similar artists search', {
+      artistName: targetArtist.name,
+      hasSpotifyId,
+      hasMbid,
+      spotifyId: targetArtist.id,
+      mbid: targetArtist.mbid,
+    })
+
+    // Try Spotify API first if we have a Spotify ID
+    let response
+    if (hasSpotifyId) {
+      console.log('🎵 [FRONTEND] Using Spotify API for similar artists')
+      response = await http.get('similar-artists/similar', {
+        params: {
+          artist_id: targetArtist.id,
+          limit: 20,
+        },
+      })
+    } else if (hasMbid) {
+      console.log('🎵 [FRONTEND] Using Last.fm API for similar artists')
+      // Fallback to Last.fm
+      response = await http.get('similar-artists/similar', {
+        params: { mbid: targetArtist.mbid },
+      })
+    }
+
+    console.log('🎵 [FRONTEND] Similar artists response received', {
+      success: response.success,
+      dataLength: response.data?.length,
+      error: response.message,
     })
 
     if (response.success && response.data) {
-      // Filter out artists without MBID and banned artists
-      const artistsWithMbid = response.data.filter(artist =>
-        artist.mbid
-        && artist.mbid.trim()
-        && !bannedArtists.value.has(artist.mbid),
+      // Filter out artists without IDs and banned artists
+      const artistsWithId = response.data.filter(artist =>
+        (artist.id && artist.id.trim()) || (artist.mbid && artist.mbid.trim())
+        && !bannedArtists.value.has(artist.mbid || artist.id),
       )
+
+      console.log('🎵 [FRONTEND] Similar artists filtered', {
+        originalCount: response.data.length,
+        filteredCount: artistsWithId.length,
+        sampleArtists: artistsWithId.slice(0, 3).map(a => a.name),
+      })
 
       // Enable animations BEFORE updating data to prevent flash on initial load
       allowAnimations.value = true
 
-      similarArtists.value = artistsWithMbid
-      filteredArtists.value = artistsWithMbid
+      similarArtists.value = artistsWithId
+      filteredArtists.value = artistsWithId
       currentPage.value = 1
 
       // Update current page artists and apply per-page sorting
@@ -941,11 +1049,16 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
       // Apply initial sorting first (without listeners data)
       sortArtists()
 
-      // Load listeners count for the first page only
+      // Load followers/listeners count for the first page only
       await loadPageListenersCounts()
 
       // Set initial load complete
       initialLoadComplete.value = true
+
+      console.log('🎵 [FRONTEND] Similar artists setup complete', {
+        totalArtists: similarArtists.value.length,
+        currentPageArtists: currentPageArtists.value.length,
+      })
 
       // Auto-disable animations after 2 seconds
       setTimeout(() => {
@@ -965,10 +1078,89 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
   }
 }
 
-// Load listeners counts for current page artists only
+// Load followers/listeners counts for current page artists only
 const loadPageListenersCounts = async () => {
-  // Last.fm listeners/playcount fetching disabled - data not displayed
+  if (loadingPageListeners.value) {
+    return
+  }
 
+  loadingPageListeners.value = true
+
+  try {
+    // Get artist IDs for current page
+    const artistIds = currentPageArtists.value
+      .filter(artist => artist.id && artist.id.trim())
+      .map(artist => artist.id)
+
+    const mbids = currentPageArtists.value
+      .filter(artist => artist.mbid && artist.mbid.trim())
+      .map(artist => artist.mbid)
+
+    console.log('📊 [FRONTEND] Loading followers/listeners for current page', {
+      artistIdsCount: artistIds.length,
+      mbidsCount: mbids.length,
+      artistIds: artistIds.slice(0, 3), // Log first 3 for debugging
+      mbids: mbids.slice(0, 3),
+    })
+
+    if (artistIds.length > 0 || mbids.length > 0) {
+      const response = await http.post('similar-artists/batch-listeners', {
+        artist_ids: artistIds,
+        mbids,
+      })
+
+      console.log('📊 [FRONTEND] Batch followers response received', {
+        success: response.success,
+        dataKeys: Object.keys(response.data || {}),
+        dataCount: Object.keys(response.data || {}).length,
+      })
+
+      if (response.success && response.data) {
+        // Update artists with followers/listeners data
+        currentPageArtists.value.forEach(artist => {
+          const artistId = artist.id || artist.mbid
+          if (artistId && response.data[artistId]) {
+            const data = response.data[artistId]
+
+            // Update with Spotify followers data
+            if (data.followers !== undefined) {
+              artist.followers = data.followers
+            }
+            if (data.popularity !== undefined) {
+              artist.popularity = data.popularity
+            }
+
+            // Update with Last.fm listeners data
+            if (data.listeners !== undefined) {
+              artist.listeners = data.listeners.toString()
+            }
+            if (data.playcount !== undefined) {
+              artist.playcount = data.playcount?.toString()
+            }
+          }
+        })
+
+        // Update displayed artists
+        updateDisplayedArtists()
+
+        console.log('📊 [FRONTEND] Followers/listeners data updated', {
+          updatedArtists: currentPageArtists.value.filter(a => a.followers || a.listeners).length,
+          sampleData: currentPageArtists.value.slice(0, 2).map(a => ({
+            name: a.name,
+            followers: a.followers,
+            listeners: a.listeners,
+            popularity: a.popularity,
+          })),
+        })
+      }
+    } else {
+      console.log('📊 [FRONTEND] No artist IDs or MBIDs to fetch data for')
+    }
+  } catch (error: any) {
+    console.error('📊 [FRONTEND] Failed to load followers/listeners:', error)
+  } finally {
+    loadingPageListeners.value = false
+  }
 }
 
 // Spotify preview functionality
@@ -996,14 +1188,43 @@ const previewArtist = async (artist: LastfmArtist) => {
   loadingPreviewArtist.value = artist.name
 
   try {
+    console.log('🎵 [FRONTEND] Getting Spotify preview for artist', {
+      artistName: artist.name,
+      hasSpotifyId: !!(artist.id && artist.id.trim()),
+      spotifyId: artist.id,
+    })
+
+    // Try with Spotify artist ID first, then fallback to artist name
+    const params: any = {}
+    if (artist.id && artist.id.trim()) {
+      params.artist_id = artist.id
+      console.log('🎵 [FRONTEND] Using Spotify artist ID for preview')
+    } else {
+      params.artist_name = artist.name
+      console.log('🎵 [FRONTEND] Using artist name for preview')
+    }
+
     const response = await http.get('similar-artists/spotify-preview', {
-      params: { artist_name: artist.name },
+      params,
+    })
+
+    console.log('🎵 [FRONTEND] Spotify preview response received', {
+      success: response.success,
+      tracksCount: response.data?.tracks?.length,
+      error: response.message,
     })
 
     if (response.success && response.data && response.data.tracks.length > 0) {
       // Filter out blacklisted tracks when initially opening preview (not during session)
       const filteredTracks = response.data.tracks.filter(track => !isTrackBanned(track))
       const tracksToShow = filteredTracks.slice(0, 1)
+
+      console.log('🎵 [FRONTEND] Spotify preview tracks processed', {
+        totalTracks: response.data.tracks.length,
+        filteredTracks: filteredTracks.length,
+        tracksToShow: tracksToShow.length,
+        sampleTracks: tracksToShow.map(t => t.name),
+      })
 
       // Store all original tracks for reference and show filtered tracks
       artist.allSpotifyTracks = response.data.tracks // Store all tracks
@@ -1012,6 +1233,7 @@ const previewArtist = async (artist: LastfmArtist) => {
       // Stop any currently playing Spotify tracks
       stopAllSpotifyPlayers()
     } else {
+      console.warn('🎵 [FRONTEND] No tracks found for preview, closing')
       // If no tracks found, close the preview
       closePreview(artist)
     }
@@ -1095,6 +1317,15 @@ const formatListeners = (listeners: string | number): string => {
     return `${(num / 1000).toFixed(1)}K`
   }
   return num.toString()
+}
+
+const formatFollowers = (followers: number): string => {
+  if (followers >= 1000000) {
+    return `${(followers / 1000000).toFixed(1)}M`
+  } else if (followers >= 1000) {
+    return `${(followers / 1000).toFixed(1)}K`
+  }
+  return followers.toString()
 }
 
 const formatPlaycount = (playcount: string | number): string => {
@@ -1218,10 +1449,22 @@ const updateDisplayedArtists = () => {
     const sortedPageArtists = [...currentPageArtists.value].sort((a, b) => {
       switch (sortBy.value) {
         case 'listeners-desc':
+          // Prioritize Spotify followers, then Last.fm listeners
+          const aFollowers = a.followers || 0
+          const bFollowers = b.followers || 0
+          if (aFollowers !== bFollowers) {
+            return bFollowers - aFollowers
+          }
           const aListeners = Number.parseInt(a.listeners || '0', 10)
           const bListeners = Number.parseInt(b.listeners || '0', 10)
           return bListeners - aListeners
         case 'listeners-asc':
+          // Prioritize Spotify followers, then Last.fm listeners
+          const aFollowersAsc = a.followers || 0
+          const bFollowersAsc = b.followers || 0
+          if (aFollowersAsc !== bFollowersAsc) {
+            return aFollowersAsc - bFollowersAsc
+          }
           const aListenersAsc = Number.parseInt(a.listeners || '0', 10)
           const bListenersAsc = Number.parseInt(b.listeners || '0', 10)
           return aListenersAsc - bListenersAsc

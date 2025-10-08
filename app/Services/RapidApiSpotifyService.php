@@ -201,7 +201,9 @@ class RapidApiSpotifyService
         string $apiKey,
         string $provider
     ): array {
-        $url = "https://{$host}{$endpoint}";
+        // Remove leading slash if present to avoid double slashes
+        $endpoint = ltrim($endpoint, '/');
+        $url = "https://{$host}/{$endpoint}";
 
         $headers = [
             'X-RapidAPI-Key' => $apiKey,
@@ -395,6 +397,597 @@ class RapidApiSpotifyService
 
         Log::warning("🔥 RapidAPI: No exact match found among results");
         return null;
+    }
+
+    /**
+     * Search for artists using RapidAPI Spotify
+     * GET /search?q={query}&type=artists&limit={limit}
+     */
+    public function searchArtists(string $query, int $limit = 20): array
+    {
+        try {
+            \Log::info('🔍 [RAPIDAPI SPOTIFY] Starting artist search', [
+                'query' => $query,
+                'limit' => $limit,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $params = [
+                'q' => $query,
+                'type' => 'artists',
+                'limit' => min($limit, 50) // API limit
+            ];
+
+            $result = $this->makeRequest(
+                '/search',
+                $params,
+                'spotify81.p.rapidapi.com',
+                config('services.rapidapi.key'),
+                'Spotify81'
+            );
+
+            if ($result['success'] && isset($result['data']['artists']['items'])) {
+                $artists = $this->formatArtistsArray($result['data']['artists']['items']);
+                \Log::info('🔍 [RAPIDAPI SPOTIFY] Artist search successful', [
+                    'query' => $query,
+                    'found_count' => count($artists),
+                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $artists), 0, 3)
+                ]);
+                return $artists;
+            }
+
+            \Log::warning('🔍 [RAPIDAPI SPOTIFY] Artist search returned no results', [
+                'query' => $query,
+                'result_success' => $result['success'] ?? false,
+                'has_artists' => isset($result['data']['artists']['items'])
+            ]);
+            return [];
+        } catch (\Exception $e) {
+            \Log::error('🔍 [RAPIDAPI SPOTIFY] Artist search failed', [
+                'query' => $query,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Get similar artists recommendations using RapidAPI Spotify
+     * GET /artists/{artist_id}/related-artists
+     */
+    public function getSimilarArtists(string $artistId, int $limit = 20): array
+    {
+        try {
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Getting similar artists', [
+                'artist_id' => $artistId,
+                'limit' => $limit,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $params = [
+                'limit' => min($limit, 50) // API limit
+            ];
+
+            $result = $this->makeRequest(
+                "/artists/{$artistId}/related-artists",
+                $params,
+                'spotify81.p.rapidapi.com',
+                config('services.rapidapi.key'),
+                'Spotify81'
+            );
+
+            if ($result['success'] && isset($result['data']['artists'])) {
+                $artists = $this->formatArtistsArray($result['data']['artists']);
+                \Log::info('🎵 [RAPIDAPI SPOTIFY] Similar artists successful', [
+                    'artist_id' => $artistId,
+                    'found_count' => count($artists),
+                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $artists), 0, 3)
+                ]);
+                return $artists;
+            }
+
+            \Log::warning('🎵 [RAPIDAPI SPOTIFY] Similar artists returned no results', [
+                'artist_id' => $artistId,
+                'result_success' => $result['success'] ?? false,
+                'has_artists' => isset($result['data']['artists'])
+            ]);
+            return [];
+        } catch (\Exception $e) {
+            \Log::error('🎵 [RAPIDAPI SPOTIFY] Similar artists failed', [
+                'artist_id' => $artistId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Get artist followers count using RapidAPI Spotify
+     * GET /artists/{artist_id}
+     */
+    public function getArtistFollowers(string $artistId): array
+    {
+        try {
+            $result = $this->makeRequest(
+                "/artists/{$artistId}",
+                [],
+                'spotify81.p.rapidapi.com',
+                config('services.rapidapi.key'),
+                'Spotify81'
+            );
+
+            if ($result['success'] && isset($result['data'])) {
+                return [
+                    'id' => $result['data']['id'] ?? null,
+                    'name' => $result['data']['name'] ?? null,
+                    'followers' => $result['data']['followers']['total'] ?? 0,
+                    'popularity' => $result['data']['popularity'] ?? 0,
+                    'genres' => $result['data']['genres'] ?? []
+                ];
+            }
+
+            return [];
+        } catch (\Exception $e) {
+            \Log::error('RapidAPI Spotify artist followers failed', [
+                'artist_id' => $artistId,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Get batch artist followers using RapidAPI Spotify
+     * Single batch request with primary/backup
+     */
+    public function getBatchArtistFollowers(array $artistIds): array
+    {
+        \Log::info('📊 [RAPIDAPI SPOTIFY] Starting batch artist followers', [
+            'artist_count' => count($artistIds),
+            'artist_ids' => $artistIds,
+            'timestamp' => now()->toISOString()
+        ]);
+
+        $ids = array_values(array_filter(array_map('trim', $artistIds)));
+        if (empty($ids)) {
+            return [];
+        }
+        $idsParam = implode(',', $ids);
+
+        // Primary: spotify81
+        $primary = $this->makeRequest(
+            '/artists',
+            ['ids' => $idsParam],
+            $this->primaryHost,
+            $this->apiKey,
+            'Spotify81'
+        );
+
+        $artists = [];
+        if ($primary['success'] && isset($primary['data']['artists'])) {
+            $artists = $primary['data']['artists'];
+        } else {
+            \Log::warning('📊 [RAPIDAPI SPOTIFY] Primary batch followers failed, trying backup', [
+                'status' => $primary['status'] ?? null
+            ]);
+            // Backup: spotify-web2
+            $backup = $this->makeRequest(
+                '/artists',
+                ['ids' => $idsParam],
+                $this->backupHost,
+                $this->backupApiKey,
+                'SpotifyWeb2'
+            );
+            if ($backup['success'] && isset($backup['data']['artists'])) {
+                $artists = $backup['data']['artists'];
+            }
+        }
+
+        $results = [];
+        foreach ($artists as $artist) {
+            $id = $artist['id'] ?? null;
+            if (!$id) { continue; }
+            $results[$id] = [
+                'id' => $id,
+                'name' => $artist['name'] ?? null,
+                'followers' => $artist['followers']['total'] ?? 0,
+                'popularity' => $artist['popularity'] ?? 0,
+            ];
+        }
+
+        \Log::info('📊 [RAPIDAPI SPOTIFY] Batch artist followers completed', [
+            'requested' => count($ids),
+            'returned' => count($results)
+        ]);
+
+        return $results;
+    }
+
+    /**
+     * Get artist preview tracks using RapidAPI Spotify
+     * GET /artists/{artist_id}/albums then GET /albums/{album_id}/tracks
+     */
+    public function getArtistPreviewTracks(string $artistId, int $limit = 1): array
+    {
+        try {
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Getting artist preview tracks via artist_overview', [
+                'artist_id' => $artistId,
+                'limit' => $limit,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            // Get artist overview with popularReleases
+            $overviewResult = $this->makeRequest(
+                "/artist_overview",
+                ['id' => $artistId],
+                'spotify81.p.rapidapi.com',
+                config('services.rapidapi.key'),
+                'Spotify81'
+            );
+
+            // Check if we have topTracks data (preferred) or fall back to popularReleases
+            $hasTopTracks = isset($overviewResult['data']['data']['artist']['discography']['topTracks']['items']);
+
+            if ($hasTopTracks) {
+                \Log::info('🎵 [RAPIDAPI SPOTIFY] Using topTracks for preview', [
+                    'artist_id' => $artistId
+                ]);
+
+                $topTracks = $overviewResult['data']['data']['artist']['discography']['topTracks']['items'];
+
+                if (empty($topTracks)) {
+                    \Log::warning('🎵 [RAPIDAPI SPOTIFY] No top tracks found for artist', [
+                        'artist_id' => $artistId
+                    ]);
+                    return [];
+                }
+
+                // Sort by playcount (highest first) and get multiple tracks based on limit
+                usort($topTracks, function($a, $b) {
+                    $aPlaycount = $a['track']['playcount'] ?? 0;
+                    $bPlaycount = $b['track']['playcount'] ?? 0;
+                    return $bPlaycount - $aPlaycount;
+                });
+
+                // Process multiple tracks up to the limit
+                $tracks = [];
+                $tracksToProcess = array_slice($topTracks, 0, $limit);
+
+                foreach ($tracksToProcess as $trackItem) {
+                    $topTrack = $trackItem['track'] ?? null;
+
+                    if (!$topTrack) {
+                        continue;
+                    }
+
+                    $trackId = $topTrack['id'] ?? null;
+                    $trackName = $topTrack['name'] ?? 'Unknown Track';
+                    $previewUrl = $topTrack['preview_url'] ?? null;
+                    $artistName = $topTrack['artists']['items'][0]['profile']['name'] ?? 'Unknown';
+
+                    \Log::info('🎵 [RAPIDAPI SPOTIFY] Found top track', [
+                        'track_id' => $trackId,
+                        'track_name' => $trackName,
+                        'playcount' => $topTrack['playcount'] ?? 0
+                    ]);
+
+                    if ($trackId) {
+                        $tracks[] = [
+                            'id' => $trackId,
+                            'name' => $trackName,
+                            'artists' => [['name' => $artistName]],
+                            'preview_url' => $previewUrl,
+                            'external_url' => "https://open.spotify.com/track/{$trackId}",
+                            'duration_ms' => $topTrack['duration']['totalMilliseconds'] ?? null,
+                            'embed_type' => 'track' // This is a real track, not an album
+                        ];
+                    }
+                }
+
+                if (!empty($tracks)) {
+                    return $tracks;
+                }
+            }
+
+            // Fallback to popularReleases if topTracks not available
+            if (!isset($overviewResult['data']['data']['artist']['discography']['popularReleases']['items'])) {
+                \Log::warning('🎵 [RAPIDAPI SPOTIFY] No popular releases or top tracks found for artist', [
+                    'artist_id' => $artistId,
+                    'success' => $overviewResult['success'] ?? false
+                ]);
+                return [];
+            }
+
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Falling back to popularReleases', [
+                'artist_id' => $artistId
+            ]);
+
+            $popularReleases = $overviewResult['data']['data']['artist']['discography']['popularReleases']['items'];
+
+            // Find first SINGLE type release
+            $singleRelease = null;
+            $parentItem = null;
+            foreach ($popularReleases as $item) {
+                if (isset($item['releases']['items'][0])) {
+                    $release = $item['releases']['items'][0];
+                    if (isset($release['type']) && strtoupper($release['type']) === 'SINGLE') {
+                        $singleRelease = $release;
+                        $parentItem = $item; // Store parent item which may contain track data
+                        break;
+                    }
+                }
+            }
+
+            if (!$singleRelease) {
+                \Log::warning('🎵 [RAPIDAPI SPOTIFY] No SINGLE type found in popularReleases', [
+                    'artist_id' => $artistId,
+                    'releases_count' => count($popularReleases)
+                ]);
+                return [];
+            }
+
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Single release structure', [
+                'release_keys' => array_keys($singleRelease),
+                'parent_item_keys' => $parentItem ? array_keys($parentItem) : [],
+                'has_tracks_in_release' => isset($singleRelease['tracks']),
+                'has_tracks_in_parent' => $parentItem && isset($parentItem['tracks']),
+                'tracks_structure' => isset($singleRelease['tracks']) ? array_keys($singleRelease['tracks']) : null,
+                'tracks_data_sample' => isset($singleRelease['tracks']) ? json_encode($singleRelease['tracks']) : null
+            ]);
+
+            // Extract track info from the single release
+            $shareUrl = $singleRelease['sharingInfo']['shareUrl'] ?? null;
+            $albumId = $singleRelease['id'] ?? null;
+            $trackId = null;
+            $trackName = null;
+            $previewUrl = null;
+
+            // The tracks are already embedded in the release data - use them directly!
+            if (isset($singleRelease['tracks']['items'][0])) {
+                $firstTrack = $singleRelease['tracks']['items'][0];
+
+                // Extract track ID from the embedded track data
+                if (isset($firstTrack['track']['id'])) {
+                    $trackId = $firstTrack['track']['id'];
+                    $trackName = $firstTrack['track']['name'] ?? 'Unknown Track';
+                    $previewUrl = $firstTrack['track']['preview_url'] ?? null;
+                } elseif (isset($firstTrack['id'])) {
+                    $trackId = $firstTrack['id'];
+                    $trackName = $firstTrack['name'] ?? 'Unknown Track';
+                    $previewUrl = $firstTrack['preview_url'] ?? null;
+                }
+
+                // If no direct ID, try to extract from URI
+                if (!$trackId) {
+                    $uri = $firstTrack['track']['uri'] ?? $firstTrack['uri'] ?? null;
+                    if ($uri && preg_match('/spotify:track:([a-zA-Z0-9]+)/', $uri, $matches)) {
+                        $trackId = $matches[1];
+                    }
+                }
+
+                \Log::info('🎵 [RAPIDAPI SPOTIFY] Extracted track from embedded tracks', [
+                    'track_id' => $trackId,
+                    'track_name' => $trackName,
+                    'has_preview' => !empty($previewUrl),
+                    'track_structure' => array_keys($firstTrack)
+                ]);
+            }
+
+            // Fallback to release name if no track name found
+            $trackName = $trackName ?: ($singleRelease['name'] ?? 'Unknown Track');
+
+            // For albums where we can't get individual track IDs, use the album ID for embedding
+            // Spotify album embeds work for all albums and will show the first track by default
+            $trackCount = $singleRelease['tracks']['totalCount'] ?? 0;
+            if (!$trackId && $albumId && $trackCount > 0) {
+                $trackId = $albumId; // Use album ID for album embed
+                \Log::info('🎵 [RAPIDAPI SPOTIFY] Using album ID for album embed', [
+                    'album_id' => $albumId,
+                    'track_count' => $trackCount
+                ]);
+            }
+
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Found SINGLE release', [
+                'artist_id' => $artistId,
+                'track_name' => $trackName,
+                'track_id' => $trackId,
+                'album_id' => $albumId,
+                'track_count' => $trackCount,
+                'using_album_as_track' => $trackId === $albumId
+            ]);
+
+            // If we already have a track ID (or using album ID for single), use it directly
+            if ($trackId) {
+                $isAlbumId = ($trackId === $albumId);
+                $embedType = $isAlbumId ? 'album' : 'track';
+
+                \Log::info('🎵 [RAPIDAPI SPOTIFY] Using ID for embed', [
+                    'id' => $trackId,
+                    'is_album_id' => $isAlbumId,
+                    'embed_type' => $embedType,
+                    'skipping_album_tracks_api_call' => true
+                ]);
+
+                return [
+                    [
+                        'id' => $trackId,
+                        'name' => $trackName,
+                        'artists' => [['name' => $singleRelease['artists'][0]['profile']['name'] ?? 'Unknown']],
+                        'preview_url' => $previewUrl,
+                        'external_url' => "https://open.spotify.com/{$embedType}/{$trackId}",
+                        'duration_ms' => null,
+                        'embed_type' => $embedType // Add this so frontend knows whether to use /track/ or /album/
+                    ]
+                ];
+            }
+
+            // Only fetch tracks from album API if we don't have embedded track data
+            if ($albumId) {
+                \Log::info('🎵 [RAPIDAPI SPOTIFY] No embedded track ID, fetching from albums API', [
+                    'album_id' => $albumId
+                ]);
+
+                // Primary: spotify81
+                $tracksResult = $this->makeRequest(
+                    "/albums/{$albumId}/tracks",
+                    ['limit' => max(1, $limit)],
+                    'spotify81.p.rapidapi.com',
+                    config('services.rapidapi.key'),
+                    'Spotify81'
+                );
+
+                if ($tracksResult['success'] && !empty($tracksResult['data']['items'])) {
+                    $tracks = $this->formatTracksArray($tracksResult['data']['items']);
+                    return array_slice($tracks, 0, $limit);
+                }
+
+                // Backup: spotify-web2
+                $backupTracks = $this->makeRequest(
+                    "/albums/{$albumId}/tracks",
+                    ['limit' => max(1, $limit)],
+                    'spotify-web2.p.rapidapi.com',
+                    config('services.rapidapi.key'),
+                    'SpotifyWeb2'
+                );
+
+                if ($backupTracks['success'] && !empty($backupTracks['data']['items'])) {
+                    $tracks = $this->formatTracksArray($backupTracks['data']['items']);
+                    return array_slice($tracks, 0, $limit);
+                }
+            }
+
+            // Fallback: return a shell entry with track ID if we have it, otherwise album share url
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Using fallback track data', [
+                'has_track_id' => !empty($trackId),
+                'track_id' => $trackId,
+                'album_id' => $albumId
+            ]);
+
+            return [
+                [
+                    'id' => $trackId, // Use track ID if available, otherwise null
+                    'name' => $trackName,
+                    'artists' => [['name' => $singleRelease['artists'][0]['name'] ?? 'Unknown']],
+                    'share_url' => $shareUrl,
+                    'album_id' => $albumId,
+                    'preview_url' => null,
+                    'external_url' => $trackId ? "https://open.spotify.com/track/{$trackId}" : $shareUrl,
+                    'label' => $singleRelease['label'] ?? null
+                ]
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error('🎵 [RAPIDAPI SPOTIFY] Artist preview tracks failed', [
+                'artist_id' => $artistId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Get track popularity using RapidAPI Spotify
+     * GET /tracks/{track_id}
+     */
+    public function getTrackPopularity(string $trackId): array
+    {
+        try {
+            $result = $this->makeRequest(
+                "/tracks/{$trackId}",
+                [],
+                'spotify81.p.rapidapi.com',
+                config('services.rapidapi.key'),
+                'Spotify81'
+            );
+
+            if ($result['success'] && isset($result['data'])) {
+                return [
+                    'id' => $result['data']['id'] ?? null,
+                    'name' => $result['data']['name'] ?? null,
+                    'popularity' => $result['data']['popularity'] ?? 0,
+                    'preview_url' => $result['data']['preview_url'] ?? null,
+                    'external_url' => $result['data']['external_urls']['spotify'] ?? null
+                ];
+            }
+
+            return [];
+        } catch (\Exception $e) {
+            \Log::error('RapidAPI Spotify track popularity failed', [
+                'track_id' => $trackId,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Format artists array from Spotify API response
+     */
+    private function formatArtistsArray(array $artists): array
+    {
+        return array_map(function ($artist) {
+            // Handle RapidAPI Spotify81 specific structure
+            if (isset($artist['data'])) {
+                $data = $artist['data'];
+                $profile = $data['profile'] ?? [];
+                $visuals = $data['visuals'] ?? [];
+                
+                // Extract Spotify ID from URI (spotify:artist:7dGJo4pcD2V6oG8kP0tJRR)
+                $spotifyId = null;
+                if (isset($data['uri']) && strpos($data['uri'], 'spotify:artist:') === 0) {
+                    $spotifyId = str_replace('spotify:artist:', '', $data['uri']);
+                }
+                
+                // Extract images from visuals
+                $images = [];
+                if (isset($visuals['avatarImage']['sources'])) {
+                    $images = $visuals['avatarImage']['sources'];
+                }
+                
+                return [
+                    'id' => $spotifyId,
+                    'name' => $profile['name'] ?? 'Unknown Artist',
+                    'followers' => $profile['followers'] ?? 0,
+                    'popularity' => $profile['popularity'] ?? 0,
+                    'genres' => $profile['genres'] ?? [],
+                    'external_url' => $profile['external_urls']['spotify'] ?? null,
+                    'images' => $images
+                ];
+            }
+            
+            // Fallback to standard Spotify Web API structure
+            return [
+                'id' => $artist['id'] ?? null,
+                'name' => $artist['name'] ?? 'Unknown Artist',
+                'followers' => $artist['followers']['total'] ?? 0,
+                'popularity' => $artist['popularity'] ?? 0,
+                'genres' => $artist['genres'] ?? [],
+                'external_url' => $artist['external_urls']['spotify'] ?? null,
+                'images' => $artist['images'] ?? []
+            ];
+        }, $artists);
+    }
+
+    /**
+     * Format tracks array from Spotify API response
+     */
+    private function formatTracksArray(array $tracks): array
+    {
+        return array_map(function ($track) {
+            return [
+                'id' => $track['id'] ?? null,
+                'name' => $track['name'] ?? 'Unknown Track',
+                'artists' => array_map(function ($artist) {
+                    return ['name' => $artist['name'] ?? 'Unknown Artist'];
+                }, $track['artists'] ?? []),
+                'preview_url' => $track['preview_url'] ?? null,
+                'external_url' => $track['external_urls']['spotify'] ?? null,
+                'duration_ms' => $track['duration_ms'] ?? null
+            ];
+        }, $tracks);
     }
 
     /**
