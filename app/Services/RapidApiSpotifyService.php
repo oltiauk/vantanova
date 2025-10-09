@@ -203,7 +203,17 @@ class RapidApiSpotifyService
     ): array {
         // Remove leading slash if present to avoid double slashes
         $endpoint = ltrim($endpoint, '/');
-        $url = "https://{$host}/{$endpoint}";
+        
+        // Build query string manually for endpoints that need it in the URL path
+        $queryString = '';
+        if (!empty($params)) {
+            $parts = [];
+            foreach ($params as $key => $value) {
+                $parts[] = $key . '=' . $value;  // No urlencode() - keep commas as-is
+            }
+            $queryString = '?' . implode('&', $parts);
+        }
+        $url = "https://{$host}/{$endpoint}{$queryString}";
 
         $headers = [
             'X-RapidAPI-Key' => $apiKey,
@@ -214,12 +224,13 @@ class RapidApiSpotifyService
             Log::info("🔥 RAPIDAPI_REQUEST_{$provider}", [
                 'endpoint' => $endpoint,
                 'params' => $params,
+                'full_url' => $url,
                 'timestamp' => now()->toISOString()
             ]);
 
             $response = Http::withHeaders($headers)
                 ->timeout(30)
-                ->get($url, $params);
+                ->get($url);
 
             // Rate limiting delay
             usleep($this->rateLimitDelay * 1000000);
@@ -540,13 +551,12 @@ class RapidApiSpotifyService
 
     /**
      * Get batch artist followers using RapidAPI Spotify
-     * Single batch request with primary/backup
+     * Makes individual requests for each artist (API doesn't support batch)
      */
     public function getBatchArtistFollowers(array $artistIds): array
     {
         \Log::info('📊 [RAPIDAPI SPOTIFY] Starting batch artist followers', [
             'artist_count' => count($artistIds),
-            'artist_ids' => $artistIds,
             'timestamp' => now()->toISOString()
         ]);
 
@@ -554,55 +564,66 @@ class RapidApiSpotifyService
         if (empty($ids)) {
             return [];
         }
-        $idsParam = implode(',', $ids);
+
+        $allResults = [];
+
+        // Make a single batch request with all artist IDs comma-separated
+        $idsString = implode(',', $ids);
 
         // Primary: spotify81
         $primary = $this->makeRequest(
-            '/artists',
-            ['ids' => $idsParam],
+            "/artists",
+            ['ids' => $idsString],
             $this->primaryHost,
             $this->apiKey,
             'Spotify81'
         );
 
-        $artists = [];
-        if ($primary['success'] && isset($primary['data']['artists'])) {
-            $artists = $primary['data']['artists'];
+        if ($primary['success'] && isset($primary['data']['artists']) && is_array($primary['data']['artists'])) {
+            foreach ($primary['data']['artists'] as $artist) {
+                if ($artist !== null && isset($artist['id'])) {
+                    $allResults[$artist['id']] = [
+                        'id' => $artist['id'],
+                        'name' => $artist['name'] ?? null,
+                        'followers' => $artist['followers']['total'] ?? 0,
+                        'popularity' => $artist['popularity'] ?? 0,
+                    ];
+                }
+            }
         } else {
-            \Log::warning('📊 [RAPIDAPI SPOTIFY] Primary batch followers failed, trying backup', [
-                'status' => $primary['status'] ?? null
-            ]);
             // Backup: spotify-web2
+            \Log::info('📊 [RAPIDAPI SPOTIFY] Primary failed, trying backup', [
+                'timestamp' => now()->toISOString()
+            ]);
+
             $backup = $this->makeRequest(
-                '/artists',
-                ['ids' => $idsParam],
+                "/artists/",
+                ['ids' => $idsString],
                 $this->backupHost,
                 $this->backupApiKey,
                 'SpotifyWeb2'
             );
-            if ($backup['success'] && isset($backup['data']['artists'])) {
-                $artists = $backup['data']['artists'];
-            }
-        }
 
-        $results = [];
-        foreach ($artists as $artist) {
-            $id = $artist['id'] ?? null;
-            if (!$id) { continue; }
-            $results[$id] = [
-                'id' => $id,
-                'name' => $artist['name'] ?? null,
-                'followers' => $artist['followers']['total'] ?? 0,
-                'popularity' => $artist['popularity'] ?? 0,
-            ];
+            if ($backup['success'] && isset($backup['data']['artists']) && is_array($backup['data']['artists'])) {
+                foreach ($backup['data']['artists'] as $artist) {
+                    if ($artist !== null && isset($artist['id'])) {
+                        $allResults[$artist['id']] = [
+                            'id' => $artist['id'],
+                            'name' => $artist['name'] ?? null,
+                            'followers' => $artist['followers']['total'] ?? 0,
+                            'popularity' => $artist['popularity'] ?? 0,
+                        ];
+                    }
+                }
+            }
         }
 
         \Log::info('📊 [RAPIDAPI SPOTIFY] Batch artist followers completed', [
             'requested' => count($ids),
-            'returned' => count($results)
+            'returned' => count($allResults)
         ]);
 
-        return $results;
+        return $allResults;
     }
 
     /**

@@ -48,6 +48,7 @@
                 <th class="text-center pr-3 font-medium w-16 whitespace-nowrap"></th>
                 <th class="text-left p-3 font-medium w-auto min-w-64">Name(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
+                <th class="text-center p-3 font-medium whitespace-nowrap">Followers</th>
                 <th class="text-center pl-3 font-medium whitespace-nowrap"></th>
                 <th class="text-center pr-3 font-medium whitespace-nowrap"></th>
               </tr>
@@ -105,6 +106,15 @@
                         ]"
                       >
                         {{ track.source === 'shazam_fallback' ? 'shazam' : track.source }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Followers Count -->
+                  <td class="p-3 align-middle text-center">
+                    <div class="flex items-center justify-center">
+                      <span class="text-white/60 text-sm">
+                        {{ formatFollowers(track.followers) }}
                       </span>
                     </div>
                   </td>
@@ -288,6 +298,7 @@ interface Track {
   artists?: Array<{
     id: string
     name: string
+    followers?: number
   }>
   source?: string  // 'shazam' or 'spotify'
   shazam_id?: string
@@ -296,7 +307,6 @@ interface Track {
   popularity?: number
   followers?: number
   release_date?: string
-  preview_url?: string
   lastfm_stats?: {
     playcount: number
     listeners: number
@@ -408,6 +418,13 @@ const formatNumber = (num: number): string => {
     return (num / 1000).toFixed(1) + 'K'
   }
   return num.toString()
+}
+
+const formatFollowers = (followers: number | undefined): string => {
+  if (!followers || followers === 0) {
+    return 'N/A'
+  }
+  return formatNumber(followers)
 }
 
 

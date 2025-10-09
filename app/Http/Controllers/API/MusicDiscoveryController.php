@@ -963,24 +963,77 @@ class MusicDiscoveryController extends Controller
      */
     private function formatRapidApiTracksArray(array $tracks): array
     {
-        return array_map(function ($track) {
-            // Properly format artists array with IDs
+        // Extract unique artist IDs for batch followers fetch
+        $artistIds = [];
+        foreach ($tracks as $track) {
+            if (isset($track['artists']) && is_array($track['artists'])) {
+                foreach ($track['artists'] as $artist) {
+                    if (!empty($artist['id'])) {
+                        $artistIds[] = $artist['id'];
+                    }
+                }
+            } elseif (!empty($track['artist_id'])) {
+                $artistIds[] = $track['artist_id'];
+            }
+        }
+        
+        // Remove duplicates
+        $artistIds = array_unique($artistIds);
+        
+        // Fetch followers data in batch if RapidAPI Spotify is enabled
+        $followersData = [];
+        if (!empty($artistIds) && $this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
+            try {
+                $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
+                \Log::info('📊 [MUSIC DISCOVERY] Fetched followers data', [
+                    'artist_count' => count($followersData),
+                    'timestamp' => now()->toISOString()
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return array_map(function ($track) use ($followersData) {
+            // Properly format artists array with IDs and followers
             $artists = [];
             if (isset($track['artists']) && is_array($track['artists'])) {
-                $artists = array_map(function($artist) {
+                $artists = array_map(function($artist) use ($followersData) {
+                    $artistId = $artist['id'] ?? '';
+                    $followers = 0;
+                    if (!empty($artistId) && isset($followersData[$artistId])) {
+                        $followers = $followersData[$artistId]['followers'] ?? 0;
+                    }
+                    
                     return [
-                        'id' => $artist['id'] ?? '',
-                        'name' => $artist['name'] ?? 'Unknown Artist'
+                        'id' => $artistId,
+                        'name' => $artist['name'] ?? 'Unknown Artist',
+                        'followers' => $followers
                     ];
                 }, $track['artists']);
             } else {
                 // Fallback if no proper artists array
+                $artistId = $track['artist_id'] ?? '';
+                $followers = 0;
+                if (!empty($artistId) && isset($followersData[$artistId])) {
+                    $followers = $followersData[$artistId]['followers'] ?? 0;
+                }
+                
                 $artists = [
                     [
-                        'id' => $track['artist_id'] ?? '',
-                        'name' => $track['artist'] ?? 'Unknown Artist'
+                        'id' => $artistId,
+                        'name' => $track['artist'] ?? 'Unknown Artist',
+                        'followers' => $followers
                     ]
                 ];
+            }
+
+            // Get the primary artist's followers count for the main track object
+            $primaryArtistFollowers = 0;
+            if (!empty($artists)) {
+                $primaryArtistFollowers = $artists[0]['followers'] ?? 0;
             }
 
             return [
@@ -988,7 +1041,7 @@ class MusicDiscoveryController extends Controller
                 'uri' => $track['uri'] ?? null,
                 'name' => $track['name'],
                 'artist' => $track['artist'],
-                'artists' => $artists, // Proper artists array with IDs
+                'artists' => $artists, // Proper artists array with IDs and followers
                 'album' => $track['album'],
                 'album_image' => $track['image'],
                 'image' => $track['image'],
@@ -1000,6 +1053,7 @@ class MusicDiscoveryController extends Controller
                 'release_date' => $track['release_date'] ?? null,
                 'explicit' => $track['explicit'] ?? false,
                 'external_ids' => $track['external_ids'] ?? [], // Pass through external_ids (includes ISRC)
+                'followers' => $primaryArtistFollowers, // Add followers count for primary artist
             ];
         }, $tracks);
     }
@@ -1009,15 +1063,67 @@ class MusicDiscoveryController extends Controller
      */
     private function formatSpotifyTracksArray(array $tracks): array
     {
-        return array_map(function ($track) {
+        // Extract unique artist IDs for batch followers fetch
+        $artistIds = [];
+        foreach ($tracks as $track) {
+            if (isset($track['artists']) && is_array($track['artists'])) {
+                foreach ($track['artists'] as $artist) {
+                    if (!empty($artist['id'])) {
+                        $artistIds[] = $artist['id'];
+                    }
+                }
+            }
+        }
+        
+        // Remove duplicates
+        $artistIds = array_unique($artistIds);
+        
+        // Fetch followers data in batch if RapidAPI Spotify is enabled
+        $followersData = [];
+        if (!empty($artistIds) && $this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
+            try {
+                $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
+                \Log::info('📊 [MUSIC DISCOVERY] Fetched followers data for Spotify tracks', [
+                    'artist_count' => count($followersData),
+                    'timestamp' => now()->toISOString()
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data for Spotify tracks', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return array_map(function ($track) use ($followersData) {
+            // Format artists with followers data
+            $artists = [];
+            if (isset($track['artists']) && is_array($track['artists'])) {
+                $artists = array_map(function($artist) use ($followersData) {
+                    $artistId = $artist['id'] ?? '';
+                    $followers = 0;
+                    if (!empty($artistId) && isset($followersData[$artistId])) {
+                        $followers = $followersData[$artistId]['followers'] ?? 0;
+                    }
+                    
+                    return [
+                        'id' => $artistId,
+                        'name' => $artist['name'] ?? 'Unknown Artist',
+                        'followers' => $followers
+                    ];
+                }, $track['artists']);
+            }
+
+            // Get the primary artist's followers count
+            $primaryArtistFollowers = 0;
+            if (!empty($artists)) {
+                $primaryArtistFollowers = $artists[0]['followers'] ?? 0;
+            }
+
             return [
                 'id' => $track['id'],
                 'name' => $track['name'],
                 'artist' => $track['artists'][0]['name'] ?? 'Unknown Artist',
-                'artists' => array_map(fn($artist) => [
-                    'id' => $artist['id'],
-                    'name' => $artist['name']
-                ], $track['artists'] ?? []),
+                'artists' => $artists, // Artists with followers data
                 'album' => $track['album']['name'] ?? 'Unknown Album',
                 'album_image' => $track['album']['images'][0]['url'] ?? null,
                 'image' => $track['album']['images'][0]['url'] ?? null, // Add this for compatibility
@@ -1028,7 +1134,7 @@ class MusicDiscoveryController extends Controller
                 'popularity' => $track['popularity'] ?? 0,
                 'release_date' => $track['album']['release_date'] ?? null,
                 'label' => null, // Will be populated by enhanced metadata calls
-                'followers' => null, // Will be populated by enhanced metadata calls
+                'followers' => $primaryArtistFollowers, // Add followers count for primary artist
             ];
         }, $tracks);
     }
@@ -1072,10 +1178,71 @@ class MusicDiscoveryController extends Controller
      */
     private function formatRelatedTracksArray(array $tracks): array
     {
-        return array_map(function ($track) {
+        // Extract unique artist IDs for batch followers fetch
+        $artistIds = [];
+        foreach ($tracks as $index => $track) {
+            // Check artists array first (from RapidAPI format)
+            if (isset($track['artists'][0]['id']) && !empty($track['artists'][0]['id'])) {
+                $artistIds[] = $track['artists'][0]['id'];
+            } elseif (isset($track['artist']['id']) && !empty($track['artist']['id'])) {
+                // Fallback for other formats where artist is an object
+                $artistIds[] = $track['artist']['id'];
+            } else {
+                // Log when artist ID is missing with full track structure
+                \Log::warning('📊 [MUSIC DISCOVERY] Track missing artist ID', [
+                    'track_index' => $index,
+                    'track_keys' => array_keys($track),
+                    'has_artists_array' => isset($track['artists']),
+                    'has_artist_field' => isset($track['artist']),
+                    'artist_field_type' => isset($track['artist']) ? gettype($track['artist']) : 'not set',
+                    'track_sample' => [
+                        'id' => $track['id'] ?? 'not set',
+                        'name' => $track['name'] ?? 'not set',
+                        'title' => $track['title'] ?? 'not set',
+                        'artist' => $track['artist'] ?? 'not set'
+                    ]
+                ]);
+            }
+        }
+
+        // Remove duplicates
+        $artistIds = array_unique($artistIds);
+        
+        // Fetch followers data in batch if RapidAPI Spotify is enabled
+        $followersData = [];
+        if (!empty($artistIds) && $this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
+            try {
+                $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
+                \Log::info('📊 [MUSIC DISCOVERY] Fetched followers data for related tracks', [
+                    'requested_artist_ids' => count($artistIds),
+                    'received_followers_data' => count($followersData),
+                    'missing_count' => count($artistIds) - count($followersData),
+                    'timestamp' => now()->toISOString()
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data for related tracks', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return array_map(function ($track) use ($followersData) {
             $extractedImage = $this->extractTrackImage($track);
             $matchScore = $track['match'] ?? null;
-            
+
+            // Get artist ID for followers lookup (check artists array first, then artist object)
+            $artistId = $track['artists'][0]['id'] ?? $track['artist']['id'] ?? '';
+            $followers = 0;
+            if (!empty($artistId) && isset($followersData[$artistId])) {
+                $followers = $followersData[$artistId]['followers'] ?? 0;
+            } elseif (!empty($artistId)) {
+                // Artist ID exists but no follower data returned
+                \Log::debug('📊 [MUSIC DISCOVERY] No follower data for artist', [
+                    'artist_id' => $artistId,
+                    'artist_name' => is_array($track['artist']) ? ($track['artist']['name'] ?? 'unknown') : ($track['artist'] ?? 'unknown'),
+                    'track_name' => $track['title'] ?? $track['name'] ?? 'unknown'
+                ]);
+            }
             
             $result = [
                 'id' => $track['id'] ?? $track['mbid'] ?? uniqid('track_', true),
@@ -1090,15 +1257,15 @@ class MusicDiscoveryController extends Controller
                 'image' => $extractedImage,
                 'uri' => isset($track['id']) ? "spotify:track:{$track['id']}" : null,
                 'external_ids' => $track['external_ids'] ?? [], // Add external_ids for ISRC
-                'artists' => isset($track['artist']['name']) ? [['id' => '', 'name' => $track['artist']['name']]] : [], // Add artists array
+                'artists' => isset($track['artist']['name']) ? [['id' => $artistId, 'name' => $track['artist']['name'], 'followers' => $followers]] : [], // Add artists array with followers
                 'source' => $track['source'] ?? 'unknown', // PRESERVE SOURCE IDENTIFIER
                 'match' => $matchScore, // PRESERVE MATCH SCORE FROM LAST.FM
                 'shazam_id' => $track['shazam_id'] ?? null, // Preserve Shazam ID if available
                 'spotify_id' => $track['spotify_id'] ?? null, // Preserve Spotify ID if available
                 'popularity' => $track['popularity'] ?? null, // Add Spotify popularity
-                'release_date' => $track['album']['release_date'] ?? $track['release_date'] ?? null // Add release date
+                'release_date' => $track['album']['release_date'] ?? $track['release_date'] ?? null, // Add release date
+                'followers' => $followers // Add followers count for primary artist
             ];
-            
             
             return $result;
         }, $tracks);
@@ -2498,7 +2665,8 @@ class MusicDiscoveryController extends Controller
                             'title' => $track['name'] ?? 'Unknown Title',
                             'duration' => round(($track['duration_ms'] ?? 0) / 1000),
                             'artist' => [
-                                'name' => $track['artists'][0]['name'] ?? 'Unknown Artist'
+                                'name' => $track['artists'][0]['name'] ?? 'Unknown Artist',
+                                'id' => $track['artists'][0]['id'] ?? null
                             ],
                             'album' => [
                                 'title' => $track['album']['name'] ?? 'Unknown Album',
