@@ -2568,43 +2568,22 @@ class MusicDiscoveryController extends Controller
     private function getSpotifyRelatedTracks(string $spotifyTrackId, int $limit, ?array $seedTrack = null): array
     {
         try {
-            // Step 1: Get playlist from track using RapidAPI
-            \Log::info("🎧 Calling RapidAPI seed_to_playlist", [
+            // Step 1: Get playlist from track using RapidAPI with 3-tier backup
+            \Log::info("🎧 Calling RapidAPI seed_to_playlist with backup system", [
                 'spotify_track_id' => $spotifyTrackId,
                 'uri' => "spotify:track:$spotifyTrackId"
             ]);
-            
-            \Log::info("🔥 API_REQUEST_RAPIDAPI_SPOTIFY_SEED_TO_PLAYLIST", [
-                'endpoint' => 'https://spotify81.p.rapidapi.com/seed_to_playlist',
-                'uri' => "spotify:track:$spotifyTrackId",
-                'timestamp' => now()->toISOString()
-            ]);
 
-            $playlistResponse = Http::withHeaders([
-                'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
-                'X-RapidAPI-Host' => 'spotify81.p.rapidapi.com'
-            ])->get("https://spotify81.p.rapidapi.com/seed_to_playlist", [
-                'uri' => "spotify:track:$spotifyTrackId"
-            ]);
+            $playlistResult = $this->rapidApiSpotifyService->seedToPlaylist($spotifyTrackId);
 
-            \Log::info("🔥 API_RESPONSE_RAPIDAPI_SPOTIFY_SEED_TO_PLAYLIST", [
-                'status' => $playlistResponse->status(),
-                'success' => $playlistResponse->successful(),
-                'timestamp' => now()->toISOString()
-            ]);
-
-            \Log::info("🎧 RapidAPI seed_to_playlist response", [
-                'status' => $playlistResponse->status(),
-                'successful' => $playlistResponse->successful(),
-                'body' => $playlistResponse->body()
-            ]);
-
-            if (!$playlistResponse->successful()) {
-                \Log::warning("Failed to get playlist from Spotify track: " . $playlistResponse->body());
+            if (!$playlistResult['success']) {
+                \Log::warning("Failed to get playlist from Spotify track via service", [
+                    'error' => $playlistResult['error'] ?? 'Unknown error'
+                ]);
                 return [];
             }
 
-            $playlistData = $playlistResponse->json();
+            $playlistData = $playlistResult['data'];
             // RapidAPI returns the playlist URI in mediaItems array
             $playlistUri = null;
             if (isset($playlistData['mediaItems'][0]['uri'])) {
@@ -2625,35 +2604,22 @@ class MusicDiscoveryController extends Controller
 
             $playlistId = $matches[1];
 
-            // Step 2: Get tracks from the playlist
-            \Log::info("🔥 API_REQUEST_RAPIDAPI_SPOTIFY_PLAYLIST_TRACKS", [
-                'endpoint' => 'https://spotify81.p.rapidapi.com/playlist_tracks',
+            // Step 2: Get tracks from the playlist with 3-tier backup via service
+            \Log::info("🔥 Requesting playlist tracks via service (with backups)", [
                 'playlist_id' => $playlistId,
-                'limit' => min($limit, 100),
-                'timestamp' => now()->toISOString()
-            ]);
-
-            $tracksResponse = Http::withHeaders([
-                'X-RapidAPI-Key' => '79b6dcd257mshbc9507f57cf0eaep167467jsnb8e071cc7311',
-                'X-RapidAPI-Host' => 'spotify81.p.rapidapi.com'
-            ])->get("https://spotify81.p.rapidapi.com/playlist_tracks", [
-                'id' => $playlistId,
-                'offset' => 0,
                 'limit' => min($limit, 100)
             ]);
 
-            \Log::info("🔥 API_RESPONSE_RAPIDAPI_SPOTIFY_PLAYLIST_TRACKS", [
-                'status' => $tracksResponse->status(),
-                'success' => $tracksResponse->successful(),
-                'timestamp' => now()->toISOString()
-            ]);
+            $playlistTracksResult = $this->rapidApiSpotifyService->getPlaylistTracks($playlistId, min($limit, 100), 0);
 
-            if (!$tracksResponse->successful()) {
-                \Log::warning("Failed to get tracks from Spotify playlist: " . $tracksResponse->body());
+            if (!$playlistTracksResult['success']) {
+                \Log::warning("Failed to get tracks from Spotify playlist via service", [
+                    'error' => $playlistTracksResult['error'] ?? 'Unknown error'
+                ]);
                 return [];
             }
 
-            $tracksData = $tracksResponse->json();
+            $tracksData = $playlistTracksResult['data'];
             $tracks = [];
 
             if (isset($tracksData['items']) && is_array($tracksData['items'])) {

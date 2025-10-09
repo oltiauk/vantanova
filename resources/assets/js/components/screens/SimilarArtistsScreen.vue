@@ -496,7 +496,7 @@ const currentlyPreviewingArtist = ref<string | null>(null)
 const loadingPreviewArtist = ref<string | null>(null)
 
 // Sorting
-const sortBy = ref('match')
+const sortBy = ref('listeners-desc')
 const dropdownOpen = ref(false)
 const showLikesRatioDropdown = ref(false)
 

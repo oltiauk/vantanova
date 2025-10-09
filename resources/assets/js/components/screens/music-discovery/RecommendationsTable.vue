@@ -95,18 +95,6 @@
                   <td class="p-3 align-middle">
                     <div class="flex items-center gap-2">
                       <span class="text-white/80">{{ track.name }}</span>
-                      <span
-                        v-if="track.source"
-                        :class="[
-                          'text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide',
-                          track.source === 'spotify' ? 'bg-green-600/20 text-green-400' :
-                          track.source === 'shazam' || track.source === 'shazam_fallback' ? 'bg-blue-600/20 text-blue-400' :
-                          track.source === 'lastfm' ? 'bg-red-600/20 text-red-400' :
-                          'bg-gray-600/20 text-gray-400'
-                        ]"
-                      >
-                        {{ track.source === 'shazam_fallback' ? 'shazam' : track.source }}
-                      </span>
                     </div>
                   </td>
 
@@ -182,7 +170,7 @@
                 <!-- Spotify Player Dropdown Row with Animation -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="6" class="p-0 overflow-hidden">
+                    <td colspan="7" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative">
                         <!-- Spotify Login Link -->
                         <div class="text-right mb-2">
@@ -346,7 +334,7 @@ const isBlacklisting = ref(false)
 const lastfmStatsLoading = ref(false)
 const lastfmError = ref(false)
 const isPreviewProcessing = ref(false)
-const sortBy = ref<string>('none')
+const sortBy = ref<string>('followers')
 const sortedRecommendations = ref<Track[]>([])
 const originalRecommendations = ref<Track[]>([])
 const currentPageTracks = ref<Track[]>([])

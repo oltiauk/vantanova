@@ -14,8 +14,10 @@ class RapidApiSpotifyService
 {
     private string $primaryHost;
     private string $backupHost;
+    private string $tertiaryHost;
     private string $apiKey;
     private string $backupApiKey;
+    private string $tertiaryApiKey;
     private float $rateLimitDelay = 0.2; // 5 req/sec = 200ms delay
 
     public function __construct()
@@ -27,6 +29,10 @@ class RapidApiSpotifyService
         // Backup provider: spotify-web2
         $this->backupHost = config('services.rapidapi_spotify.backup_host', 'spotify-web2.p.rapidapi.com');
         $this->backupApiKey = config('services.rapidapi_spotify.backup_key', $this->apiKey);
+
+        // Tertiary provider: spotify23
+        $this->tertiaryHost = config('services.rapidapi_spotify.tertiary_host', 'spotify23.p.rapidapi.com');
+        $this->tertiaryApiKey = config('services.rapidapi_spotify.tertiary_key', $this->apiKey);
     }
 
     public static function enabled(): bool
@@ -47,35 +53,268 @@ class RapidApiSpotifyService
     public function searchTracks(string $query, int $limit = 20, string $type = 'tracks'): array
     {
         try {
-            // Try primary API first
+            \Log::info('🔍 [RAPIDAPI SPOTIFY] Starting track search with 3-tier backup', [
+                'query' => $query,
+                'type' => $type,
+                'limit' => $limit,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            // Try primary API first (spotify81)
             $result = $this->makeRequest(
                 '/search',
                 ['q' => $query, 'type' => $type, 'limit' => $limit],
                 $this->primaryHost,
                 $this->apiKey,
-                'spotify81'
+                'Spotify81'
             );
 
             if ($result['success']) {
+                \Log::info('🔍 [RAPIDAPI SPOTIFY] Primary search successful', [
+                    'provider' => 'Spotify81',
+                    'query' => $query
+                ]);
                 return $result;
             }
 
-            // If primary failed with rate limit or error, try backup
-            Log::warning('Primary RapidAPI failed, trying backup', [
-                'error' => $result['error'] ?? 'Unknown error'
+            // If primary failed, try backup (spotify-web2)
+            \Log::warning('🔍 [RAPIDAPI SPOTIFY] Primary failed, trying backup', [
+                'primary_error' => $result['error'] ?? 'Unknown error',
+                'backup_provider' => 'SpotifyWeb2'
             ]);
 
-            return $this->makeRequest(
+            $backupResult = $this->makeRequest(
                 '/search',
                 ['q' => $query, 'type' => $type, 'limit' => $limit],
                 $this->backupHost,
                 $this->backupApiKey,
-                'spotify-web2'
+                'SpotifyWeb2'
             );
 
+            if ($backupResult['success']) {
+                \Log::info('🔍 [RAPIDAPI SPOTIFY] Backup search successful', [
+                    'provider' => 'SpotifyWeb2',
+                    'query' => $query
+                ]);
+                return $backupResult;
+            }
+
+            // If backup failed, try tertiary (spotify23)
+            \Log::warning('🔍 [RAPIDAPI SPOTIFY] Backup failed, trying tertiary', [
+                'backup_error' => $backupResult['error'] ?? 'Unknown error',
+                'tertiary_provider' => 'Spotify23'
+            ]);
+
+            $tertiaryResult = $this->makeRequest(
+                '/search',
+                ['q' => $query, 'type' => $type, 'limit' => $limit],
+                $this->tertiaryHost,
+                $this->tertiaryApiKey,
+                'Spotify23'
+            );
+
+            if ($tertiaryResult['success']) {
+                \Log::info('🔍 [RAPIDAPI SPOTIFY] Tertiary search successful', [
+                    'provider' => 'Spotify23',
+                    'query' => $query
+                ]);
+                return $tertiaryResult;
+            }
+
+            // All APIs failed
+            \Log::error('🔍 [RAPIDAPI SPOTIFY] All search APIs failed', [
+                'query' => $query,
+                'primary_error' => $result['error'] ?? 'Unknown',
+                'backup_error' => $backupResult['error'] ?? 'Unknown',
+                'tertiary_error' => $tertiaryResult['error'] ?? 'Unknown'
+            ]);
+
+            return ['success' => false, 'error' => 'All search APIs failed'];
+
         } catch (\Exception $e) {
-            Log::error('RapidAPI Spotify search failed completely', [
-                'message' => $e->getMessage()
+            \Log::error('🔍 [RAPIDAPI SPOTIFY] Search failed with exception', [
+                'query' => $query,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Convert track ID to playlist URI using seed_to_playlist endpoint
+     * Uses 3-tier backup system for high availability
+     *
+     * @param string $trackId Spotify track ID
+     * @return array
+     */
+    public function seedToPlaylist(string $trackId): array
+    {
+        try {
+            \Log::info('🎧 [RAPIDAPI SPOTIFY] Starting seed-to-playlist with 3-tier backup', [
+                'track_id' => $trackId,
+                'uri' => "spotify:track:$trackId",
+                'timestamp' => now()->toISOString()
+            ]);
+
+            // Try primary API first (spotify81)
+            $result = $this->makeRequest(
+                '/seed_to_playlist',
+                ['uri' => "spotify:track:$trackId"],
+                $this->primaryHost,
+                $this->apiKey,
+                'Spotify81'
+            );
+
+            if ($result['success']) {
+                \Log::info('🎧 [RAPIDAPI SPOTIFY] Primary seed-to-playlist successful', [
+                    'provider' => 'Spotify81',
+                    'track_id' => $trackId
+                ]);
+                return $result;
+            }
+
+            // If primary failed, try backup (spotify-web2)
+            \Log::warning('🎧 [RAPIDAPI SPOTIFY] Primary failed, trying backup', [
+                'primary_error' => $result['error'] ?? 'Unknown error',
+                'backup_provider' => 'SpotifyWeb2'
+            ]);
+
+            $backupResult = $this->makeRequest(
+                '/seed_to_playlist',
+                ['uri' => "spotify:track:$trackId"],
+                $this->backupHost,
+                $this->backupApiKey,
+                'SpotifyWeb2'
+            );
+
+            if ($backupResult['success']) {
+                \Log::info('🎧 [RAPIDAPI SPOTIFY] Backup seed-to-playlist successful', [
+                    'provider' => 'SpotifyWeb2',
+                    'track_id' => $trackId
+                ]);
+                return $backupResult;
+            }
+
+            // If backup failed, try tertiary (spotify23)
+            \Log::warning('🎧 [RAPIDAPI SPOTIFY] Backup failed, trying tertiary', [
+                'backup_error' => $backupResult['error'] ?? 'Unknown error',
+                'tertiary_provider' => 'Spotify23'
+            ]);
+
+            $tertiaryResult = $this->makeRequest(
+                '/seed_to_playlist',
+                ['uri' => "spotify:track:$trackId"],
+                $this->tertiaryHost,
+                $this->tertiaryApiKey,
+                'Spotify23'
+            );
+
+            if ($tertiaryResult['success']) {
+                \Log::info('🎧 [RAPIDAPI SPOTIFY] Tertiary seed-to-playlist successful', [
+                    'provider' => 'Spotify23',
+                    'track_id' => $trackId
+                ]);
+                return $tertiaryResult;
+            }
+
+            // All APIs failed
+            \Log::error('🎧 [RAPIDAPI SPOTIFY] All seed-to-playlist APIs failed', [
+                'track_id' => $trackId,
+                'primary_error' => $result['error'] ?? 'Unknown',
+                'backup_error' => $backupResult['error'] ?? 'Unknown',
+                'tertiary_error' => $tertiaryResult['error'] ?? 'Unknown'
+            ]);
+
+            return ['success' => false, 'error' => 'All seed-to-playlist APIs failed'];
+
+        } catch (\Exception $e) {
+            \Log::error('🎧 [RAPIDAPI SPOTIFY] Seed-to-playlist failed with exception', [
+                'track_id' => $trackId,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Fetch playlist tracks by playlist ID with 3-tier backup
+     *
+     * @param string $playlistId Spotify playlist ID
+     * @param int $limit Max number of items to request (default 100)
+     * @param int $offset Offset for pagination
+     * @return array { success: bool, data?: array, error?: string }
+     */
+    public function getPlaylistTracks(string $playlistId, int $limit = 100, int $offset = 0): array
+    {
+        try {
+            \Log::info('🎧 [RAPIDAPI SPOTIFY] Fetching playlist tracks with 3-tier backup', [
+                'playlist_id' => $playlistId,
+                'limit' => $limit,
+                'offset' => $offset,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $params = [
+                'id' => $playlistId,
+                'offset' => max(0, $offset),
+                'limit' => min(max(1, $limit), 100),
+            ];
+
+            // Primary
+            $primary = $this->makeRequest(
+                '/playlist_tracks',
+                $params,
+                $this->primaryHost,
+                $this->apiKey,
+                'Spotify81'
+            );
+            if ($primary['success']) {
+                return $primary;
+            }
+
+            // Backup
+            \Log::warning('🎧 [RAPIDAPI SPOTIFY] Primary playlist_tracks failed, trying backup', [
+                'primary_error' => $primary['error'] ?? 'Unknown error'
+            ]);
+            $backup = $this->makeRequest(
+                '/playlist_tracks',
+                $params,
+                $this->backupHost,
+                $this->backupApiKey,
+                'SpotifyWeb2'
+            );
+            if ($backup['success']) {
+                return $backup;
+            }
+
+            // Tertiary
+            \Log::warning('🎧 [RAPIDAPI SPOTIFY] Backup playlist_tracks failed, trying tertiary', [
+                'backup_error' => $backup['error'] ?? 'Unknown error'
+            ]);
+            $tertiary = $this->makeRequest(
+                '/playlist_tracks',
+                $params,
+                $this->tertiaryHost,
+                $this->tertiaryApiKey,
+                'Spotify23'
+            );
+            if ($tertiary['success']) {
+                return $tertiary;
+            }
+
+            \Log::error('🎧 [RAPIDAPI SPOTIFY] All playlist_tracks providers failed', [
+                'primary_error' => $primary['error'] ?? 'Unknown',
+                'backup_error' => $backup['error'] ?? 'Unknown',
+                'tertiary_error' => $tertiary['error'] ?? 'Unknown'
+            ]);
+            return ['success' => false, 'error' => 'All playlist_tracks providers failed'];
+        } catch (\Exception $e) {
+            \Log::error('🎧 [RAPIDAPI SPOTIFY] playlist_tracks failed with exception', [
+                'playlist_id' => $playlistId,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
@@ -613,6 +852,32 @@ class RapidApiSpotifyService
                             'followers' => $artist['followers']['total'] ?? 0,
                             'popularity' => $artist['popularity'] ?? 0,
                         ];
+                    }
+                }
+            } else {
+                // Tertiary: spotify23
+                \Log::info('📊 [RAPIDAPI SPOTIFY] Backup failed, trying tertiary', [
+                    'timestamp' => now()->toISOString()
+                ]);
+
+                $tertiary = $this->makeRequest(
+                    "/artists/",
+                    ['ids' => $idsString],
+                    $this->tertiaryHost,
+                    $this->tertiaryApiKey,
+                    'Spotify23'
+                );
+
+                if ($tertiary['success'] && isset($tertiary['data']['artists']) && is_array($tertiary['data']['artists'])) {
+                    foreach ($tertiary['data']['artists'] as $artist) {
+                        if ($artist !== null && isset($artist['id'])) {
+                            $allResults[$artist['id']] = [
+                                'id' => $artist['id'],
+                                'name' => $artist['name'] ?? null,
+                                'followers' => $artist['followers']['total'] ?? 0,
+                                'popularity' => $artist['popularity'] ?? 0,
+                            ];
+                        }
                     }
                 }
             }
