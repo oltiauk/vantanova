@@ -26,8 +26,11 @@
       <SeedTrackSelection
         v-model:selected-track="selectedSeedTrack"
         :has-recommendations="allRecommendations.length > 0 || isDiscovering"
+        :has-more-in-queue="hasMoreInQueue"
+        :queue-key="currentQueueKey"
+        :user-has-banned-items="userHasBannedItems"
         @track-selected="onTrackSelected"
-        @related-tracks="onRelatedTracksRequested"
+        @related-tracks="(track, isRefresh) => onRelatedTracksRequested(track, isRefresh)"
         @search-results-changed="onSearchResultsChanged"
         @clear-recommendations="onClearRecommendations"
       />
@@ -49,7 +52,8 @@
           @page-change="onPageChange"
           @per-page-change="onPerPageChange"
           @related-tracks="onRelatedTracksRequested"
-          @tracks-blacklisted="onTracksBlacklisted"
+          @pending-blacklist="onPendingBlacklist"
+          @user-banned-item="onUserBannedItem"
         />
       </div>
     </div>
@@ -78,6 +82,8 @@ interface Track {
   duration_ms?: number
   key?: number
   mode?: number
+  isPendingBlacklist?: boolean
+  uri?: string
 }
 
 interface Parameters {
@@ -115,6 +121,8 @@ interface ApiResponse<T> {
   data?: T
   error?: string
   message?: string
+  has_more?: boolean
+  queue_key?: string
 }
 
 // Key mappings
@@ -135,10 +143,17 @@ const keyNames = {
 
 const selectedSeedTrack = ref<Track | null>(null)
 const allRecommendations = ref<Track[]>([])
+const trackQueue = ref<Track[]>([]) // Full queue of all tracks fetched
+const displayedTracks = ref<Track[]>([]) // Currently displayed 20 tracks
 const isDiscovering = ref(false)
 const errorMessage = ref('')
 const currentProvider = ref('')
 const hasSearchResults = ref(false)
+
+// Queue state management
+const hasMoreInQueue = ref(false) // Track if more results available
+const currentQueueKey = ref<string | null>(null) // Session key for queue
+const userHasBannedItems = ref(false) // Track if user has banned items since last search
 
 // Pagination state
 const currentPage = ref(1)
@@ -221,20 +236,37 @@ const onSearchResultsChanged = (hasResults: boolean) => {
 const onClearRecommendations = () => {
   // Reset all recommendation state to go back to beginning
   allRecommendations.value = []
+  trackQueue.value = []
+  displayedTracks.value = []
   totalTracks.value = 0
   currentPage.value = 1
   errorMessage.value = ''
   currentProvider.value = ''
   isDiscovering.value = false
+  hasMoreInQueue.value = false
+  currentQueueKey.value = null
+  userHasBannedItems.value = false
 }
 
-const onRelatedTracksRequested = async (track: Track) => {
-  // Clear previous results
-  allRecommendations.value = []
-  errorMessage.value = ''
+const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
+  // If this is a refresh (user clicked "Search Again"), remove pending blacklisted items and refill from queue
+  if (isRefresh) {
+    console.log(`🔄 Search Again clicked - removing pending blacklisted items and refilling from queue`)
+    refillFromQueue()
+    return
+  }
 
-  // Get related tracks immediately
-  await getRelatedTracks(track)
+  // Clear previous results for new search
+  allRecommendations.value = []
+  trackQueue.value = []
+  displayedTracks.value = []
+  errorMessage.value = ''
+  hasMoreInQueue.value = false
+  currentQueueKey.value = null
+  userHasBannedItems.value = false // Reset banned items flag on new search
+
+  // Get related tracks from API
+  await getRelatedTracks(track, false)
 
   // Auto-scroll to results after a brief delay
   setTimeout(() => {
@@ -246,6 +278,75 @@ const onRelatedTracksRequested = async (track: Track) => {
       })
     }
   }, 300)
+}
+
+// Refill from queue: replace only pending blacklisted tracks with queue items
+const refillFromQueue = () => {
+  console.log(`🔄 Starting refill from queue`)
+
+  // Count how many tracks are pending blacklist
+  const pendingBlacklistCount = allRecommendations.value.filter(track => track.isPendingBlacklist).length
+  console.log(`🔄 Found ${pendingBlacklistCount} pending blacklisted tracks to replace`)
+
+  if (pendingBlacklistCount === 0) {
+    console.log(`🔄 No pending blacklisted tracks to replace`)
+    userHasBannedItems.value = false
+    return
+  }
+
+  // Calculate how many we can pull from queue (excluding pending blacklist)
+  const availableInQueue = trackQueue.value.filter(t => !t.isPendingBlacklist).length
+  const toPull = Math.min(pendingBlacklistCount, availableInQueue)
+  console.log(`🔄 Can pull ${toPull} clean tracks from queue (${availableInQueue} available, need ${pendingBlacklistCount})`)
+
+  if (toPull > 0) {
+    // Get clean tracks from queue
+    const cleanQueueTracks: Track[] = []
+    const remainingQueue: Track[] = []
+
+    for (const track of trackQueue.value) {
+      if (!track.isPendingBlacklist && cleanQueueTracks.length < toPull) {
+        cleanQueueTracks.push(track)
+      } else {
+        remainingQueue.push(track)
+      }
+    }
+
+    // Create new array with replacements to trigger Vue reactivity
+    const updatedRecommendations: Track[] = []
+    let queueIndex = 0
+
+    for (let i = 0; i < allRecommendations.value.length; i++) {
+      const track = allRecommendations.value[i]
+      if (track.isPendingBlacklist && queueIndex < cleanQueueTracks.length) {
+        // Replace this blacklisted track with a clean one from queue
+        updatedRecommendations.push(cleanQueueTracks[queueIndex])
+        console.log(`🔄 Position ${i}: Replaced "${track.artist} - ${track.name}" with "${cleanQueueTracks[queueIndex].artist} - ${cleanQueueTracks[queueIndex].name}"`)
+        queueIndex++
+      } else if (!track.isPendingBlacklist) {
+        // Keep non-blacklisted tracks in same position
+        updatedRecommendations.push(track)
+      }
+      // Skip blacklisted tracks without replacements
+    }
+
+    // Update the reactive array with new reference
+    allRecommendations.value = updatedRecommendations
+    trackQueue.value = remainingQueue
+    totalTracks.value = updatedRecommendations.length
+
+    console.log(`🔄 Replaced ${queueIndex} blacklisted tracks, kept ${updatedRecommendations.length - queueIndex} original tracks`)
+  } else {
+    // No queue tracks available, just remove the blacklisted ones
+    allRecommendations.value = allRecommendations.value.filter(track => !track.isPendingBlacklist)
+    totalTracks.value = allRecommendations.value.length
+    console.log(`🔄 No queue tracks available, removed ${pendingBlacklistCount} blacklisted tracks`)
+  }
+
+  // Clear the banned items flag since we've processed them
+  userHasBannedItems.value = false
+
+  console.log(`🔄 Refill complete: displaying ${allRecommendations.value.length} tracks, ${trackQueue.value.length} in queue`)
 }
 
 const getSeedTrackKey = async (trackId: string) => {
@@ -485,7 +586,7 @@ const analyzeRecommendationKeys = async (tracks: Track[]) => {
   })
 }
 
-const getRelatedTracks = async (track: Track) => {
+const getRelatedTracks = async (track: Track, isRefresh = false) => {
   if (!track) {
     return
   }
@@ -502,27 +603,43 @@ const getRelatedTracks = async (track: Track) => {
   try {
     // console.log('🎵 Getting related tracks for:', track.name, 'by', track.artist)
 
+    const params: any = {
+      track_id: track.id,
+      artist_name: track.artist,
+      track_title: track.name,
+      limit: 100,
+    }
+
     const response: ApiResponse<Track[]> = await http.get('music-discovery/related-tracks', {
-      params: {
-        track_id: track.id,
-        artist_name: track.artist,
-        track_title: track.name,
-        limit: 100,
-      },
+      params,
     })
 
     if (response.success && response.data) {
-      // Filter out blacklisted tracks and tracks by blacklisted artists
       const allTracks = response.data
+
+      // This is initial search - filter out OLD blacklisted tracks
+      console.log(`📋 Initial search: Received ${allTracks.length} tracks from backend`)
+
+      // Filter out OLD blacklisted tracks (pre-existing in user's blacklist)
+      // NEW blacklisted tracks (blacklisted during this session) will stay visible until Search Again
       const filteredTracks = filterTracks(allTracks)
+      const filteredCount = allTracks.length - filteredTracks.length
+      console.log(`🔍 Filtered out ${filteredCount} OLD blacklisted tracks/artists`)
 
-      // console.log(`📋 Filtered out ${allTracks.length - filteredTracks.length} blacklisted tracks/artists`)
+      // Determine how many to display and how many to queue
+      const displayCount = Math.min(20, filteredTracks.length)
+      const queueCount = Math.max(0, filteredTracks.length - 20)
 
-      allRecommendations.value = filteredTracks
-      totalTracks.value = filteredTracks.length
-      currentPage.value = 1 // Reset to first page
+      // Store tracks 21+ in the queue (already pre-filtered)
+      trackQueue.value = filteredTracks.slice(20)
 
-      // console.log(`✅ Found ${filteredTracks.length} similar tracks (${allTracks.length} total, ${allTracks.length - filteredTracks.length} blacklisted)`)
+      // Display the first 20 filtered tracks (or fewer if less than 20 available)
+      displayedTracks.value = filteredTracks.slice(0, 20)
+      allRecommendations.value = displayedTracks.value
+      totalTracks.value = displayedTracks.value.length
+      currentPage.value = 1
+
+      console.log(`✅ Displaying ${displayCount} tracks, ${queueCount} tracks queued (${allTracks.length} total fetched, ${filteredCount} OLD blacklisted filtered out)`)
 
       // Auto-scroll to bottom of page after a brief delay
       setTimeout(() => {
@@ -555,14 +672,62 @@ const discoverRelatedTracks = async () => {
 
 // Removed loadMoreRecommendations - pagination is now handled by RecommendationsTable
 
-// Handle tracks being blacklisted from child component
-const onTracksBlacklisted = (trackKeys: string[]) => {
-  // Don't immediately filter - let banned items stay visible until next search
-  // The filtering will only happen when new recommendations are fetched
-  // console.log(`📋 Parent: ${trackKeys.length} tracks were blacklisted, but keeping them visible until next search`)
+// Handle pending blacklist (track or artist banned, stays visible until Search Again)
+const onPendingBlacklist = (trackKey: string) => {
+  console.log(`📋 Track/Artist marked as pending blacklist: ${trackKey}`)
 
-  // Just log the event, don't re-filter current recommendations
-  // Filtering will happen automatically when getRelatedTracks() or getSimilarTracks() is called next
+  // Try to find matching track first (format: artist-trackname)
+  const track = allRecommendations.value.find(t =>
+    `${t.artist}-${t.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-') === trackKey,
+  )
+
+  if (track) {
+    // This is a track ban
+    track.isPendingBlacklist = true
+    console.log(`✅ Marked track as pending blacklist: ${track.artist} - ${track.name}`)
+
+    // Also mark matching track in queue if it exists
+    const queueTrack = trackQueue.value.find(t =>
+      `${t.artist}-${t.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-') === trackKey,
+    )
+    if (queueTrack) {
+      queueTrack.isPendingBlacklist = true
+    }
+  } else {
+    // If no track found, this is likely an artist ban
+    // Mark ALL tracks by this artist as pending blacklist (both in display AND queue)
+    let markedCount = 0
+    let queueMarkedCount = 0
+
+    allRecommendations.value.forEach(t => {
+      const normalizedArtist = t.artist.toLowerCase().replace(/[^a-z0-9]/g, '-')
+      if (normalizedArtist === trackKey) {
+        t.isPendingBlacklist = true
+        markedCount++
+      }
+    })
+
+    // Also mark all tracks by this artist in the queue
+    trackQueue.value.forEach(t => {
+      const normalizedArtist = t.artist.toLowerCase().replace(/[^a-z0-9]/g, '-')
+      if (normalizedArtist === trackKey) {
+        t.isPendingBlacklist = true
+        queueMarkedCount++
+      }
+    })
+
+    if (markedCount > 0) {
+      console.log(`✅ Marked ${markedCount} tracks in display + ${queueMarkedCount} tracks in queue by artist as pending blacklist (key: ${trackKey})`)
+    } else {
+      console.warn(`⚠️ Could not find track or artist for key: ${trackKey}`)
+    }
+  }
+}
+
+// Handle when user bans an item (track or artist)
+const onUserBannedItem = () => {
+  userHasBannedItems.value = true
+  console.log('🚫 User banned an item - Search Again button will be enabled')
 }
 
 // Pagination event handlers

@@ -6,6 +6,21 @@
         <!-- <h3 class="text-lg font-medium text-white">
           {{ isDiscovering ? 'Searching...' : 'Related Tracks' }}
         </h3> -->
+        
+        <!-- Ban Listened Tracks Toggle -->
+        <div v-if="recommendations.length > 0" class="flex items-center gap-3">
+          <span class="text-sm text-white/80">Ban listened tracks</span>
+          <button
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
+            @click="banListenedTracks = !banListenedTracks"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
       </div>
       
     </div>
@@ -58,6 +73,7 @@
                 <tr
                   :class="[
                     'transition h-16 border-b border-white/5',
+                    track.isPendingBlacklist ? 'bg-orange-500/10 opacity-60' : '',
                     (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5'
                   ]"
                 >
@@ -156,12 +172,17 @@
                       <button
                         @click="expandedTrackId === getTrackKey(track) ? (expandedTrackId = null) : ((track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track))"
                         :disabled="processingTrack === getTrackKey(track)"
-                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                        :class="[
+                          'px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center',
+                          listenedTracks.has(getTrackKey(track)) 
+                            ? 'bg-green-600 hover:bg-green-700 text-white' 
+                            : 'bg-[#484948] hover:bg-gray-500 text-white'
+                        ]"
                       >
                         <!-- Regular icon when not processing -->
                         <img v-if="expandedTrackId !== getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                         <Icon v-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
-                        <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
+                        <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Preview')) }}</span>
                       </button>
                     </div>
                   </td>
@@ -300,6 +321,7 @@ interface Track {
     listeners: number
     url?: string
   }
+  isPendingBlacklist?: boolean
 }
 
 // Props
@@ -324,7 +346,8 @@ const emit = defineEmits<{
   'page-change': [page: number]
   'per-page-change': [perPage: number]
   'related-tracks': [track: Track]
-  'tracks-blacklisted': [trackKeys: string[]]
+  'pending-blacklist': [trackKey: string]
+  'user-banned-item': []
 }>()
 
 // State
@@ -334,7 +357,7 @@ const isBlacklisting = ref(false)
 const lastfmStatsLoading = ref(false)
 const lastfmError = ref(false)
 const isPreviewProcessing = ref(false)
-const sortBy = ref<string>('followers')
+const sortBy = ref<string>('none')
 const sortedRecommendations = ref<Track[]>([])
 const originalRecommendations = ref<Track[]>([])
 const currentPageTracks = ref<Track[]>([])
@@ -344,6 +367,10 @@ const initialLoadComplete = ref(false)
 const isUpdatingStats = ref(false)
 const lastRecommendationsCount = ref(0)
 const allowAnimations = ref(true)
+
+// Track which tracks have been listened to (previewed)
+const listenedTracks = ref(new Set<string>())
+const banListenedTracks = ref(false)
 
 // Stats fetching tracking - to avoid duplicate API calls
 const tracksWithStatsFetched = ref(new Set<string>()) // Track keys that have had stats fetched
@@ -536,14 +563,8 @@ const filteredRecommendations = computed(() => {
   // console.log(`[RECOMMENDATIONS DEBUG] Raw tracks: ${tracks.length}, Props recommendations: ${props.recommendations.length}`)
   // console.log(`[RECOMMENDATIONS DEBUG] originalRecommendations: ${originalRecommendations.value.length}, sortedRecommendations: ${sortedRecommendations.value.length}`)
   
-  // Filter out tracks from the same artist as the seed track
-  if (props.seedTrack) {
-    const seedArtist = props.seedTrack.artist.toLowerCase()
-    tracks = tracks.filter(track => track.artist.toLowerCase() !== seedArtist)
-    // console.log(`[RECOMMENDATIONS DEBUG] Filtered out seed artist "${props.seedTrack.artist}": ${tracks.length} tracks remaining`)
-  } else {
-    // console.log('[RECOMMENDATIONS DEBUG] No seed track provided, skipping artist filtering')
-  }
+  // Backend already handles seed artist filtering, so no need to filter here
+  // This prevents double-filtering that reduces the track count
   
   // Don't filter out banned artists immediately - keep them visible in current results
   // Filtering will only happen when new recommendations arrive
@@ -822,8 +843,14 @@ const blacklistTrack = async (track: Track) => {
   }
   
   if (isTrackBlacklisted(track)) {
-    // Update UI immediately for better UX
+    // UNBAN TRACK - Update UI immediately for better UX
     blacklistedTracks.value.delete(trackKey)
+    
+    // Clear the pending blacklist flag if it was set
+    if (track.isPendingBlacklist) {
+      track.isPendingBlacklist = false
+      console.log(`🔓 Cleared pending blacklist flag for: ${track.artist} - ${track.name}`)
+    }
     
     // Do backend work in background without blocking UI
     try {
@@ -841,11 +868,17 @@ const blacklistTrack = async (track: Track) => {
       if (!response.success) {
         // Revert UI change if backend failed
         blacklistedTracks.value.add(trackKey)
+        if (track.isPendingBlacklist !== undefined) {
+          track.isPendingBlacklist = true
+        }
         // Failed to unblock track on backend
       }
     } catch (error: any) {
       // Revert UI change if request failed
       blacklistedTracks.value.add(trackKey)
+      if (track.isPendingBlacklist !== undefined) {
+        track.isPendingBlacklist = true
+      }
       // Failed to unblock track
     }
   } else {
@@ -864,8 +897,10 @@ const blacklistTrack = async (track: Track) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
-        // Emit to parent component
-        emit('tracks-blacklisted', [trackKey])
+        // Emit pending-blacklist event (row stays visible, marked)
+        emit('pending-blacklist', trackKey)
+        // Emit that user has banned an item (for Search Again functionality)
+        emit('user-banned-item')
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
       }
@@ -964,13 +999,44 @@ const toggleSpotifyPlayer = (track: Track) => {
   const trackKey = getTrackKey(track)
   
   if (expandedTrackId.value === trackKey) {
+    // Closing the preview - mark as listened and potentially ban
     expandedTrackId.value = null
+    markTrackAsListened(track)
     return
   }
 
   // Close any existing preview before opening new one
   expandedTrackId.value = null
   expandedTrackId.value = trackKey
+}
+
+// Mark track as listened and potentially ban it
+const markTrackAsListened = async (track: Track) => {
+  const trackKey = getTrackKey(track)
+  
+  // Mark as listened
+  listenedTracks.value.add(trackKey)
+  
+  // If auto-ban is enabled, ban the track
+  if (banListenedTracks.value) {
+    try {
+      const response = await http.post('music-preferences/blacklist-track', {
+        spotify_id: track.id,
+        isrc: track.external_ids?.isrc,
+        track_name: track.name,
+        artist_name: track.artist,
+      })
+
+      if (response.success) {
+        blacklistedTracks.value.add(trackKey)
+        emit('pending-blacklist', trackKey)
+        emit('user-banned-item')
+        console.log('🎵 Auto-banned listened track:', track.name)
+      }
+    } catch (error) {
+      console.warn('Failed to auto-ban listened track:', error)
+    }
+  }
 }
 
 const getRelatedTracks = (track: Track) => {
@@ -1300,9 +1366,10 @@ const blacklistUnsavedTracks = async () => {
       .filter(track => blacklistedTracks.value.has(getTrackKey(track)))
       .map(track => getTrackKey(track))
     
-    if (blacklistedKeys.length > 0) {
-      emit('tracks-blacklisted', blacklistedKeys)
-    }
+    // Bulk blacklist: emit each individually as pending
+    blacklistedKeys.forEach(key => {
+      emit('pending-blacklist', key)
+    })
     
   } catch (error) {
     // console.error('❌ Bulk blacklist failed:', error)
@@ -1364,6 +1431,20 @@ const banArtist = async (track: Track) => {
     // IMMEDIATE UI UPDATE - Remove from banned list right away for instant visual feedback
     bannedArtists.value.delete(artistName)
     saveBannedArtists()
+    
+    // Clear pending blacklist flag for all tracks by this artist
+    const clearedCount = displayRecommendations.value.filter(t => {
+      if (t.artist === artistName && t.isPendingBlacklist) {
+        t.isPendingBlacklist = false
+        return true
+      }
+      return false
+    }).length
+    
+    if (clearedCount > 0) {
+      console.log(`🔓 Cleared pending blacklist flag for ${clearedCount} tracks by ${artistName}`)
+    }
+    
     // Note: We don't remove from global blacklist as other sections might still want it filtered
     
     console.log('🔓 UI updated immediately (unbanned), now doing API call in background')
@@ -1393,6 +1474,13 @@ const banArtist = async (track: Track) => {
     bannedArtists.value.add(artistName)
     saveBannedArtists()
     addArtistToBlacklist(artistName)
+    
+    // Emit pending-blacklist with artist name so parent can mark all tracks by this artist
+    const artistKey = artistName.toLowerCase().replace(/[^a-z0-9]/g, '-')
+    emit('pending-blacklist', artistKey)
+    
+    // Emit that user has banned an item (for Search Again functionality)
+    emit('user-banned-item')
     
     // console.log('🚫 UI updated immediately (banned), now doing API call in background')
     
@@ -1693,6 +1781,11 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     // Check if this is truly new recommendations or just stats being updated
     const isNewRecommendations = newRecommendations.length !== lastRecommendationsCount.value || 
                                 !oldRecommendations
+    
+    // Clear listened tracks when new recommendations are loaded
+    if (isNewRecommendations) {
+      listenedTracks.value.clear()
+    }
     
     console.log('👀 RECOMMENDATIONS UPDATED', newRecommendations.length, 'tracks')
     // Sample a few tracks to log structure including match scores

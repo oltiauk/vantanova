@@ -5,52 +5,59 @@
       <div class="rounded-lg p-4">
         <div class="max-w-4xl mx-auto">
           <div ref="searchContainer" class="relative">
-            <div class="flex">
+            <!-- Search Input -->
+            <div class="relative">
               <input
                 v-model="searchQuery"
                 type="text"
-                class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
-                placeholder="Search for a Seed Track"
-                @keydown.enter="performSearch"
+                placeholder="Search for a track or artist"
+                class="w-full px-4 py-3 rounded-lg bg-white/10 border-0 focus:outline-none search-input"
                 @input="onSearchInput"
+                @keyup.enter="performSearch"
               >
-              <button
-                class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
-                :disabled="!searchQuery.trim() || isSearching"
-                @click="performSearch"
-              >
-                <Icon :icon="faSearch" class="w-5 h-5" />
-              </button>
-            </div>
 
-            <!-- Loading Animation -->
-            <div
-              v-if="isSearching && searchQuery.trim()"
-              class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
-              style="background-color: #302f30;"
-            >
-              <div class="flex items-center justify-center py-8">
-                <div class="flex items-center gap-3">
-                  <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
-                  <span class="text-k-text-secondary">Searching for tracks...</span>
+              <!-- Loading Animation for Search Suggestions -->
+              <div
+                v-if="isSearching && searchQuery.trim()"
+                class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
+                style="background-color: #302f30; top: 100%;"
+              >
+                <div class="flex items-center justify-center py-8">
+                  <div class="flex items-center gap-3">
+                    <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
+                    <span class="text-k-text-secondary">Searching for tracks...</span>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            <!-- Search Button -->
+            <div class="flex justify-center mt-6">
+              <button
+                :disabled="(!searchQuery.trim() && !selectedTrack) || isSearching"
+                class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors"
+                @click="performSearch"
+              >
+                <span v-if="selectedTrack && hasRecommendations && (hasMoreInQueue || userHasBannedItems)">Search Again (Refill)</span>
+                <span v-else-if="selectedTrack && hasRecommendations">Search Again</span>
+                <span v-else>Search</span>
+              </button>
             </div>
 
             <!-- Search Dropdown -->
             <div
               v-if="searchResults.length > 0 && !isSearching"
               class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
-              style="background-color: #302f30;"
+              style="background-color: #302f30; top: 100%;"
             >
               <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
                 <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
                   <div
                     class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
                     :class="{
-                      'bg-k-accent/10': selectedTrack && selectedTrack.id === track.id,
+                      'bg-k-accent/10': pendingTrack && pendingTrack.id === track.id,
                     }"
-                    @click="selectSeedTrack(track)"
+                    @click="fillSearchBar(track)"
                   >
                     <!-- Track Info -->
                     <div class="flex-1 min-w-0">
@@ -154,18 +161,24 @@ interface Track {
 interface Props {
   selectedTrack?: Track | null
   hasRecommendations?: boolean
+  hasMoreInQueue?: boolean
+  queueKey?: string | null
+  userHasBannedItems?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selectedTrack: null,
   hasRecommendations: false,
+  hasMoreInQueue: false,
+  queueKey: null,
+  userHasBannedItems: false,
 })
 
 // Emits
 const emit = defineEmits<{
   'update:selectedTrack': [track: Track | null]
   'track-selected': [track: Track]
-  'related-tracks': [track: Track]
+  'related-tracks': [track: Track, isRefresh?: boolean]
   'search-results-changed': [hasResults: boolean]
   'clear-recommendations': []
 }>()
@@ -178,6 +191,12 @@ const currentPage = ref(1)
 const isSearching = ref(false)
 const searchContainer = ref<HTMLElement | null>(null)
 const searchTimeout = ref<NodeJS.Timeout | null>(null)
+const pendingTrack = ref<Track | null>(null) // Track selected from dropdown, pending search button click
+
+// Queue state management
+const hasMoreInQueue = ref(false) // Track if more results available
+const currentQueueKey = ref<string | null>(null) // Session key for queue
+const userHasBannedItems = ref(false) // Track if user has banned items since last search
 
 // Music preferences state
 const savedTracks = ref<Set<string>>(new Set())
@@ -255,18 +274,57 @@ const formatArtists = (track: Track): string => {
   return track.artist
 }
 
-// Clear dropdown when user types
+// Fill search bar with selected track (don't search yet)
+const fillSearchBar = (track: Track) => {
+  pendingTrack.value = track
+  searchQuery.value = `${formatArtists(track)} - ${track.name}`
+  searchResults.value = [] // Clear dropdown
+}
+
+// Handle search input with debounced search
 const onSearchInput = () => {
-  // Clear search results when user edits the query
-  searchResults.value = []
+  // Clear pending track when user types
+  pendingTrack.value = null
+
+  // Clear any existing timeout
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value)
+  }
+
+  // If search query is empty, clear results
+  if (!searchQuery.value.trim()) {
+    searchResults.value = []
+    return
+  }
+
+  // Debounce the search to avoid too many API calls
+  searchTimeout.value = setTimeout(() => {
+    searchTracks()
+  }, 300) // 300ms delay
 }
 
 // Manual search functionality
 const performSearch = () => {
+  // If there's already a selected seed track and recommendations, this is a refresh search
+  // Allow this even if search query is empty
+  if (props.selectedTrack && props.hasRecommendations) {
+    handleSearchAgain()
+    return
+  }
+
+  // For all other cases, require a search query
   if (!searchQuery.value.trim()) {
     return
   }
 
+  // If we have a pending track from dropdown, select it directly
+  if (pendingTrack.value) {
+    selectSeedTrack(pendingTrack.value)
+    pendingTrack.value = null
+    return
+  }
+
+  // Otherwise, perform a regular search
   // Clear any existing timeout
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
@@ -283,7 +341,7 @@ const searchTracks = async () => {
     return
   }
 
-  // console.log('🔍 [FRONTEND] Starting search for:', searchQuery.value.trim())
+  console.log('🔍 [FRONTEND] Starting search for:', searchQuery.value.trim())
 
   isSearching.value = true
   searchError.value = ''
@@ -291,30 +349,30 @@ const searchTracks = async () => {
   currentPage.value = 1
 
   try {
-    // console.log('🔍 [FRONTEND] Making API call to music-discovery/search-seed')
+    console.log('🔍 [FRONTEND] Making API call to music-discovery/search-seed')
 
     // Use the updated search-seed endpoint with Spotify fallback
     const response = await http.post('music-discovery/search-seed', {
       query: searchQuery.value.trim(),
-      limit: 20,
+      limit: 50, // Fetch more for better suggestions
     })
 
-    // console.log('🔍 [FRONTEND] API Response received:', {
-    //   success: response.success,
-    //   dataLength: response.data?.length,
-    //   error: response.error,
-    // })
+    console.log('🔍 [FRONTEND] API Response received:', {
+      success: response.success,
+      dataLength: response.data?.length,
+      error: response.error,
+    })
 
     if (response.success && response.data && Array.isArray(response.data)) {
       searchResults.value = response.data
-      // console.log(`🔍 [FRONTEND] Found ${response.data.length} tracks from search`)
-      // console.log('🔍 [FRONTEND] Sample track data:', response.data[0]) // Debug the structure
-      // console.log('🔍 [FRONTEND] All tracks:', response.data.map(t => `${t.artist} - ${t.name}`))
+      console.log(`🔍 [FRONTEND] Found ${response.data.length} tracks from search`)
+      console.log('🔍 [FRONTEND] Sample track data:', response.data[0]) // Debug the structure
+      console.log('🔍 [FRONTEND] All tracks:', response.data.map(t => `${t.artist} - ${t.name}`))
     } else {
       throw new Error(response.error || 'Invalid response format from backend')
     }
   } catch (err: any) {
-    // console.error('🔍 [FRONTEND] Search failed:', err)
+    console.error('🔍 [FRONTEND] Search failed:', err)
     searchError.value = err.message || 'Failed to search tracks. Please try again.'
     searchResults.value = []
   } finally {
@@ -332,7 +390,7 @@ const selectSeedTrack = (track: Track) => {
   searchResults.value = []
   searchQuery.value = ''
   // Always get related tracks for the newly selected seed track
-  getRelatedTracks(track)
+  getRelatedTracks(track, false) // false = not a refresh
 }
 
 const clearSeedTrack = () => {
@@ -344,14 +402,23 @@ const clearSeedTrack = () => {
   emit('clear-recommendations')
 }
 
-const getRelatedTracks = (track: Track) => {
+const getRelatedTracks = (track: Track, isRefresh = false) => {
   // Clear search results when getting related tracks to prevent overlay
   searchResults.value = []
   searchQuery.value = ''
 
   // Just emit the related tracks request without setting as seed track
   // (the track should already be set as seed track if called from selectSeedTrack)
-  emit('related-tracks', track)
+  // Pass isRefresh to indicate if this is a refresh search or a new search
+  emit('related-tracks', track, isRefresh)
+}
+
+// Handle search button click when there's already a selected seed track
+const handleSearchAgain = () => {
+  if (props.selectedTrack && props.hasRecommendations) {
+    // This is a refresh - user wants to see more tracks from the queue
+    getRelatedTracks(props.selectedTrack, true) // true = refresh search
+  }
 }
 
 // Music preferences
@@ -623,14 +690,17 @@ const loadUserPreferences = async () => {
 </script>
 
 <style scoped>
-.search-input::placeholder {
-  text-align: center;
-}
-
-.search-input:focus::placeholder {
-  opacity: 0;
-}
 .seed-selection {
   max-width: 100%;
+}
+
+/* Hide placeholders on focus */
+input:focus::placeholder {
+  opacity: 0;
+}
+
+/* Center placeholder text in search input */
+.search-input::placeholder {
+  text-align: center;
 }
 </style>

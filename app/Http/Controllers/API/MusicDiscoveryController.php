@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class MusicDiscoveryController extends Controller
 {
@@ -33,7 +34,7 @@ class MusicDiscoveryController extends Controller
     {
         $requestId = uniqid('api_');
 
-        \Log::info("🔥 API_REQUEST_{$service}", [
+        Log::info("🔥 API_REQUEST_{$service}", [
             'request_id' => $requestId,
             'endpoint' => $endpoint,
             'params' => $params,
@@ -41,7 +42,7 @@ class MusicDiscoveryController extends Controller
         ]);
 
         if ($response) {
-            \Log::info("🔥 API_RESPONSE_{$service}", [
+            Log::info("🔥 API_RESPONSE_{$service}", [
                 'request_id' => $requestId,
                 'status' => $response->status(),
                 'success' => $response->successful(),
@@ -80,7 +81,7 @@ class MusicDiscoveryController extends Controller
     {
         try {
             $service = app(LastfmService::class);
-            \Log::info("LASTFM_SERVICE_RESOLVED", [
+            Log::info("LASTFM_SERVICE_RESOLVED", [
                 'service_class' => get_class($service),
                 'enabled' => $service::enabled(),
                 'api_key_set' => !empty(config('koel.services.lastfm.key')),
@@ -88,7 +89,7 @@ class MusicDiscoveryController extends Controller
             ]);
             return $service;
         } catch (\Exception $e) {
-            \Log::info("LASTFM_SERVICE_RESOLVE_FAILED", ['error' => $e->getMessage()]);
+            Log::info("LASTFM_SERVICE_RESOLVE_FAILED", ['error' => $e->getMessage()]);
             return null;
         }
     }
@@ -105,7 +106,9 @@ class MusicDiscoveryController extends Controller
             'track_id' => 'sometimes|string',
             'artist_name' => 'required|string',
             'track_title' => 'required|string',
-            'limit' => 'sometimes|integer|min:1|max:100'
+            'limit' => 'sometimes|integer|min:1|max:100',
+            'is_refill' => 'sometimes|in:true,false,1,0',
+            'queue_key' => 'sometimes|string'
         ]);
 
         if ($validator->fails()) {
@@ -117,9 +120,16 @@ class MusicDiscoveryController extends Controller
 
         $artistName = $request->input('artist_name');
         $trackTitle = $request->input('track_title');
-        $limit = $request->input('limit', 50);
+        $limit = $request->input('limit', 100); // Fetch more for queue
+        $isRefill = filter_var($request->input('is_refill', false), FILTER_VALIDATE_BOOLEAN);
+        $queueKey = $request->input('queue_key');
 
         try {
+            // Handle refill requests - get from queue
+            if ($isRefill && $queueKey) {
+                return $this->handleRefillRequest($queueKey, $artistName);
+            }
+
             $allTracks = [];
             $spotifyTracks = [];
 
@@ -130,7 +140,7 @@ class MusicDiscoveryController extends Controller
                 $rapidApiSearchResults = $this->rapidApiSpotifyService->searchTracks($query, 20, 'tracks');
             }
 
-            \Log::info("🔍 RapidAPI Spotify search results", [
+            Log::info("🔍 RapidAPI Spotify search results", [
                 'artist' => $artistName,
                 'title' => $trackTitle,
                 'found_results' => !empty($rapidApiSearchResults),
@@ -142,7 +152,7 @@ class MusicDiscoveryController extends Controller
             if ($rapidApiSearchResults && isset($rapidApiSearchResults['data']['tracks'])) {
                 $tracks = $rapidApiSearchResults['data']['tracks'];
 
-                \Log::info("🔍 Using RapidAPI search results for track matching", [
+                Log::info("🔍 Using RapidAPI search results for track matching", [
                     'total_results' => count($tracks),
                     'first_result' => [
                         'id' => $tracks[0]['data']['id'] ?? 'unknown',
@@ -159,19 +169,19 @@ class MusicDiscoveryController extends Controller
                 );
 
                 if ($spotifyTrackId) {
-                    \Log::info("🔍 Selected Spotify track via RapidAPI", [
+                    Log::info("🔍 Selected Spotify track via RapidAPI", [
                         'selected_id' => $spotifyTrackId,
                         'expected_artist' => $artistName,
                         'expected_title' => $trackTitle
                     ]);
 
-                    \Log::info("DEBUG: SELECTED TRACK ID FOR {$artistName} - {$trackTitle}: {$spotifyTrackId}");
+                    Log::info("DEBUG: SELECTED TRACK ID FOR {$artistName} - {$trackTitle}: {$spotifyTrackId}");
 
                     // Get Spotify recommendations using RapidAPI seed_to_playlist
                     $spotifyTracks = $this->getSpotifyRelatedTracks($spotifyTrackId, $limit, null);
-                    \Log::info("🎧 Got Spotify tracks via RapidAPI", ['count' => count($spotifyTracks)]);
+                    Log::info("🎧 Got Spotify tracks via RapidAPI", ['count' => count($spotifyTracks)]);
                 } else {
-                    \Log::warning("🔍 No suitable Spotify track match found via RapidAPI", [
+                    Log::warning("🔍 No suitable Spotify track match found via RapidAPI", [
                         'artist' => $artistName,
                         'title' => $trackTitle,
                         'search_results_count' => count($tracks)
@@ -183,7 +193,7 @@ class MusicDiscoveryController extends Controller
             $allTracks = $spotifyTracks;
 
             // Log API usage summary
-            \Log::info("🔥 API_USAGE_SUMMARY", [
+            Log::info("🔥 API_USAGE_SUMMARY", [
                 'total_spotify_calls' => count($spotifyTracks) > 0 ? 3 : 1, // Search + Seed-to-playlist + Playlist-tracks (if successful)
                 'spotify_tracks_count' => count($spotifyTracks),
                 'combined_tracks_count' => count($allTracks),
@@ -202,20 +212,21 @@ class MusicDiscoveryController extends Controller
                 $beforeCount = count($formattedTracks);
                 $formattedTracks = $this->filterByUserPreferences($formattedTracks, $userId, $artistName);
                 $afterCount = count($formattedTracks);
-                \Log::info("🎧 Applied user preference filtering", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
+                Log::info("🎧 Applied user preference filtering", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
             } else {
                 // Even if no user is authenticated, filter out seed artist tracks
                 $beforeCount = count($formattedTracks);
                 $formattedTracks = $this->filterBySeedArtist($formattedTracks, $artistName);
                 $afterCount = count($formattedTracks);
-                \Log::info("🎧 Applied seed artist filtering (no auth)", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
+                Log::info("🎧 Applied seed artist filtering (no auth)", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
             }
 
             // 9. Randomize order
             shuffle($formattedTracks);
 
-            // 10. Limit results
-            $formattedTracks = array_slice($formattedTracks, 0, $limit);
+            // 10. Send ALL tracks to frontend (frontend will handle queue)
+            // REMOVED backend queue system - frontend handles display (20) and queue (80)
+            $displayTracks = $formattedTracks; // Send ALL tracks, not just 20
 
             // Debug: Count tracks by source
             $sourceCounts = [
@@ -223,7 +234,7 @@ class MusicDiscoveryController extends Controller
                 'unknown' => 0
             ];
 
-            foreach ($formattedTracks as $track) {
+            foreach ($displayTracks as $track) {
                 $source = $track['source'] ?? 'unknown';
                 if (isset($sourceCounts[$source])) {
                     $sourceCounts[$source]++;
@@ -232,12 +243,15 @@ class MusicDiscoveryController extends Controller
                 }
             }
 
-            \Log::info("🎧 Final track source distribution", $sourceCounts);
+            Log::info("🎧 Final track source distribution", $sourceCounts);
+            Log::info("🎧 Sending ALL tracks to frontend", ['total_tracks' => count($displayTracks)]);
 
             return response()->json([
                 'success' => true,
-                'data' => $formattedTracks,
-                'total' => count($formattedTracks),
+                'data' => $displayTracks,
+                'total' => count($displayTracks),
+                'has_more' => false, // No backend queue, frontend handles all tracks
+                'queue_key' => null, // No backend queue
                 'spotify_count' => count($spotifyTracks),
                 'after_deduplication' => count($formattedTracks),
                 'requested' => $limit,
@@ -282,7 +296,7 @@ class MusicDiscoveryController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'query' => 'required|string|min:1|max:100',
-            'limit' => 'sometimes|integer|min:1|max:20'
+            'limit' => 'sometimes|integer|min:1|max:50'
         ]);
 
         if ($validator->fails()) {
@@ -293,9 +307,9 @@ class MusicDiscoveryController extends Controller
         }
 
         $query = $request->input('query');
-        $limit = min($request->input('limit', 20), 20); // Cap at 20
+        $limit = min($request->input('limit', 50), 50); // Fetch more for better suggestions
 
-        \Log::info('🔍 [BACKEND] searchSeedTracks called', [
+        Log::info('🔍 [BACKEND] searchSeedTracks called', [
             'query' => $query,
             'limit' => $limit,
             'rapidapi_spotify_enabled' => RapidApiSpotifyService::enabled(),
@@ -305,13 +319,13 @@ class MusicDiscoveryController extends Controller
         // Try RapidAPI Spotify first (with automatic fallback to backup provider)
         if ($this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
             try {
-                \Log::info('🔍 [BACKEND] Using RapidAPI Spotify for search', ['query' => $query, 'limit' => $limit]);
+                Log::info('🔍 [BACKEND] Using RapidAPI Spotify for search', ['query' => $query, 'limit' => $limit]);
                 $result = $this->rapidApiSpotifyService->searchTracks($query, $limit, 'tracks');
 
                 // RapidAPI returns data.tracks[] not data.tracks.items[]
                 $tracks = $result['data']['tracks'] ?? [];
 
-                \Log::info('🔍 [BACKEND] RapidAPI Spotify search results', [
+                Log::info('🔍 [BACKEND] RapidAPI Spotify search results', [
                     'success' => $result['success'] ?? false,
                     'has_data' => isset($result['data']),
                     'items_count' => count($tracks),
@@ -343,12 +357,25 @@ class MusicDiscoveryController extends Controller
                     // Remove duplicates (by normalized artist + title)
                     $dedupedTracks = $this->removeDuplicateTracks(array_values($filteredTracks));
 
-                    \Log::info('🔍 [BACKEND] Filtered tracks by keyword inclusion', [
+                    // Apply user blacklist filtering for search suggestions
+                    $userId = auth()->id();
+                    if ($userId) {
+                        $beforeBlacklistCount = count($dedupedTracks);
+                        $dedupedTracks = $this->filterByUserPreferences($dedupedTracks, $userId, '');
+                        $afterBlacklistCount = count($dedupedTracks);
+                        Log::info('🔍 [BACKEND] Applied blacklist filtering to search suggestions', [
+                            'before_blacklist' => $beforeBlacklistCount,
+                            'after_blacklist' => $afterBlacklistCount,
+                            'user_id' => $userId
+                        ]);
+                    }
+
+                    Log::info('🔍 [BACKEND] Filtered tracks by keyword inclusion', [
                         'original_count' => count($allTracks),
                         'filtered_count' => count($filteredTracks),
                         'after_dedup' => count($dedupedTracks),
                         'query' => $query,
-                        'sample_tracks' => array_slice(array_map(fn($t) => $t['artist'] . ' - ' . $t['name'], $filteredTracks), 0, 5)
+                        'sample_tracks' => array_slice(array_map(fn($t) => $t['artist'] . ' - ' . $t['name'], $dedupedTracks), 0, 5)
                     ]);
 
                     return response()->json([
@@ -356,64 +383,26 @@ class MusicDiscoveryController extends Controller
                         'data' => array_values($dedupedTracks) // Re-index array
                     ]);
                 } else {
-                    \Log::warning('🔍 [BACKEND] RapidAPI Spotify returned empty results or failed');
+                    Log::warning('🔍 [BACKEND] RapidAPI Spotify returned empty results or failed');
                 }
             } catch (\Exception $e) {
-                \Log::error('🔍 [BACKEND] RapidAPI Spotify search failed, falling back to Deezer', [
+                Log::error('🔍 [BACKEND] RapidAPI Spotify search failed, falling back to Deezer', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
             }
         } else {
-            \Log::warning('🔍 [BACKEND] RapidAPI Spotify not enabled or service not available', [
+            Log::warning('🔍 [BACKEND] RapidAPI Spotify not enabled or service not available', [
                 'rapidapi_spotify_enabled' => RapidApiSpotifyService::enabled(),
                 'has_service' => !!$this->rapidApiSpotifyService
             ]);
         }
 
-        // Fallback to Deezer search
-        try {
-            $response = Http::timeout(30)
-                ->get('https://api.deezer.com/search', [
-                    'q' => $query,
-                    'limit' => $limit
-                ]);
-
-            if (!$response->successful()) {
-                throw new \Exception("Deezer API error: HTTP {$response->status()}");
-            }
-
-            $data = $response->json();
-
-            // Format Deezer tracks to match expected format
-            $tracks = array_map(function ($track) {
-                return [
-                    'id' => (string) $track['id'],
-                    'name' => $track['title'],
-                    'artist' => $track['artist']['name'] ?? 'Unknown Artist',
-                    'album' => $track['album']['title'] ?? 'Unknown Album',
-                    'duration_ms' => ($track['duration'] ?? 0) * 1000,
-                    'external_url' => $track['link'] ?? null,
-                    'preview_url' => $track['preview'] ?? null,
-                    'image' => $track['album']['cover_medium'] ?? null,
-                    'uri' => "deezer:track:{$track['id']}"
-                ];
-            }, $data['data'] ?? []);
-
-            // Remove duplicates (by normalized artist + title)
-            $tracks = $this->removeDuplicateTracks($tracks);
-
-            return response()->json([
-                'success' => true,
-                'data' => $tracks
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Search failed: ' . $e->getMessage()
-            ], 500);
-        }
+        // No fallback - return empty results if RapidAPI fails
+        return response()->json([
+            'success' => true,
+            'data' => []
+        ]);
     }
 
     /**
@@ -608,7 +597,7 @@ class MusicDiscoveryController extends Controller
                         $tracks[] = $this->formatSingleSpotifyTrack($track);
                     }
                 } catch (\Exception $e) {
-                    \Log::warning("Failed to fetch track {$trackId}: " . $e->getMessage());
+                    Log::warning("Failed to fetch track {$trackId}: " . $e->getMessage());
                 }
             }
             
@@ -724,7 +713,7 @@ class MusicDiscoveryController extends Controller
                 'playlist_id' => $radioResult['playlist_id']
             ];
 
-            \Log::info('RapidAPI Final Result', [
+            Log::info('RapidAPI Final Result', [
                 'playlist_id' => $result['playlist_id'],
                 'total_found' => $result['total_found'],
                 'after_filtering' => $result['after_filtering'],
@@ -742,7 +731,7 @@ class MusicDiscoveryController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('RapidAPI Discovery Error', [
+            Log::error('RapidAPI Discovery Error', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -821,7 +810,7 @@ class MusicDiscoveryController extends Controller
             if (!Schema::hasTable('blacklisted_tracks') || 
                 !Schema::hasTable('saved_tracks') || 
                 !Schema::hasTable('blacklisted_artists')) {
-                \Log::info('Blacklist tables not found, skipping filtering', [
+                Log::info('Blacklist tables not found, skipping filtering', [
                     'user_id' => $userId,
                     'track_count' => count($tracks)
                 ]);
@@ -841,10 +830,23 @@ class MusicDiscoveryController extends Controller
                     $blacklistedArtistNames[] = strtolower(trim($artist->artist_name));
                 }
             } catch (\Exception $e) {
-                \Log::warning('Could not fetch blacklisted artist names: ' . $e->getMessage());
+                Log::warning('Could not fetch blacklisted artist names: ' . $e->getMessage());
             }
 
+            // Debug: Log what blacklist data we have
+            Log::info('🎧 Blacklist filtering debug', [
+                'user_id' => $userId,
+                'blacklisted_isrcs_count' => count($blacklistedIsrcs),
+                'blacklisted_artist_ids_count' => count($blacklistedArtistIds),
+                'blacklisted_artist_names_count' => count($blacklistedArtistNames),
+                'blacklisted_artist_names' => $blacklistedArtistNames,
+                'sample_blacklisted_isrcs' => array_slice($blacklistedIsrcs, 0, 5)
+            ]);
+
             return array_filter($tracks, function($track) use ($blacklistedIsrcs, $savedIsrcs, $blacklistedArtistIds, $blacklistedArtistNames, $seedArtist) {
+            // BLACKLIST FILTERING ENABLED - Filter out blacklisted tracks and artists
+            // This ensures the queue system only serves clean tracks
+
             // Extract ISRC from track (may be nested in external_ids)
             $isrc = null;
             if (isset($track['external_ids']['isrc'])) {
@@ -860,27 +862,32 @@ class MusicDiscoveryController extends Controller
 
             // Filter out blacklisted tracks by ISRC
             if (in_array($isrc, $blacklistedIsrcs)) {
+                Log::info('🎧 Filtered out blacklisted track by ISRC', [
+                    'isrc' => $isrc,
+                    'track' => $track['name'] ?? 'unknown',
+                    'artist' => $track['artist'] ?? 'unknown'
+                ]);
                 return false;
             }
 
-            // Filter out saved tracks by ISRC (Spotify rule - no saved tracks in recommendations)
-            if (in_array($isrc, $savedIsrcs)) {
-                return false;
-            }
+            // DISABLED: Filter out saved tracks by ISRC (Spotify rule - no saved tracks in recommendations)
+            // if (in_array($isrc, $savedIsrcs)) {
+            //     return false;
+            // }
 
-            // Filter out tracks by blacklisted artists (primary artist = artists[0])
-            $primaryArtistId = null;
-            if (isset($track['artists'][0]['id'])) {
-                $primaryArtistId = $track['artists'][0]['id'];
-            } elseif (isset($track['artist_id'])) {
-                $primaryArtistId = $track['artist_id'];
-            }
+            // DISABLED: Filter out tracks by blacklisted artists (primary artist = artists[0])
+            // $primaryArtistId = null;
+            // if (isset($track['artists'][0]['id'])) {
+            //     $primaryArtistId = $track['artists'][0]['id'];
+            // } elseif (isset($track['artist_id'])) {
+            //     $primaryArtistId = $track['artist_id'];
+            // }
 
-            if ($primaryArtistId && in_array($primaryArtistId, $blacklistedArtistIds)) {
-                return false;
-            }
+            // if ($primaryArtistId && in_array($primaryArtistId, $blacklistedArtistIds)) {
+            //     return false;
+            // }
 
-            // Also filter by artist names (for cases where we don't have artist IDs)
+            // Extract artist name for seed artist filtering (KEEP THIS ENABLED)
             $artistName = '';
             if (isset($track['artist'])) {
                 $artistName = is_string($track['artist']) ? $track['artist'] : '';
@@ -891,8 +898,8 @@ class MusicDiscoveryController extends Controller
             } elseif (isset($track['artists'][0]['name'])) {
                 $artistName = $track['artists'][0]['name']; // Formatted structure
             }
-            
-            // Filter out tracks from seed artist by default
+
+            // KEEP: Filter out tracks from seed artist by default (this is correct behavior)
             if ($seedArtist && $artistName) {
                 $normalizedArtistName = strtolower(trim($artistName));
                 $normalizedSeedArtist = strtolower(trim($seedArtist));
@@ -901,9 +908,15 @@ class MusicDiscoveryController extends Controller
                 }
             }
 
+            // Filter by blacklisted artist names
             if ($artistName && !empty($blacklistedArtistNames)) {
                 $normalizedArtistName = strtolower(trim($artistName));
                 if (in_array($normalizedArtistName, $blacklistedArtistNames)) {
+                    Log::info('🎧 Filtered out blacklisted artist', [
+                        'artist_name' => $artistName,
+                        'normalized' => $normalizedArtistName,
+                        'track' => $track['name'] ?? 'unknown'
+                    ]);
                     return false;
                 }
             }
@@ -911,7 +924,7 @@ class MusicDiscoveryController extends Controller
                 return true; // Keep track if it passes all filters
             });
         } catch (\Exception $e) {
-            \Log::error('User preferences filtering error', [
+            Log::error('User preferences filtering error', [
                 'message' => $e->getMessage(),
                 'user_id' => $userId,
                 'track_count' => count($tracks)
@@ -985,12 +998,12 @@ class MusicDiscoveryController extends Controller
         if (!empty($artistIds) && $this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
             try {
                 $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
-                \Log::info('📊 [MUSIC DISCOVERY] Fetched followers data', [
+                Log::info('📊 [MUSIC DISCOVERY] Fetched followers data', [
                     'artist_count' => count($followersData),
                     'timestamp' => now()->toISOString()
                 ]);
             } catch (\Exception $e) {
-                \Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data', [
+                Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data', [
                     'error' => $e->getMessage()
                 ]);
             }
@@ -1083,12 +1096,12 @@ class MusicDiscoveryController extends Controller
         if (!empty($artistIds) && $this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
             try {
                 $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
-                \Log::info('📊 [MUSIC DISCOVERY] Fetched followers data for Spotify tracks', [
+                Log::info('📊 [MUSIC DISCOVERY] Fetched followers data for Spotify tracks', [
                     'artist_count' => count($followersData),
                     'timestamp' => now()->toISOString()
                 ]);
             } catch (\Exception $e) {
-                \Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data for Spotify tracks', [
+                Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data for Spotify tracks', [
                     'error' => $e->getMessage()
                 ]);
             }
@@ -1145,13 +1158,25 @@ class MusicDiscoveryController extends Controller
      */
     private function parseRawRapidApiTracks(array $tracks): array
     {
-        return array_map(function ($trackWrapper) {
+        return array_filter(array_map(function ($trackWrapper) {
             // Each track is wrapped in a 'data' object
             $track = $trackWrapper['data'] ?? $trackWrapper;
 
+            // Skip tracks without required fields
+            if (empty($track['id']) || empty($track['name'])) {
+                \Log::warning('🚫 Skipping track without id or name', [
+                    'has_id' => isset($track['id']),
+                    'has_name' => isset($track['name']),
+                    'track_keys' => array_keys($track)
+                ]);
+                return null;
+            }
+
+            $trackId = $track['id'];
+
             return [
-                'id' => $track['id'] ?? '',
-                'name' => $track['name'] ?? '',
+                'id' => $trackId,
+                'name' => $track['name'],
                 'artist' => $track['artists']['items'][0]['profile']['name'] ?? 'Unknown Artist',
                 'artists' => array_map(fn($artist) => [
                     'id' => str_replace('spotify:artist:', '', $artist['uri'] ?? ''),
@@ -1163,14 +1188,14 @@ class MusicDiscoveryController extends Controller
                 'duration_ms' => $track['duration']['totalMilliseconds'] ?? 0,
                 'duration' => $this->formatDuration($track['duration']['totalMilliseconds'] ?? 0),
                 'preview_url' => null, // RapidAPI doesn't provide preview URLs
-                'external_url' => "https://open.spotify.com/track/{$track['id']}" ?? null,
+                'external_url' => "https://open.spotify.com/track/{$trackId}",
                 'popularity' => 0, // Not available in search response
                 'release_date' => null, // Not available in search response
                 'label' => null,
                 'followers' => null,
                 'external_ids' => [], // Add ISRC if available
             ];
-        }, $tracks);
+        }, $tracks));
     }
 
     /**
@@ -1189,7 +1214,7 @@ class MusicDiscoveryController extends Controller
                 $artistIds[] = $track['artist']['id'];
             } else {
                 // Log when artist ID is missing with full track structure
-                \Log::warning('📊 [MUSIC DISCOVERY] Track missing artist ID', [
+                Log::warning('📊 [MUSIC DISCOVERY] Track missing artist ID', [
                     'track_index' => $index,
                     'track_keys' => array_keys($track),
                     'has_artists_array' => isset($track['artists']),
@@ -1213,14 +1238,14 @@ class MusicDiscoveryController extends Controller
         if (!empty($artistIds) && $this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
             try {
                 $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
-                \Log::info('📊 [MUSIC DISCOVERY] Fetched followers data for related tracks', [
+                Log::info('📊 [MUSIC DISCOVERY] Fetched followers data for related tracks', [
                     'requested_artist_ids' => count($artistIds),
                     'received_followers_data' => count($followersData),
                     'missing_count' => count($artistIds) - count($followersData),
                     'timestamp' => now()->toISOString()
                 ]);
             } catch (\Exception $e) {
-                \Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data for related tracks', [
+                Log::warning('📊 [MUSIC DISCOVERY] Failed to fetch followers data for related tracks', [
                     'error' => $e->getMessage()
                 ]);
             }
@@ -1237,7 +1262,7 @@ class MusicDiscoveryController extends Controller
                 $followers = $followersData[$artistId]['followers'] ?? 0;
             } elseif (!empty($artistId)) {
                 // Artist ID exists but no follower data returned
-                \Log::debug('📊 [MUSIC DISCOVERY] No follower data for artist', [
+                Log::debug('📊 [MUSIC DISCOVERY] No follower data for artist', [
                     'artist_id' => $artistId,
                     'artist_name' => is_array($track['artist']) ? ($track['artist']['name'] ?? 'unknown') : ($track['artist'] ?? 'unknown'),
                     'track_name' => $track['title'] ?? $track['name'] ?? 'unknown'
@@ -1447,7 +1472,7 @@ class MusicDiscoveryController extends Controller
                 ], 404);
             }
 
-            \Log::info("Found Spotify track: {$spotifyTrackId} for {$artistName} - {$trackTitle}");
+            Log::info("Found Spotify track: {$spotifyTrackId} for {$artistName} - {$trackTitle}");
 
             // Step 2: Get recommendations from multiple sources in parallel
             $recommendations = $this->getParallelRecommendations($spotifyTrackId, $artistName, $trackTitle);
@@ -1468,7 +1493,7 @@ class MusicDiscoveryController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Seed recommendations failed: ' . $e->getMessage());
+            Log::error('Seed recommendations failed: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to get recommendations: ' . $e->getMessage()
@@ -1497,12 +1522,12 @@ class MusicDiscoveryController extends Controller
                 ]);
 
             if (!$response->successful()) {
-                \Log::warning("Spotify RapidAPI search failed: HTTP {$response->status()}");
+                Log::warning("Spotify RapidAPI search failed: HTTP {$response->status()}");
                 return null;
             }
 
             $data = $response->json();
-            \Log::info("Spotify RapidAPI search response structure", ['data' => $data]);
+            Log::info("Spotify RapidAPI search response structure", ['data' => $data]);
             
             // Handle different possible response formats
             $tracks = $data['tracks']['items'] ?? $data['tracks'] ?? $data['items'] ?? [];
@@ -1533,14 +1558,14 @@ class MusicDiscoveryController extends Controller
                     if (strpos($trackId, 'spotify:track:') === 0) {
                         $trackId = str_replace('spotify:track:', '', $trackId);
                     }
-                    \Log::info("Using fallback Spotify track", ['track_id' => $trackId, 'artist' => $artistName, 'title' => $trackTitle]);
+                    Log::info("Using fallback Spotify track", ['track_id' => $trackId, 'artist' => $artistName, 'title' => $trackTitle]);
                     return $trackId;
                 }
             }
 
             return null;
         } catch (\Exception $e) {
-            \Log::error('Spotify track search failed: ' . $e->getMessage());
+            Log::error('Spotify track search failed: ' . $e->getMessage());
             return null;
         }
     }
@@ -1606,7 +1631,7 @@ class MusicDiscoveryController extends Controller
             }
 
         } catch (\Exception $e) {
-            \Log::error('Parallel recommendations failed: ' . $e->getMessage());
+            Log::error('Parallel recommendations failed: ' . $e->getMessage());
         }
 
         return $results;
@@ -1630,7 +1655,7 @@ class MusicDiscoveryController extends Controller
                 ]);
 
             if (!$response->successful()) {
-                \Log::warning("Spotify playlist tracks failed: HTTP {$response->status()}");
+                Log::warning("Spotify playlist tracks failed: HTTP {$response->status()}");
                 return [];
             }
 
@@ -1656,7 +1681,7 @@ class MusicDiscoveryController extends Controller
             return $tracks;
 
         } catch (\Exception $e) {
-            \Log::error('Spotify playlist tracks failed: ' . $e->getMessage());
+            Log::error('Spotify playlist tracks failed: ' . $e->getMessage());
             return [];
         }
     }
@@ -1678,7 +1703,7 @@ class MusicDiscoveryController extends Controller
                 ]);
 
             if (!$response->successful()) {
-                \Log::warning("Shazam recommendations failed: HTTP {$response->status()}");
+                Log::warning("Shazam recommendations failed: HTTP {$response->status()}");
                 return [];
             }
 
@@ -1703,7 +1728,7 @@ class MusicDiscoveryController extends Controller
             return $results;
 
         } catch (\Exception $e) {
-            \Log::error('Shazam recommendations failed: ' . $e->getMessage());
+            Log::error('Shazam recommendations failed: ' . $e->getMessage());
             return [];
         }
     }
@@ -2040,16 +2065,16 @@ class MusicDiscoveryController extends Controller
                 }, $tracks);
             }
 
-            \Log::info('=== PARALLEL SEARCH RESULTS ===');
-            \Log::info('Deezer tracks found: ' . count($deezerTracks));
-            \Log::info('Spotify tracks found: ' . count($spotifyTracks));
+            Log::info('=== PARALLEL SEARCH RESULTS ===');
+            Log::info('Deezer tracks found: ' . count($deezerTracks));
+            Log::info('Spotify tracks found: ' . count($spotifyTracks));
             
             // Log first few tracks from each source for debugging
             foreach (array_slice($deezerTracks, 0, 3) as $i => $track) {
-                \Log::info("Deezer #{$i}: \"{$track['title']}\" by \"{$track['artist']['name']}\"");
+                Log::info("Deezer #{$i}: \"{$track['title']}\" by \"{$track['artist']['name']}\"");
             }
             foreach (array_slice($spotifyTracks, 0, 3) as $i => $track) {
-                \Log::info("Spotify #{$i}: \"{$track['title']}\" by \"{$track['artist']['name']}\"");
+                Log::info("Spotify #{$i}: \"{$track['title']}\" by \"{$track['artist']['name']}\"");
             }
 
             // Combine and interleave results (alternate between sources)
@@ -2065,13 +2090,13 @@ class MusicDiscoveryController extends Controller
                 }
             }
             
-            \Log::info('Combined tracks (before dedup): ' . count($combinedTracks));
+            Log::info('Combined tracks (before dedup): ' . count($combinedTracks));
             
             // Remove duplicates from parallel search results
             $uniqueCombinedTracks = $this->removeDuplicateTracks($combinedTracks);
             
-            \Log::info('Combined tracks (after dedup): ' . count($uniqueCombinedTracks));
-            \Log::info('=== END PARALLEL SEARCH RESULTS ===');
+            Log::info('Combined tracks (after dedup): ' . count($uniqueCombinedTracks));
+            Log::info('=== END PARALLEL SEARCH RESULTS ===');
 
             return response()->json([
                 'success' => true,
@@ -2165,7 +2190,7 @@ class MusicDiscoveryController extends Controller
 
         } catch (\Exception $e) {
             // Log error but don't fail completely
-            \Log::warning('Failed to find track on platforms: ' . $e->getMessage());
+            Log::warning('Failed to find track on platforms: ' . $e->getMessage());
         }
 
         return $trackIds;
@@ -2230,7 +2255,7 @@ class MusicDiscoveryController extends Controller
             }
 
         } catch (\Exception $e) {
-            \Log::warning('Failed to get Deezer recommendations: ' . $e->getMessage());
+            Log::warning('Failed to get Deezer recommendations: ' . $e->getMessage());
         }
 
         return $recommendations;
@@ -2284,7 +2309,7 @@ class MusicDiscoveryController extends Controller
             }
 
         } catch (\Exception $e) {
-            \Log::warning('Failed to get Spotify recommendations: ' . $e->getMessage());
+            Log::warning('Failed to get Spotify recommendations: ' . $e->getMessage());
         }
 
         return $recommendations;
@@ -2298,8 +2323,8 @@ class MusicDiscoveryController extends Controller
         $seen = [];
         $unique = [];
         
-        \Log::info('=== DUPLICATE REMOVAL DEBUG ===');
-        \Log::info('Total tracks before deduplication: ' . count($tracks));
+        // Log::info('=== DUPLICATE REMOVAL DEBUG ===');
+        // Log::info('Total tracks before deduplication: ' . count($tracks));
 
         foreach ($tracks as $index => $track) {
             $artistName = $track['artist']['name'] ?? $track['artist'] ?? '';
@@ -2312,21 +2337,21 @@ class MusicDiscoveryController extends Controller
             
             $key = $normalizedArtist . '|' . $normalizedTitle;
             
-            \Log::info("Track #{$index}: \"{$title}\" by \"{$artistName}\" [{$source}]");
-            \Log::info("  Normalized: \"{$normalizedTitle}\" by \"{$normalizedArtist}\"");
-            \Log::info("  Key: {$key}");
+            // Log::info("Track #{$index}: \"{$title}\" by \"{$artistName}\" [{$source}]");
+            // Log::info("  Normalized: \"{$normalizedTitle}\" by \"{$normalizedArtist}\"");
+            // Log::info("  Key: {$key}");
             
             if (!isset($seen[$key])) {
                 $seen[$key] = true;
                 $unique[] = $track;
-                \Log::info("  -> KEPT (first occurrence)");
+                // Log::info("  -> KEPT (first occurrence)");
             } else {
-                \Log::info("  -> REMOVED (duplicate)");
+                // Log::info("  -> REMOVED (duplicate)");
             }
         }
         
-        \Log::info('Total tracks after deduplication: ' . count($unique));
-        \Log::info('=== END DUPLICATE REMOVAL DEBUG ===');
+        Log::info('Total tracks after deduplication: ' . count($unique));
+        Log::info('=== END DUPLICATE REMOVAL DEBUG ===');
 
         return $unique;
     }
@@ -2508,14 +2533,14 @@ class MusicDiscoveryController extends Controller
             $accessToken = $this->getSpotifyAccessToken();
             $query = "$artistName $trackTitle";
             
-            \Log::info("🔍 searchSpotifyForTrack DEBUG", [
+            Log::info("🔍 searchSpotifyForTrack DEBUG", [
                 'raw_artist' => $artistName,
                 'raw_title' => $trackTitle,
                 'raw_query' => $query,
                 'encoded_query' => urlencode($query)
             ]);
             
-            \Log::info("🔥 API_REQUEST_SPOTIFY_SEARCH", [
+            Log::info("🔥 API_REQUEST_SPOTIFY_SEARCH", [
                 'endpoint' => 'https://api.spotify.com/v1/search',
                 'query' => $query,
                 'type' => 'track',
@@ -2531,7 +2556,7 @@ class MusicDiscoveryController extends Controller
                 'limit' => 20 // Increase limit to find more matches
             ]);
 
-            \Log::info("🔥 API_RESPONSE_SPOTIFY_SEARCH", [
+            Log::info("🔥 API_RESPONSE_SPOTIFY_SEARCH", [
                 'status' => $response->status(),
                 'success' => $response->successful(),
                 'result_count' => $response->json('tracks.items') ? count($response->json('tracks.items')) : 0,
@@ -2540,7 +2565,7 @@ class MusicDiscoveryController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                \Log::info("🔍 searchSpotifyForTrack RESPONSE", [
+                Log::info("🔍 searchSpotifyForTrack RESPONSE", [
                     'total_tracks' => $data['tracks']['total'] ?? 0,
                     'returned_tracks' => count($data['tracks']['items'] ?? []),
                     'first_3_tracks' => array_slice(array_map(function($track) {
@@ -2555,7 +2580,7 @@ class MusicDiscoveryController extends Controller
                 return $data;
             }
         } catch (\Exception $e) {
-            \Log::warning("Spotify search failed: " . $e->getMessage());
+            Log::warning("Spotify search failed: " . $e->getMessage());
         }
         
         return null;
@@ -2569,7 +2594,7 @@ class MusicDiscoveryController extends Controller
     {
         try {
             // Step 1: Get playlist from track using RapidAPI with 3-tier backup
-            \Log::info("🎧 Calling RapidAPI seed_to_playlist with backup system", [
+            Log::info("🎧 Calling RapidAPI seed_to_playlist with backup system", [
                 'spotify_track_id' => $spotifyTrackId,
                 'uri' => "spotify:track:$spotifyTrackId"
             ]);
@@ -2577,7 +2602,7 @@ class MusicDiscoveryController extends Controller
             $playlistResult = $this->rapidApiSpotifyService->seedToPlaylist($spotifyTrackId);
 
             if (!$playlistResult['success']) {
-                \Log::warning("Failed to get playlist from Spotify track via service", [
+                Log::warning("Failed to get playlist from Spotify track via service", [
                     'error' => $playlistResult['error'] ?? 'Unknown error'
                 ]);
                 return [];
@@ -2592,20 +2617,20 @@ class MusicDiscoveryController extends Controller
                 $playlistUri = $playlistData['uri'];
             }
 
-            \Log::info("🎧 Extracted playlist URI", [
+            Log::info("🎧 Extracted playlist URI", [
                 'raw_response' => $playlistData,
                 'extracted_uri' => $playlistUri
             ]);
 
             if (!$playlistUri || !preg_match('/spotify:playlist:(\w+)/', $playlistUri, $matches)) {
-                \Log::warning("Invalid playlist URI from Spotify: $playlistUri");
+                Log::warning("Invalid playlist URI from Spotify: $playlistUri");
                 return [];
             }
 
             $playlistId = $matches[1];
 
             // Step 2: Get tracks from the playlist with 3-tier backup via service
-            \Log::info("🔥 Requesting playlist tracks via service (with backups)", [
+            Log::info("🔥 Requesting playlist tracks via service (with backups)", [
                 'playlist_id' => $playlistId,
                 'limit' => min($limit, 100)
             ]);
@@ -2613,7 +2638,7 @@ class MusicDiscoveryController extends Controller
             $playlistTracksResult = $this->rapidApiSpotifyService->getPlaylistTracks($playlistId, min($limit, 100), 0);
 
             if (!$playlistTracksResult['success']) {
-                \Log::warning("Failed to get tracks from Spotify playlist via service", [
+                Log::warning("Failed to get tracks from Spotify playlist via service", [
                     'error' => $playlistTracksResult['error'] ?? 'Unknown error'
                 ]);
                 return [];
@@ -2657,7 +2682,7 @@ class MusicDiscoveryController extends Controller
             return $tracks;
 
         } catch (\Exception $e) {
-            \Log::warning("Spotify related tracks failed: " . $e->getMessage());
+            Log::warning("Spotify related tracks failed: " . $e->getMessage());
             return [];
         }
     }
@@ -2671,7 +2696,7 @@ class MusicDiscoveryController extends Controller
         $seedPopularity = $seedTrack['popularity'] ?? 50;
         $seedArtist = $seedTrack['artists'][0]['name'] ?? '';
         
-        \Log::info("🎧 Genre-aware filtering", [
+        Log::info("🎧 Genre-aware filtering", [
             'seed_artist' => $seedArtist,
             'seed_popularity' => $seedPopularity,
             'total_tracks_before_filter' => count($tracks)
@@ -2679,7 +2704,7 @@ class MusicDiscoveryController extends Controller
         
         // If seed track is underground (low popularity), filter out very popular tracks
         if ($seedPopularity < 30) {
-            \Log::info("🎧 Underground track detected - filtering mainstream tracks", [
+            Log::info("🎧 Underground track detected - filtering mainstream tracks", [
                 'seed_popularity' => $seedPopularity
             ]);
             
@@ -2698,14 +2723,14 @@ class MusicDiscoveryController extends Controller
                 
                 // Skip very mainstream artists for underground seed tracks
                 if (in_array($trackArtist, $mainstreamArtists)) {
-                    \Log::debug("🎧 Filtered out mainstream artist: {$track['artist']['name']}");
+                    Log::debug("🎧 Filtered out mainstream artist: {$track['artist']['name']}");
                     continue;
                 }
                 
                 $filteredTracks[] = $track;
             }
             
-            \Log::info("🎧 Mainstream filtering completed", [
+            Log::info("🎧 Mainstream filtering completed", [
                 'tracks_before' => count($tracks),
                 'tracks_after' => count($filteredTracks),
                 'filtered_out' => count($tracks) - count($filteredTracks)
@@ -2726,7 +2751,7 @@ class MusicDiscoveryController extends Controller
         try {
             // Step 1: Search for the track on Shazam to get its ID
             // Try multiple search strategies to improve success rate for underground tracks
-            \Log::info("🎵 Calling Shazam search (multiple strategies)", [
+            Log::info("🎵 Calling Shazam search (multiple strategies)", [
                 'artist' => $artistName,
                 'title' => $trackTitle,
                 'strategy' => 'Try full query first, then artist-only if needed'
@@ -2737,9 +2762,9 @@ class MusicDiscoveryController extends Controller
             
             // Strategy 1: Search by full artist + track query (better for underground tracks)
             $fullQuery = "$artistName $trackTitle";
-            \Log::info("🎵 Shazam Strategy 1: Full query", ['query' => $fullQuery]);
+            Log::info("🎵 Shazam Strategy 1: Full query", ['query' => $fullQuery]);
             
-            \Log::info("🔥 API_REQUEST_SHAZAM_SEARCH_TRACK", [
+            Log::info("🔥 API_REQUEST_SHAZAM_SEARCH_TRACK", [
                 'endpoint' => 'https://shazam-api6.p.rapidapi.com/shazam/search_track/',
                 'query' => $fullQuery,
                 'limit' => 15,
@@ -2755,7 +2780,7 @@ class MusicDiscoveryController extends Controller
                 'limit' => 15 // Increase limit for better success rate
             ]);
 
-            \Log::info("🔥 API_RESPONSE_SHAZAM_SEARCH_TRACK", [
+            Log::info("🔥 API_RESPONSE_SHAZAM_SEARCH_TRACK", [
                 'status' => $searchResponse->status(),
                 'success' => $searchResponse->successful(),
                 'strategy' => 'full_query',
@@ -2767,7 +2792,7 @@ class MusicDiscoveryController extends Controller
 
                 // Check if API returned an error even with 200 status
                 if (isset($searchData['status']) && $searchData['status'] === false) {
-                    \Log::error("🎵 ❌ SHAZAM API ERROR (HTTP 200 but error response)", [
+                    Log::error("🎵 ❌ SHAZAM API ERROR (HTTP 200 but error response)", [
                         'strategy' => 'full_query',
                         'error_message' => $searchData['message'] ?? 'Unknown error',
                         'full_response' => $searchData,
@@ -2786,9 +2811,9 @@ class MusicDiscoveryController extends Controller
             
             // Strategy 2: If full query failed, try artist name only (original strategy)
             if (!$shazamTrackId) {
-                \Log::info("🎵 Shazam Strategy 2: Artist name only (fallback)", ['query' => $artistName]);
+                Log::info("🎵 Shazam Strategy 2: Artist name only (fallback)", ['query' => $artistName]);
                 
-                \Log::info("🔥 API_REQUEST_SHAZAM_SEARCH_TRACK", [
+                Log::info("🔥 API_REQUEST_SHAZAM_SEARCH_TRACK", [
                     'endpoint' => 'https://shazam-api6.p.rapidapi.com/shazam/search_track/',
                     'query' => $artistName,
                     'limit' => 15,
@@ -2804,7 +2829,7 @@ class MusicDiscoveryController extends Controller
                     'limit' => 15 // Increase limit for better success rate
                 ]);
 
-                \Log::info("🔥 API_RESPONSE_SHAZAM_SEARCH_TRACK", [
+                Log::info("🔥 API_RESPONSE_SHAZAM_SEARCH_TRACK", [
                     'status' => $searchResponse->status(),
                     'success' => $searchResponse->successful(),
                     'strategy' => 'artist_only_fallback',
@@ -2816,7 +2841,7 @@ class MusicDiscoveryController extends Controller
 
                     // Check if API returned an error even with 200 status
                     if (isset($searchData['status']) && $searchData['status'] === false) {
-                        \Log::error("🎵 ❌ SHAZAM API ERROR (HTTP 200 but error response)", [
+                        Log::error("🎵 ❌ SHAZAM API ERROR (HTTP 200 but error response)", [
                             'strategy' => 'artist_only_fallback',
                             'error_message' => $searchData['message'] ?? 'Unknown error',
                             'full_response' => $searchData,
@@ -2832,7 +2857,7 @@ class MusicDiscoveryController extends Controller
                 }
             }
 
-            \Log::info("🎵 Shazam search response", [
+            Log::info("🎵 Shazam search response", [
                 'status' => $searchResponse->status(),
                 'successful' => $searchResponse->successful(),
                 'body_preview' => substr($searchResponse->body(), 0, 500) . '...',
@@ -2846,13 +2871,13 @@ class MusicDiscoveryController extends Controller
             if (!$searchResponse->successful()) {
                 $responseBody = $searchResponse->body();
                 if ($searchResponse->status() === 429) {
-                    \Log::warning("🎵 ❌ SHAZAM API QUOTA EXCEEDED", [
+                    Log::warning("🎵 ❌ SHAZAM API QUOTA EXCEEDED", [
                         'status' => $searchResponse->status(),
                         'message' => 'Monthly quota exceeded for Shazam API',
                         'body' => $responseBody
                     ]);
                 } else {
-                    \Log::warning("🎵 ❌ SHAZAM SEARCH FAILED", [
+                    Log::warning("🎵 ❌ SHAZAM SEARCH FAILED", [
                         'status' => $searchResponse->status(),
                         'body' => $responseBody
                     ]);
@@ -2867,7 +2892,7 @@ class MusicDiscoveryController extends Controller
             }
 
             if (!$shazamTrackId) {
-                \Log::warning("🎵 ❌ SHAZAM SEARCH FAILED - No matching track found", [
+                Log::warning("🎵 ❌ SHAZAM SEARCH FAILED - No matching track found", [
                     'searched_artist' => $artistName,
                     'searched_title' => $trackTitle,
                     'search_strategy' => 'Artist name only, then match by title',
@@ -2878,14 +2903,14 @@ class MusicDiscoveryController extends Controller
             }
 
             // Step 2: Get related tracks using the Shazam track ID
-            \Log::info("🎵 Getting Shazam recommendations", [
+            Log::info("🎵 Getting Shazam recommendations", [
                 'shazam_track_id' => $shazamTrackId,
                 'limit_requested' => $limit,
                 'limit_actual' => min($limit, 50),
                 'max_limit' => 50
             ]);
             
-            \Log::info("🔥 API_REQUEST_SHAZAM_SIMILAR_TRACKS", [
+            Log::info("🔥 API_REQUEST_SHAZAM_SIMILAR_TRACKS", [
                 'endpoint' => 'https://shazam-api6.p.rapidapi.com/shazam/similar_tracks',
                 'track_id' => $shazamTrackId,
                 'limit' => min($limit, 50),
@@ -2900,14 +2925,14 @@ class MusicDiscoveryController extends Controller
                 'limit' => min($limit, 50) // Limit to maximum 50 tracks
             ]);
 
-            \Log::info("🔥 API_RESPONSE_SHAZAM_SIMILAR_TRACKS", [
+            Log::info("🔥 API_RESPONSE_SHAZAM_SIMILAR_TRACKS", [
                 'status' => $relatedResponse->status(),
                 'success' => $relatedResponse->successful(),
                 'timestamp' => now()->toISOString()
             ]);
 
             if (!$relatedResponse->successful()) {
-                \Log::warning("🎵 ❌ Shazam recommendations API failed", [
+                Log::warning("🎵 ❌ Shazam recommendations API failed", [
                     'status' => $relatedResponse->status(),
                     'body' => $relatedResponse->body(),
                     'shazam_track_id' => $shazamTrackId
@@ -2919,7 +2944,7 @@ class MusicDiscoveryController extends Controller
 
             // Check if API returned an error even with 200 status
             if (isset($relatedData['status']) && $relatedData['status'] === false) {
-                \Log::error("🎵 ❌ SHAZAM RECOMMENDATIONS API ERROR (HTTP 200 but error response)", [
+                Log::error("🎵 ❌ SHAZAM RECOMMENDATIONS API ERROR (HTTP 200 but error response)", [
                     'track_id' => $shazamTrackId,
                     'error_message' => $relatedData['message'] ?? 'Unknown error',
                     'full_response' => $relatedData,
@@ -2936,7 +2961,7 @@ class MusicDiscoveryController extends Controller
 
             $tracks = [];
 
-            \Log::info("🎵 Shazam recommendations response", [
+            Log::info("🎵 Shazam recommendations response", [
                 'status' => $relatedResponse->status(),
                 'tracks_count' => isset($relatedData['result']['tracks']) ? count($relatedData['result']['tracks']) : 0
             ]);
@@ -2964,7 +2989,7 @@ class MusicDiscoveryController extends Controller
 
             // If no recommendations found, try fallback with artist's most popular track
             if (empty($tracks)) {
-                \Log::info("🎵 🔄 SHAZAM FALLBACK: Trying artist's most popular track", [
+                Log::info("🎵 🔄 SHAZAM FALLBACK: Trying artist's most popular track", [
                     'original_track_id' => $shazamTrackId,
                     'artist' => $artistName,
                     'reason' => 'Original track returned 0 recommendations'
@@ -2974,7 +2999,7 @@ class MusicDiscoveryController extends Controller
                 $tracks = array_merge($tracks, $fallbackTracks);
             }
 
-            \Log::info("🎵 ✅ SHAZAM RECOMMENDATIONS COMPLETE", [
+            Log::info("🎵 ✅ SHAZAM RECOMMENDATIONS COMPLETE", [
                 'seed_track_id' => $shazamTrackId,
                 'total_tracks_collected' => count($tracks),
                 'limit_requested' => $limit,
@@ -2986,7 +3011,7 @@ class MusicDiscoveryController extends Controller
             return $tracks;
 
         } catch (\Exception $e) {
-            \Log::warning("Shazam related tracks failed: " . $e->getMessage());
+            Log::warning("Shazam related tracks failed: " . $e->getMessage());
             return [];
         }
     }
@@ -3029,7 +3054,7 @@ class MusicDiscoveryController extends Controller
         $trackArtistNorm = $this->normalizeForMatching($trackArtist);
         $trackTitleNorm = $this->normalizeForMatching($trackTitle);
 
-        \Log::info("🎵 Track matching details", [
+        Log::info("🎵 Track matching details", [
             'search_artist' => $searchArtist,
             'search_title' => $searchTitle,
             'track_artist' => $trackArtist,
@@ -3042,7 +3067,7 @@ class MusicDiscoveryController extends Controller
 
         // Strategy 1: Exact match after normalization
         if ($searchArtistNorm === $trackArtistNorm && $searchTitleNorm === $trackTitleNorm) {
-            \Log::info("🎵 Match found: Exact match");
+            Log::info("🎵 Match found: Exact match");
             return true;
         }
 
@@ -3052,7 +3077,7 @@ class MusicDiscoveryController extends Controller
             $threshold = $this->isElectronicArtist($searchArtist) ? 0.55 : 0.65;
             $titleSimilarity = $this->fuzzyMatch($searchTitleNorm, $trackTitleNorm, $threshold);
             if ($titleSimilarity) {
-                \Log::info("🎵 Match found: Exact artist + title similarity ($threshold)");
+                Log::info("🎵 Match found: Exact artist + title similarity ($threshold)");
                 return true;
             }
         }
@@ -3064,7 +3089,7 @@ class MusicDiscoveryController extends Controller
             // If artists match (including collaboration cases), require moderate title similarity
             $titleSimilarity = $this->fuzzyMatch($searchTitleNorm, $trackTitleNorm, 0.65);
             if ($titleSimilarity) {
-                \Log::info("🎵 Match found: Artist collaboration match + title similarity");
+                Log::info("🎵 Match found: Artist collaboration match + title similarity");
                 return true;
             }
         }
@@ -3076,7 +3101,7 @@ class MusicDiscoveryController extends Controller
                         strpos($trackTitleNorm, $searchTitleNorm) !== false;
         
         if ($artistContains && $titleContains) {
-            \Log::info("🎵 Match found: Contains match");
+            Log::info("🎵 Match found: Contains match");
             return true;
         }
 
@@ -3085,11 +3110,11 @@ class MusicDiscoveryController extends Controller
         $titleFuzzy = $this->fuzzyMatch($searchTitleNorm, $trackTitleNorm, 0.65);
 
         if ($artistFuzzy && $titleFuzzy) {
-            \Log::info("🎵 Match found: Fuzzy match (0.7/0.65 threshold)");
+            Log::info("🎵 Match found: Fuzzy match (0.7/0.65 threshold)");
             return true;
         }
 
-        \Log::info("🎵 No match found for track", [
+        Log::info("🎵 No match found for track", [
             'reason' => 'All matching strategies failed - similarity too low'
         ]);
 
@@ -3166,16 +3191,16 @@ class MusicDiscoveryController extends Controller
             return null;
         }
 
-        \Log::info("🔍 Finding best Spotify match", [
+        Log::info("🔍 Finding best Spotify match", [
             'expected_artist' => $expectedArtist,
             'expected_title' => $expectedTitle,
             'search_results_count' => count($tracks)
         ]);
 
         // Log all search results for debugging
-        \Log::info("🔍 ALL Spotify search results:");
+        Log::info("🔍 ALL Spotify search results:");
         foreach ($tracks as $index => $track) {
-            \Log::info("🔍 Result #{$index}", [
+            Log::info("🔍 Result #{$index}", [
                 'track_id' => $track['id'] ?? 'unknown',
                 'artist' => $track['artists'][0]['name'] ?? 'unknown',
                 'title' => $track['name'] ?? 'unknown',
@@ -3189,7 +3214,7 @@ class MusicDiscoveryController extends Controller
             $trackTitle = $track['name'] ?? '';
             $trackId = $track['id'] ?? '';
             
-            \Log::info("🔍 Evaluating track #{$index}", [
+            Log::info("🔍 Evaluating track #{$index}", [
                 'track_id' => $trackId,
                 'track_artist' => $trackArtist,
                 'track_title' => $trackTitle
@@ -3202,7 +3227,7 @@ class MusicDiscoveryController extends Controller
             ];
             
             if ($this->verifyTrackMatch($expectedArtist, $expectedTitle, $matchData)) {
-                \Log::info("🔍 ✅ Track matches!", [
+                Log::info("🔍 ✅ Track matches!", [
                     'track_id' => $trackId,
                     'match_reason' => 'verifyTrackMatch passed'
                 ]);
@@ -3210,7 +3235,7 @@ class MusicDiscoveryController extends Controller
                 // Return the first valid match (they're ordered by popularity/relevance)
                 return $track;
             } else {
-                \Log::info("🔍 ❌ Track doesn't match", [
+                Log::info("🔍 ❌ Track doesn't match", [
                     'track_id' => $trackId,
                     'reason' => 'verifyTrackMatch failed'
                 ]);
@@ -3219,7 +3244,7 @@ class MusicDiscoveryController extends Controller
         
         // If no track passes our strict matching, return the first one as fallback
         // (this preserves the original behavior but with logging)
-        \Log::warning("🔍 No exact match found, using first result as fallback", [
+        Log::warning("🔍 No exact match found, using first result as fallback", [
             'fallback_id' => $tracks[0]['id'] ?? 'unknown',
             'fallback_artist' => $tracks[0]['artists'][0]['name'] ?? 'unknown',
             'fallback_title' => $tracks[0]['name'] ?? 'unknown'
@@ -3282,7 +3307,7 @@ class MusicDiscoveryController extends Controller
             if ($source === 'spotify' && $trackId) {
                 // For Spotify tracks, use the provided track ID directly
                 $spotifyTrackId = $trackId;
-                \Log::info("🎵 Preview: Using provided Spotify track ID", [
+                Log::info("🎵 Preview: Using provided Spotify track ID", [
                     'track_id' => $spotifyTrackId,
                     'artist' => $artistName,
                     'title' => $trackTitle
@@ -3313,7 +3338,7 @@ class MusicDiscoveryController extends Controller
             $trackMetadata = null;
             try {
                 if ($this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
-                    \Log::info("🎵 Preview: Fetching track metadata via RapidAPI", [
+                    Log::info("🎵 Preview: Fetching track metadata via RapidAPI", [
                         'track_id' => $spotifyTrackId
                     ]);
 
@@ -3337,7 +3362,7 @@ class MusicDiscoveryController extends Controller
                                     $trackMetadata['followers'] = $artistResult['data']['followers']['total'];
                                 }
                             } catch (\Exception $e) {
-                                \Log::warning('Failed to get artist data via RapidAPI: ' . $e->getMessage());
+                                Log::warning('Failed to get artist data via RapidAPI: ' . $e->getMessage());
                             }
                         }
 
@@ -3350,14 +3375,14 @@ class MusicDiscoveryController extends Controller
                                     $trackMetadata['label'] = $albumData['label'];
                                 }
                             } catch (\Exception $e) {
-                                \Log::warning('Failed to get album label: ' . $e->getMessage());
+                                Log::warning('Failed to get album label: ' . $e->getMessage());
                             }
                         }
                     }
                 }
             } catch (\Exception $e) {
                 // Failed to get track metadata, continue without it
-                \Log::warning('Failed to get track metadata for preview: ' . $e->getMessage());
+                Log::warning('Failed to get track metadata for preview: ' . $e->getMessage());
             }
 
             return response()->json([
@@ -3373,7 +3398,7 @@ class MusicDiscoveryController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Track preview failed: ' . $e->getMessage());
+            Log::error('Track preview failed: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to generate track preview'
@@ -3388,13 +3413,13 @@ class MusicDiscoveryController extends Controller
     private function getSpotifyTrackIdViaSearch(string $cleanedArtist, string $cleanedTitle, string $originalArtist, string $originalTitle): ?string
     {
         if (!$this->rapidApiSpotifyService || !RapidApiSpotifyService::enabled()) {
-            \Log::warning("🎵 Preview: RapidAPI Spotify service not available");
+            Log::warning("🎵 Preview: RapidAPI Spotify service not available");
             return null;
         }
 
         try {
             // Strategy 1: Try cleaned names first
-            \Log::info("🎵 Preview Strategy 1: RapidAPI search with cleaned names", [
+            Log::info("🎵 Preview Strategy 1: RapidAPI search with cleaned names", [
                 'cleaned_artist' => $cleanedArtist,
                 'cleaned_title' => $cleanedTitle
             ]);
@@ -3407,7 +3432,7 @@ class MusicDiscoveryController extends Controller
             if ($result['success']) {
                 $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $cleanedArtist, $cleanedTrackTitle);
                 if ($trackId) {
-                    \Log::info("✅ Preview Strategy 1: Success with cleaned names!", [
+                    Log::info("✅ Preview Strategy 1: Success with cleaned names!", [
                         'spotify_track_id' => $trackId
                     ]);
                     return $trackId;
@@ -3415,7 +3440,7 @@ class MusicDiscoveryController extends Controller
             }
 
             // Strategy 2: Try original names
-            \Log::info("🎵 Preview Strategy 2: RapidAPI search with original names", [
+            Log::info("🎵 Preview Strategy 2: RapidAPI search with original names", [
                 'original_artist' => $originalArtist,
                 'original_title' => $originalTitle
             ]);
@@ -3428,7 +3453,7 @@ class MusicDiscoveryController extends Controller
             if ($result['success']) {
                 $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $originalArtist, $originalTrackTitle);
                 if ($trackId) {
-                    \Log::info("✅ Preview Strategy 2: Success with original names!", [
+                    Log::info("✅ Preview Strategy 2: Success with original names!", [
                         'spotify_track_id' => $trackId
                     ]);
                     return $trackId;
@@ -3441,7 +3466,7 @@ class MusicDiscoveryController extends Controller
             $mainTitle = trim($mainTitle);
 
             if ($mainTitle !== $originalTitle) {
-                \Log::info("🎵 Preview Strategy 3: RapidAPI search with main title only", [
+                Log::info("🎵 Preview Strategy 3: RapidAPI search with main title only", [
                     'main_title' => $mainTitle
                 ]);
 
@@ -3453,7 +3478,7 @@ class MusicDiscoveryController extends Controller
                 if ($result['success']) {
                     $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $originalArtist, $cleanedMainTitle);
                     if ($trackId) {
-                        \Log::info("✅ Preview Strategy 3: Success with main title!", [
+                        Log::info("✅ Preview Strategy 3: Success with main title!", [
                             'spotify_track_id' => $trackId
                         ]);
                         return $trackId;
@@ -3461,11 +3486,11 @@ class MusicDiscoveryController extends Controller
                 }
             }
 
-            \Log::warning("🎵 Preview: No matching track found via RapidAPI search");
+            Log::warning("🎵 Preview: No matching track found via RapidAPI search");
             return null;
 
         } catch (\Exception $e) {
-            \Log::error('Preview: Failed to get Spotify track ID via search: ' . $e->getMessage());
+            Log::error('Preview: Failed to get Spotify track ID via search: ' . $e->getMessage());
             return null;
         }
     }
@@ -3516,7 +3541,7 @@ class MusicDiscoveryController extends Controller
      */
     private function findMatchingShazamTrack(array $searchData, string $artistName, string $trackTitle): ?string
     {
-        \Log::info("🎵 findMatchingShazamTrack called", [
+        Log::info("🎵 findMatchingShazamTrack called", [
             'looking_for_artist' => $artistName,
             'looking_for_title' => $trackTitle,
             'search_data_keys' => array_keys($searchData),
@@ -3526,19 +3551,19 @@ class MusicDiscoveryController extends Controller
 
         // Use same parsing logic as working getShazamRelatedTracks function
         if (!isset($searchData['result']['tracks']['hits'])) {
-            \Log::warning("🎵 No 'result.tracks.hits' section in Shazam response", [
+            Log::warning("🎵 No 'result.tracks.hits' section in Shazam response", [
                 'available_structure' => json_encode($searchData, JSON_PRETTY_PRINT)
             ]);
             return null;
         }
 
-        \Log::info("🎵 Found Shazam hits to process", [
+        Log::info("🎵 Found Shazam hits to process", [
             'total_hits' => count($searchData['result']['tracks']['hits']),
             'first_hit_keys' => !empty($searchData['result']['tracks']['hits']) ? array_keys($searchData['result']['tracks']['hits'][0]) : []
         ]);
 
         foreach ($searchData['result']['tracks']['hits'] as $hitIndex => $track) {
-            \Log::info("🎵 Processing Shazam track #{$hitIndex}", [
+            Log::info("🎵 Processing Shazam track #{$hitIndex}", [
                 'track_key' => $track['key'] ?? 'no key',
                 'track_structure' => array_keys($track),
                 'has_heading' => isset($track['heading']),
@@ -3552,11 +3577,11 @@ class MusicDiscoveryController extends Controller
             $trackId = $track['key'] ?? null;
 
             if (!$trackId) {
-                \Log::warning("🎵 Skipping track #{$hitIndex} - no track ID found");
+                Log::warning("🎵 Skipping track #{$hitIndex} - no track ID found");
                 continue;
             }
 
-            \Log::info("🎵 About to verify track match for #{$hitIndex}", [
+            Log::info("🎵 About to verify track match for #{$hitIndex}", [
                 'track_id' => $trackId,
                 'found_title' => $foundTitle,
                 'found_artist' => $foundArtist,
@@ -3569,13 +3594,13 @@ class MusicDiscoveryController extends Controller
                 'subtitle' => $foundArtist
             ]);
 
-            \Log::info("🎵 Track match result for #{$hitIndex}", [
+            Log::info("🎵 Track match result for #{$hitIndex}", [
                 'track_id' => $trackId,
                 'is_match' => $isMatch ? 'YES' : 'NO'
             ]);
 
             if ($isMatch) {
-                \Log::info("🎵 ✅ FOUND MATCHING SHAZAM TRACK!", [
+                Log::info("🎵 ✅ FOUND MATCHING SHAZAM TRACK!", [
                     'selected_track_id' => $trackId,
                     'matched_title' => $foundTitle,
                     'matched_artist' => $foundArtist,
@@ -3585,7 +3610,7 @@ class MusicDiscoveryController extends Controller
             }
         }
 
-        \Log::warning("🎵 ❌ NO MATCHING SHAZAM TRACK FOUND", [
+        Log::warning("🎵 ❌ NO MATCHING SHAZAM TRACK FOUND", [
             'searched_for_artist' => $artistName,
             'searched_for_title' => $trackTitle,
             'total_hits_checked' => count($searchData['result']['tracks']['hits']),
@@ -3601,12 +3626,12 @@ class MusicDiscoveryController extends Controller
     private function searchSpotifyByArtistAndTitle(string $artistName, string $trackTitle): ?string
     {
         if (!$this->rapidApiSpotifyService || !RapidApiSpotifyService::enabled()) {
-            \Log::warning("🎵 RapidAPI Spotify service not available for search");
+            Log::warning("🎵 RapidAPI Spotify service not available for search");
             return null;
         }
 
         try {
-            \Log::info("🎵 Searching via RapidAPI", [
+            Log::info("🎵 Searching via RapidAPI", [
                 'artist' => $artistName,
                 'title' => $trackTitle
             ]);
@@ -3619,18 +3644,18 @@ class MusicDiscoveryController extends Controller
             if ($result['success']) {
                 $trackId = $this->rapidApiSpotifyService->findExactMatch($result, $artistName, $cleanedTitle);
                 if ($trackId) {
-                    \Log::info("✅ Found exact match via RapidAPI", [
+                    Log::info("✅ Found exact match via RapidAPI", [
                         'spotify_track_id' => $trackId
                     ]);
                     return $trackId;
                 }
             }
 
-            \Log::warning("🎵 No matching track found via RapidAPI");
+            Log::warning("🎵 No matching track found via RapidAPI");
             return null;
 
         } catch (\Exception $e) {
-            \Log::error("🎵 Preview Fallback: Spotify search error", [
+            Log::error("🎵 Preview Fallback: Spotify search error", [
                 'error' => $e->getMessage()
             ]);
             return null;
@@ -3649,7 +3674,7 @@ class MusicDiscoveryController extends Controller
                 null;
 
         if ($isrc) {
-            \Log::info("🎵 Preview: Found ISRC", ['isrc' => $isrc]);
+            Log::info("🎵 Preview: Found ISRC", ['isrc' => $isrc]);
             return $isrc;
         }
 
@@ -3662,7 +3687,7 @@ class MusicDiscoveryController extends Controller
                             strtolower($metadata['title']) === 'isrc' && 
                             isset($metadata['text'])) {
                             $isrc = $metadata['text'];
-                            \Log::info("🎵 Preview: Found ISRC in metadata", ['isrc' => $isrc]);
+                            Log::info("🎵 Preview: Found ISRC in metadata", ['isrc' => $isrc]);
                             return $isrc;
                         }
                     }
@@ -3690,7 +3715,7 @@ class MusicDiscoveryController extends Controller
             ]);
 
             if (!$response->successful()) {
-                \Log::warning("🎵 Preview: Spotify ISRC search failed", [
+                Log::warning("🎵 Preview: Spotify ISRC search failed", [
                     'status' => $response->status(),
                     'isrc' => $isrc
                 ]);
@@ -3701,7 +3726,7 @@ class MusicDiscoveryController extends Controller
             
             if (isset($data['tracks']['items'][0]['id'])) {
                 $spotifyTrackId = $data['tracks']['items'][0]['id'];
-                \Log::info("🎵 Preview: Found Spotify track by ISRC", [
+                Log::info("🎵 Preview: Found Spotify track by ISRC", [
                     'spotify_track_id' => $spotifyTrackId,
                     'isrc' => $isrc
                 ]);
@@ -3711,7 +3736,7 @@ class MusicDiscoveryController extends Controller
             return null;
 
         } catch (\Exception $e) {
-            \Log::error('Preview: Spotify ISRC search failed: ' . $e->getMessage());
+            Log::error('Preview: Spotify ISRC search failed: ' . $e->getMessage());
             return null;
         }
     }
@@ -3731,20 +3756,20 @@ class MusicDiscoveryController extends Controller
 
             if ($response->successful()) {
                 $oEmbedData = $response->json();
-                \Log::info("🎵 Preview: Got Spotify oEmbed data", [
+                Log::info("🎵 Preview: Got Spotify oEmbed data", [
                     'spotify_track_id' => $spotifyTrackId
                 ]);
                 return $oEmbedData;
             }
 
-            \Log::warning("🎵 Preview: Spotify oEmbed failed", [
+            Log::warning("🎵 Preview: Spotify oEmbed failed", [
                 'status' => $response->status(),
                 'spotify_track_id' => $spotifyTrackId
             ]);
             return null;
 
         } catch (\Exception $e) {
-            \Log::error('Preview: Spotify oEmbed failed: ' . $e->getMessage());
+            Log::error('Preview: Spotify oEmbed failed: ' . $e->getMessage());
             return null;
         }
     }
@@ -3755,7 +3780,7 @@ class MusicDiscoveryController extends Controller
     private function tryShazamArtistFallback(string $artistName, string $originalTitle, int $limit): array
     {
         try {
-            \Log::info("🎵 🔍 FALLBACK: Searching for artist's tracks", [
+            Log::info("🎵 🔍 FALLBACK: Searching for artist's tracks", [
                 'artist' => $artistName,
                 'original_title' => $originalTitle
             ]);
@@ -3770,7 +3795,7 @@ class MusicDiscoveryController extends Controller
             ]);
 
             if (!$response->successful()) {
-                \Log::warning("🎵 ❌ FALLBACK: Artist search failed", [
+                Log::warning("🎵 ❌ FALLBACK: Artist search failed", [
                     'status' => $response->status(),
                     'artist' => $artistName
                 ]);
@@ -3781,13 +3806,13 @@ class MusicDiscoveryController extends Controller
             $tracks = $searchData['result']['tracks']['hits'] ?? [];
 
             if (empty($tracks)) {
-                \Log::warning("🎵 ❌ FALLBACK: No tracks found for artist", [
+                Log::warning("🎵 ❌ FALLBACK: No tracks found for artist", [
                     'artist' => $artistName
                 ]);
                 return [];
             }
 
-            \Log::info("🎵 ✅ FALLBACK: Found artist tracks", [
+            Log::info("🎵 ✅ FALLBACK: Found artist tracks", [
                 'artist' => $artistName,
                 'tracks_found' => count($tracks),
                 'first_track_title' => $tracks[0]['heading']['title'] ?? 'Unknown'
@@ -3803,7 +3828,7 @@ class MusicDiscoveryController extends Controller
                 
                 // Skip if it's the same track we already tried
                 if ($this->normalizeForMatching($trackTitle) === $this->normalizeForMatching($originalTitle)) {
-                    \Log::info("🎵 ⏭️ FALLBACK: Skipping original track", [
+                    Log::info("🎵 ⏭️ FALLBACK: Skipping original track", [
                         'skipped_title' => $trackTitle
                     ]);
                     continue;
@@ -3815,14 +3840,14 @@ class MusicDiscoveryController extends Controller
             }
 
             if (!$fallbackTrackId) {
-                \Log::warning("🎵 ❌ FALLBACK: No alternative tracks found", [
+                Log::warning("🎵 ❌ FALLBACK: No alternative tracks found", [
                     'artist' => $artistName,
                     'reason' => 'All tracks were the same as original'
                 ]);
                 return [];
             }
 
-            \Log::info("🎵 🎯 FALLBACK: Trying recommendations from alternative track", [
+            Log::info("🎵 🎯 FALLBACK: Trying recommendations from alternative track", [
                 'fallback_track_id' => $fallbackTrackId,
                 'fallback_title' => $fallbackTrackTitle,
                 'original_title' => $originalTitle
@@ -3838,7 +3863,7 @@ class MusicDiscoveryController extends Controller
             ]);
 
             if (!$relatedResponse->successful()) {
-                \Log::warning("🎵 ❌ FALLBACK: Recommendations failed", [
+                Log::warning("🎵 ❌ FALLBACK: Recommendations failed", [
                     'status' => $relatedResponse->status(),
                     'fallback_track_id' => $fallbackTrackId
                 ]);
@@ -3868,7 +3893,7 @@ class MusicDiscoveryController extends Controller
                 }
             }
 
-            \Log::info("🎵 ✅ FALLBACK: Complete", [
+            Log::info("🎵 ✅ FALLBACK: Complete", [
                 'fallback_track_id' => $fallbackTrackId,
                 'fallback_title' => $fallbackTrackTitle,
                 'recommendations_found' => count($fallbackTracks),
@@ -3878,12 +3903,125 @@ class MusicDiscoveryController extends Controller
             return $fallbackTracks;
 
         } catch (\Exception $e) {
-            \Log::error("🎵 ❌ FALLBACK: Exception occurred", [
+            Log::error("🎵 ❌ FALLBACK: Exception occurred", [
                 'error' => $e->getMessage(),
                 'artist' => $artistName
             ]);
             return [];
         }
+    }
+
+    /**
+     * Handle refill requests - get next 20 tracks from queue
+     */
+    private function handleRefillRequest(string $queueKey, string $artistName): JsonResponse
+    {
+        try {
+            Log::info("🎧 Handling refill request", [
+                'queue_key' => $queueKey,
+                'artist_name' => $artistName
+            ]);
+            
+            $queue = $this->getTrackQueue($queueKey);
+            
+            if (empty($queue)) {
+                Log::info("🎧 Queue is empty, returning empty response");
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'total' => 0,
+                    'has_more' => false,
+                    'queue_key' => $queueKey,
+                    'message' => 'No more tracks in queue'
+                ]);
+            }
+
+            // Apply user preference filtering (blacklist filtering) on queued tracks
+            $userId = auth()->id();
+            if ($userId) {
+                $beforeCount = count($queue);
+                $queue = $this->filterByUserPreferences($queue, $userId, $artistName);
+                $afterCount = count($queue);
+                Log::info("🎧 Applied user preference filtering on refill", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
+            } else {
+                // Even if no user is authenticated, filter out seed artist tracks
+                $beforeCount = count($queue);
+                $queue = $this->filterBySeedArtist($queue, $artistName);
+                $afterCount = count($queue);
+                Log::info("🎧 Applied seed artist filtering on refill (no auth)", ['before' => $beforeCount, 'after' => $afterCount, 'seed_artist' => $artistName]);
+            }
+
+            // Get next 20 tracks
+            $displayTracks = array_slice($queue, 0, 20);
+            $remainingQueue = array_slice($queue, 20);
+            
+            // Update queue with remaining tracks
+            $this->storeTrackQueue($queueKey, $remainingQueue);
+            
+            $hasMore = count($remainingQueue) > 0;
+
+            Log::info("🎧 Refill request processed", [
+                'queue_key' => $queueKey,
+                'displayed' => count($displayTracks),
+                'remaining' => count($remainingQueue),
+                'has_more' => $hasMore
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $displayTracks,
+                'total' => count($displayTracks),
+                'has_more' => $hasMore,
+                'queue_key' => $queueKey
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("🎧 Refill request failed", [
+                'queue_key' => $queueKey,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to refill tracks: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate a unique queue key for the track request
+     */
+    private function generateQueueKey(string $artistName, string $trackTitle): string
+    {
+        $userId = auth()->id() ?? 'guest';
+        $timestamp = now()->format('Y-m-d-H-i-s');
+        return "track_queue_{$userId}_{$timestamp}_" . md5("{$artistName}_{$trackTitle}");
+    }
+
+    /**
+     * Store track queue in cache (more reliable than session)
+     */
+    private function storeTrackQueue(string $queueKey, array $tracks): void
+    {
+        // Store in cache for 1 hour (3600 seconds)
+        cache()->put($queueKey, $tracks, 3600);
+        Log::info("🎧 Stored track queue", [
+            'queue_key' => $queueKey,
+            'track_count' => count($tracks)
+        ]);
+    }
+
+    /**
+     * Get track queue from cache
+     */
+    private function getTrackQueue(string $queueKey): array
+    {
+        $queue = cache()->get($queueKey, []);
+        Log::info("🎧 Retrieved track queue", [
+            'queue_key' => $queueKey,
+            'track_count' => count($queue)
+        ]);
+        return $queue;
     }
 
 }
