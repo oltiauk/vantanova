@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Schema;
+use App\Models\ListenedTrack;
 
 class MusicPreferencesController extends Controller
 {
@@ -31,7 +32,8 @@ class MusicPreferencesController extends Controller
         return Schema::hasTable('blacklisted_tracks') && 
                Schema::hasTable('saved_tracks') && 
                Schema::hasTable('blacklisted_artists') && 
-               Schema::hasTable('saved_artists');
+               Schema::hasTable('saved_artists') &&
+               Schema::hasTable('listened_tracks');
     }
 
     /**
@@ -98,6 +100,127 @@ class MusicPreferencesController extends Controller
                 'error' => 'Failed to blacklist track'
             ], 500);
         }
+    }
+
+    /**
+     * Upsert a listened track for the current user
+     */
+    public function markListened(Request $request): JsonResponse
+    {
+        if (!$this->tablesExist()) {
+            return $this->missingTablesResponse();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'track_key' => 'required|string',
+            'track_name' => 'required|string',
+            'artist_name' => 'required|string',
+            'spotify_id' => 'sometimes|string|nullable',
+            'isrc' => 'sometimes|string|nullable',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $userId = Auth::id();
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required',
+            ], 401);
+        }
+
+        try {
+            $now = now();
+            $record = ListenedTrack::updateOrCreate(
+                [
+                    'user_id' => $userId,
+                    'track_key' => $request->track_key,
+                ],
+                [
+                    'track_name' => $request->track_name,
+                    'artist_name' => $request->artist_name,
+                    'spotify_id' => $request->spotify_id,
+                    'isrc' => $request->isrc,
+                    'last_listened_at' => $now,
+                ]
+            );
+            if (!$record->first_listened_at) {
+                $record->first_listened_at = $now;
+                $record->save();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Track marked as listened',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to mark track as listened',
+            ], 500);
+        }
+    }
+
+    /**
+     * Get listened track keys for the current user
+     */
+    public function getListenedTracks(): JsonResponse
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required',
+            ], 401);
+        }
+
+        $keys = ListenedTrack::where('user_id', $userId)
+            ->orderByDesc('last_listened_at')
+            ->pluck('track_key')
+            ->toArray();
+
+        return response()->json([
+            'success' => true,
+            'data' => $keys,
+        ]);
+    }
+
+    /**
+     * Remove listened mark (optional)
+     */
+    public function unmarkListened(Request $request): JsonResponse
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required',
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'track_key' => 'required|string',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        ListenedTrack::where('user_id', $userId)
+            ->where('track_key', $request->track_key)
+            ->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Track unmarked as listened',
+        ]);
     }
 
     /**

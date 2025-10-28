@@ -69,31 +69,45 @@
               </tr>
             </thead>
             <tbody>
-              <template v-for="(track, index) in displayRecommendations" :key="`related-${getTrackKey(track)}-${index}`">
+              <template v-for="(slot, index) in displayRecommendations" :key="`slot-${slot.slotIndex}`">
+                <!-- Empty Slot Row -->
                 <tr
+                  v-if="!slot.track"
+                  class="transition h-12 border-b border-white/5 bg-white/5 opacity-50"
+                >
+                  <td colspan="7" class="p-3">
+                    <div class="flex items-center justify-center gap-2 text-white/40 border border-dashed border-white/10 rounded py-2">
+                      <Icon :icon="faBan" class="w-4 h-4" />
+                      <span class="text-sm">Empty Slot {{ slot.slotIndex + 1 }} - Click "Search Again" to refill</span>
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Track Row -->
+                <tr
+                  v-else
                   :class="[
                     'transition h-16 border-b border-white/5',
-                    track.isPendingBlacklist ? 'bg-orange-500/10 opacity-60' : '',
-                    (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5'
+                    (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5'
                   ]"
                 >
                   <!-- Index -->
                   <td class="p-3 align-middle">
-                    <span class="text-white/60">{{ (currentPage - 1) * currentTracksPerPage + index + 1 }}</span>
+                    <span class="text-white/60">{{ slot.slotIndex + 1 }}</span>
                   </td>
 
                   <!-- Ban Button -->
                   <td class="p-3 align-middle">
                     <div class="flex items-center justify-center">
                       <button
-                        @click="banArtist(track)"
+                        @click="banArtist(slot.track)"
                         :class="[
                           'w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center',
-                          isArtistBanned(track)
+                          isArtistBanned(slot.track)
                             ? 'bg-red-600 hover:bg-red-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'
                         ]"
-                        :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
+                        :title="isArtistBanned(slot.track) ? 'Click to unban this artist' : 'Ban this artist'"
                       >
                         <Icon :icon="faUserSlash" class="text-xs" />
                       </button>
@@ -103,14 +117,14 @@
                   <!-- Artist -->
                   <td class="p-3 align-middle">
                     <span class="font-medium text-white">
-                      {{ track.artist }}
+                      {{ slot.track.artist }}
                     </span>
                   </td>
 
                   <!-- Title -->
                   <td class="p-3 align-middle">
                     <div class="flex items-center gap-2">
-                      <span class="text-white/80">{{ track.name }}</span>
+                      <span class="text-white/80">{{ slot.track.name }}</span>
                     </div>
                   </td>
 
@@ -118,7 +132,7 @@
                   <td class="p-3 align-middle text-center">
                     <div class="flex items-center justify-center">
                       <span class="text-white/60 text-sm">
-                        {{ formatFollowers(track.followers) }}
+                        {{ formatFollowers(slot.track.followers) }}
                       </span>
                     </div>
                   </td>
@@ -128,26 +142,26 @@
                     <div class="flex gap-2 justify-center">
                       <!-- Save Button (24h) -->
                       <button
-                        @click="saveTrack(track)"
-                        :disabled="processingTrack === getTrackKey(track)"
-                        :class="isTrackSaved(track)
+                        @click="saveTrack(slot.track)"
+                        :disabled="processingTrack === getTrackKey(slot.track)"
+                        :class="isTrackSaved(slot.track)
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                        :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
+                        :title="isTrackSaved(slot.track) ? 'Click to unsave track' : 'Save the Track (24h)'"
                       >
                         <Icon :icon="faHeart" class="text-sm" />
                       </button>
 
                       <!-- Blacklist Button -->
                       <button
-                        @click="blacklistTrack(track)"
-                        :disabled="processingTrack === getTrackKey(track)"
-                        :class="isTrackBlacklisted(track)
+                        @click="blacklistTrack(slot.track)"
+                        :disabled="processingTrack === getTrackKey(slot.track)"
+                        :class="isTrackBlacklisted(slot.track)
                           ? 'bg-orange-600 hover:bg-orange-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                        :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Ban the Track'"
+                        :title="isTrackBlacklisted(slot.track) ? 'Click to unblock track' : 'Ban the Track'"
                       >
                         <Icon :icon="faBan" class="text-sm" />
                       </button>
@@ -159,8 +173,8 @@
                     <div class="flex gap-2 justify-center">
                       <!-- Related Track Button -->
                       <button
-                        @click="getRelatedTracks(track)"
-                        :disabled="processingTrack === getTrackKey(track)"
+                        @click="getRelatedTracks(slot.track)"
+                        :disabled="processingTrack === getTrackKey(slot.track)"
                         class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                         title="Find Related Tracks"
                       >
@@ -170,29 +184,29 @@
 
                       <!-- Preview Button -->
                       <button
-                        @click="expandedTrackId === getTrackKey(track) ? (expandedTrackId = null) : ((track.source === 'lastfm') ? previewLastfmTrack(track) : (track.source === 'shazam' || track.source === 'shazam_fallback') ? previewShazamTrack(track) : toggleSpotifyPlayer(track))"
-                        :disabled="processingTrack === getTrackKey(track)"
+                        @click="handlePreviewClick(slot.track)"
+                        :disabled="processingTrack === getTrackKey(slot.track)"
                         :class="[
                           'px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center',
-                          listenedTracks.has(getTrackKey(track)) 
+                          (expandedTrackId === getTrackKey(slot.track) || listenedTracks.has(getTrackKey(slot.track))) 
                             ? 'bg-green-600 hover:bg-green-700 text-white' 
                             : 'bg-[#484948] hover:bg-gray-500 text-white'
                         ]"
                       >
                         <!-- Regular icon when not processing -->
-                        <img v-if="expandedTrackId !== getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                        <Icon v-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
-                        <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Preview')) }}</span>
+                        <img v-if="expandedTrackId !== getTrackKey(slot.track) && !(processingTrack === getTrackKey(slot.track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                        <Icon v-if="expandedTrackId === getTrackKey(slot.track) && !(processingTrack === getTrackKey(slot.track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
+                        <span :class="(processingTrack === getTrackKey(slot.track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(slot.track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(slot.track) ? 'Close' : (listenedTracks.has(getTrackKey(slot.track)) ? 'Listened' : 'Preview')) }}</span>
                       </button>
                     </div>
                   </td>
                 </tr>
 
-                <!-- Spotify Player Dropdown Row with Animation -->
+                <!-- Spotify Player Dropdown -->
                 <Transition name="spotify-dropdown" mode="out-in">
-                  <tr v-if="expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="7" class="p-0 overflow-hidden">
-                      <div class="p-4 bg-white/5 relative">
+                  <tr v-if="slot.track && (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(slot.track)}-${index}`">
+                    <td colspan="7" class="p-0 bg-white/5 border-b border-white/5">
+                      <div class="p-4">
                         <!-- Spotify Login Link -->
                         <div class="text-right mb-2">
                           <span class="text-xs text-white/50 font-light">
@@ -203,41 +217,41 @@
                               class="text-white/50 hover:text-white/70 transition-colors underline"
                             >
                               Connect</a> to Spotify to listen to the full track
-                          </span>
-                        </div>
-                        <div class="max-w-4xl mx-auto">
-                          <!-- Loading State -->
-                          <div v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
-                            <div class="flex items-center gap-3">
-                              <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
-                              <span class="text-k-text-secondary">Loading Track...</span>
+                            </span>
+                          </div>
+                          <div class="max-w-4xl mx-auto">
+                            <!-- Loading State -->
+                            <div v-if="processingTrack === getTrackKey(slot.track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
+                              <div class="flex items-center gap-3">
+                                <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
+                                <span class="text-k-text-secondary">Loading Track...</span>
+                              </div>
+                            </div>
+
+                            <!-- Spotify Embed -->
+                            <div v-else-if="slot.track.id && slot.track.id !== 'NO_TRACK_FOUND'">
+                            <iframe
+                              :key="slot.track.id"
+                              :src="`https://open.spotify.com/embed/track/${slot.track.id}?utm_source=generator&theme=0`"
+                              :title="`${slot.track.artist} - ${slot.track.name}`"
+                              class="w-full spotify-embed"
+                              style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                              frameBorder="0"
+                              scrolling="no"
+                              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                              loading="lazy"
+                              @load="(event) => { event.target.style.opacity = '1' }"
+                              @error="() => {}"
+                            ></iframe>
+                          </div>
+
+                            <!-- No Preview Available -->
+                            <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
+                            <div class="text-center text-white/60">
+                              <div class="text-sm font-medium">No Spotify preview available</div>
                             </div>
                           </div>
-
-                          <!-- Spotify Embed -->
-                          <div v-else-if="track.id && track.id !== 'NO_TRACK_FOUND'">
-                          <iframe
-                            :key="track.id"
-                            :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
-                            :title="`${track.artist} - ${track.name}`"
-                            class="w-full spotify-embed"
-                            style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
-                            frameBorder="0"
-                            scrolling="no"
-                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                            loading="lazy"
-                            @load="(event) => { event.target.style.opacity = '1' }"
-                            @error="() => {}"
-                          ></iframe>
                         </div>
-
-                          <!-- No Preview Available -->
-                          <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
-                          <div class="text-center text-white/60">
-                            <div class="text-sm font-medium">No Spotify preview available</div>
-                          </div>
-                        </div>
-                      </div>
                       </div>
                     </td>
                   </tr>
@@ -327,6 +341,7 @@ interface Track {
 // Props
 interface Props {
   recommendations: Track[]
+  slotMap: Record<number, Track | null>
   isDiscovering: boolean
   errorMessage: string
   currentProvider: string
@@ -337,7 +352,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  seedTrack: null
+  seedTrack: null,
+  slotMap: () => ({})
 })
 
 // Emits
@@ -348,6 +364,7 @@ const emit = defineEmits<{
   'related-tracks': [track: Track]
   'pending-blacklist': [trackKey: string]
   'user-banned-item': []
+  'current-batch-banned-item': []
 }>()
 
 // State
@@ -573,46 +590,20 @@ const filteredRecommendations = computed(() => {
   return tracks
 })
 
-// Computed property for displayed recommendations (current page tracks with per-page sorting)
+// Computed property for displayed recommendations with slot-based system
+// Returns array of objects with slot info: { slotIndex: number, track: Track | null }
 const displayRecommendations = computed(() => {
-  if (!isPaginationMode.value) {
-    // Legacy mode - show all filtered tracks
-    return filteredRecommendations.value
+  // Create array of slot entries from the slot map (slots 0-19)
+  const slotEntries: Array<{ slotIndex: number; track: Track | null }> = []
+  
+  for (let i = 0; i < 20; i++) {
+    slotEntries.push({
+      slotIndex: i,
+      track: props.slotMap[i] !== undefined ? props.slotMap[i] : null
+    })
   }
   
-  // Use the stored current page tracks and apply sorting only to them
-  if (sortBy.value === 'none') {
-    // No sorting - return current page tracks in their original order
-    // console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${currentPageTracks.value.length} tracks (unsorted)`)
-    return currentPageTracks.value
-  } else {
-    // Sort only the current page's tracks
-    const sortedPageTracks = [...currentPageTracks.value].sort((a, b) => {
-      const aStats = a.lastfm_stats
-      const bStats = b.lastfm_stats
-      
-      // Tracks without stats go to the end
-      if (!aStats && !bStats) return 0
-      if (!aStats) return 1
-      if (!bStats) return -1
-      
-      switch (sortBy.value) {
-        case 'playcount':
-          return (bStats.playcount || 0) - (aStats.playcount || 0)
-        case 'listeners':
-          return (bStats.listeners || 0) - (aStats.listeners || 0)
-        case 'ratio':
-          const ratioA = aStats.listeners > 0 ? aStats.playcount / aStats.listeners : 0
-          const ratioB = bStats.listeners > 0 ? bStats.playcount / bStats.listeners : 0
-          return ratioB - ratioA
-        default:
-          return 0
-      }
-    })
-    
-    // console.log(`[RECOMMENDATIONS] Page ${currentPage.value}: showing ${sortedPageTracks.length} tracks (sorted by ${sortBy.value})`)
-    return sortedPageTracks
-  }
+  return slotEntries
 })
 
 const isTrackSaved = (track: Track): boolean => {
@@ -898,9 +889,11 @@ const blacklistTrack = async (track: Track) => {
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
         // Emit pending-blacklist event (row stays visible, marked)
-        emit('pending-blacklist', trackKey)
+        // Pass track ID for unique identification
+        emit('pending-blacklist', track.id)
         // Emit that user has banned an item (for Search Again functionality)
         emit('user-banned-item')
+        emit('current-batch-banned-item')
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
       }
@@ -997,40 +990,94 @@ const blacklistArtist = async (track: Track) => {
 // Spotify player functionality
 const toggleSpotifyPlayer = (track: Track) => {
   const trackKey = getTrackKey(track)
+  console.log('🎵 ToggleSpotifyPlayer called:', trackKey, 'expandedTrackId:', expandedTrackId.value)
   
   if (expandedTrackId.value === trackKey) {
-    // Closing the preview - mark as listened and potentially ban
+    // Closing the preview
+    console.log('🎵 Closing preview...')
     expandedTrackId.value = null
-    markTrackAsListened(track)
     return
   }
 
+  // Opening preview - mark as listened immediately
+  console.log('🎵 Opening preview - marking as listened immediately')
+  
+  // Mark as listened immediately when preview opens
+  markTrackAsListened(track)
+  
   // Close any existing preview before opening new one
   expandedTrackId.value = null
   expandedTrackId.value = trackKey
 }
 
+// Unified preview click handler (open/close and source-aware)
+const handlePreviewClick = (track: Track) => {
+  const isOpen = expandedTrackId.value === getTrackKey(track)
+  if (isOpen) {
+    // Always close via toggle to ensure listened marking
+    toggleSpotifyPlayer(track)
+    return
+  }
+
+  // Open behavior based on source
+  if (track.source === 'lastfm') {
+    previewLastfmTrack(track)
+  } else if (track.source === 'shazam' || track.source === 'shazam_fallback') {
+    previewShazamTrack(track)
+  } else {
+    toggleSpotifyPlayer(track)
+  }
+}
+
 // Mark track as listened and potentially ban it
 const markTrackAsListened = async (track: Track) => {
   const trackKey = getTrackKey(track)
+  console.log('🎵 Marking track as listened:', trackKey, track.artist, '-', track.name)
   
-  // Mark as listened
+  // Mark as listened (optimistic)
   listenedTracks.value.add(trackKey)
+  // Reassign to trigger Vue reactivity for Set mutations
+  listenedTracks.value = new Set(listenedTracks.value)
+  console.log('🎵 Listened tracks after add:', Array.from(listenedTracks.value))
+  
+  // Persist listened state
+  try {
+    console.log('🎵 POSTing to listened-track API...')
+    const response = await http.post('music-preferences/listened-track', {
+      track_key: trackKey,
+      track_name: track.name,
+      artist_name: track.artist,
+      spotify_id: track.id,
+      isrc: track.external_ids?.isrc
+    })
+    console.log('🎵 Listened-track API response:', response)
+  } catch (e) {
+    console.log('🎵 Listened-track API failed, using localStorage:', e)
+    // If unauthenticated, store locally
+    try {
+      const keys = Array.from(listenedTracks.value)
+      localStorage.setItem('koel-listened-tracks', JSON.stringify(keys))
+      console.log('🎵 Saved to localStorage:', keys)
+    } catch {}
+  }
   
   // If auto-ban is enabled, ban the track
   if (banListenedTracks.value) {
     try {
+      // Generate a fallback ISRC if none exists (same logic as blacklistTrack function)
+      const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
       const response = await http.post('music-preferences/blacklist-track', {
-        spotify_id: track.id,
-        isrc: track.external_ids?.isrc,
+        isrc: isrcValue,
         track_name: track.name,
-        artist_name: track.artist,
+        artist_name: track.artist
       })
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
-        emit('pending-blacklist', trackKey)
+        emit('pending-blacklist', track.id)
         emit('user-banned-item')
+        emit('current-batch-banned-item')
         console.log('🎵 Auto-banned listened track:', track.name)
       }
     } catch (error) {
@@ -1481,6 +1528,9 @@ const banArtist = async (track: Track) => {
     
     // Emit that user has banned an item (for Search Again functionality)
     emit('user-banned-item')
+    emit('current-batch-banned-item')
+    // Emit that user has banned an item from current batch
+    emit('current-batch-banned-item')
     
     // console.log('🚫 UI updated immediately (banned), now doing API call in background')
     
@@ -1523,6 +1573,22 @@ onMounted(async () => {
   await loadUserPreferences()
   // Load global blacklisted items
   await loadBlacklistedItems()
+  // Load listened tracks from server (fall back to localStorage if unauthenticated)
+  try {
+    const resp: any = await http.get('music-preferences/listened-tracks')
+    if (resp?.success && Array.isArray(resp.data)) {
+      listenedTracks.value = new Set(resp.data as string[])
+    }
+  } catch (e) {
+    // Fallback to localStorage per device
+    try {
+      const stored = localStorage.getItem('koel-listened-tracks')
+      if (stored) {
+        const keys: string[] = JSON.parse(stored)
+        listenedTracks.value = new Set(keys)
+      }
+    } catch {}
+  }
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -1782,10 +1848,7 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     const isNewRecommendations = newRecommendations.length !== lastRecommendationsCount.value || 
                                 !oldRecommendations
     
-    // Clear listened tracks when new recommendations are loaded
-    if (isNewRecommendations) {
-      listenedTracks.value.clear()
-    }
+    // Do not clear listened tracks on new recommendations; keep for persistent memory
     
     console.log('👀 RECOMMENDATIONS UPDATED', newRecommendations.length, 'tracks')
     // Sample a few tracks to log structure including match scores

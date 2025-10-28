@@ -163,65 +163,85 @@ class SimilarArtistsController extends Controller
                 'rapidapi_enabled' => RapidApiSpotifyService::enabled()
             ]);
 
-            // Try RapidAPI Spotify81 first (Primary)
+            // Collect artists from multiple sources to get more than 20
+            $allArtists = [];
+            $seenArtists = [];
+
+            // Try RapidAPI Spotify81 first (Primary) - usually returns 20
             if (RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
                 Log::info('🎵 [SIMILAR ARTISTS] Attempting RapidAPI Spotify81 similar artists (Primary)', [
                     'artist_id' => $artistId,
                     'limit' => $limit
                 ]);
 
-                $similarArtists = $this->rapidApiSpotifyService->getSimilarArtists($artistId, $limit);
-
-                if (!empty($similarArtists)) {
-                    Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify81 similar artists successful', [
+                $spotify81Artists = $this->rapidApiSpotifyService->getSimilarArtists($artistId, $limit);
+                if (!empty($spotify81Artists)) {
+                    foreach ($spotify81Artists as $artist) {
+                        $key = $artist['id'] ?? $artist['name'];
+                        if (!isset($seenArtists[$key])) {
+                            $allArtists[] = $artist;
+                            $seenArtists[$key] = true;
+                        }
+                    }
+                    Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify81 added artists', [
                         'artist_id' => $artistId,
-                        'count' => count($similarArtists),
-                        'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $similarArtists), 0, 3)
-                    ]);
-
-                    return response()->json([
-                        'success' => true,
-                        'data' => $similarArtists
-                    ]);
-                } else {
-                    Log::warning('🎵 [SIMILAR ARTISTS] RapidAPI Spotify81 similar artists returned no results', [
-                        'artist_id' => $artistId
+                        'added_count' => count($spotify81Artists),
+                        'total_so_far' => count($allArtists)
                     ]);
                 }
-            } else {
-                Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify81 similar artists not available', [
-                    'enabled' => RapidApiSpotifyService::enabled(),
-                    'has_service' => !!$this->rapidApiSpotifyService
-                ]);
             }
 
-            // Try RapidAPI Spotify-web2 as Backup 1
+            // Try RapidAPI Spotify-web2 as Backup 1 - might return more
             Log::info('🎵 [SIMILAR ARTISTS] Attempting RapidAPI Spotify-web2 similar artists (Backup 1)');
             $unlimitedSimilar = $this->getSimilarArtistsWithUnlimitedAPI($artistId, $limit);
             if (!empty($unlimitedSimilar)) {
-                Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify-web2 similar artists successful', [
+                $addedCount = 0;
+                foreach ($unlimitedSimilar as $artist) {
+                    $key = $artist['id'] ?? $artist['name'];
+                    if (!isset($seenArtists[$key])) {
+                        $allArtists[] = $artist;
+                        $seenArtists[$key] = true;
+                        $addedCount++;
+                    }
+                }
+                Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify-web2 added artists', [
                     'artist_id' => $artistId,
-                    'count' => count($unlimitedSimilar)
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $unlimitedSimilar
+                    'added_count' => $addedCount,
+                    'total_so_far' => count($allArtists)
                 ]);
             }
 
-            // Try Spotify23 as Backup 2 (final fallback)
+            // Try Spotify23 as Backup 2 - might return more
             Log::info('🎵 [SIMILAR ARTISTS] Attempting Spotify23 similar artists (Backup 2)');
             $spotify23Similar = $this->getSimilarArtistsWithSpotify23($artistId, $limit);
             if (!empty($spotify23Similar)) {
-                Log::info('🎵 [SIMILAR ARTISTS] Spotify23 similar artists successful', [
+                $addedCount = 0;
+                foreach ($spotify23Similar as $artist) {
+                    $key = $artist['id'] ?? $artist['name'];
+                    if (!isset($seenArtists[$key])) {
+                        $allArtists[] = $artist;
+                        $seenArtists[$key] = true;
+                        $addedCount++;
+                    }
+                }
+                Log::info('🎵 [SIMILAR ARTISTS] Spotify23 added artists', [
                     'artist_id' => $artistId,
-                    'count' => count($spotify23Similar)
+                    'added_count' => $addedCount,
+                    'total_so_far' => count($allArtists)
+                ]);
+            }
+
+            // Return combined results if we have any
+            if (!empty($allArtists)) {
+                Log::info('🎵 [SIMILAR ARTISTS] Combined similar artists successful', [
+                    'artist_id' => $artistId,
+                    'total_count' => count($allArtists),
+                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $allArtists), 0, 5)
                 ]);
 
                 return response()->json([
                     'success' => true,
-                    'data' => $spotify23Similar
+                    'data' => $allArtists
                 ]);
             }
 
@@ -741,10 +761,13 @@ class SimilarArtistsController extends Controller
             if ($response->successful()) {
                 $data = $response->json();
                 if (isset($data['artists'])) {
-                    $artists = $this->formatUnlimitedAPIArtists(array_slice($data['artists'], 0, $limit));
+                    // Don't limit the results - return all available artists for the queue system
+                    $artists = $this->formatUnlimitedAPIArtists($data['artists']);
                     Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI similar artists successful', [
                         'artist_id' => $artistId,
-                        'count' => count($artists)
+                        'count' => count($artists),
+                        'limit_requested' => $limit,
+                        'actual_returned' => count($artists)
                     ]);
                     return $artists;
                 }
@@ -940,10 +963,13 @@ class SimilarArtistsController extends Controller
             if ($response->successful()) {
                 $data = $response->json();
                 if (isset($data['artists'])) {
-                    $artists = $this->formatSpotify23Artists(array_slice($data['artists'], 0, $limit));
+                    // Don't limit the results - return all available artists for the queue system
+                    $artists = $this->formatSpotify23Artists($data['artists']);
                     Log::info('🎵 [SIMILAR ARTISTS] Spotify23 similar artists successful', [
                         'artist_id' => $artistId,
-                        'count' => count($artists)
+                        'count' => count($artists),
+                        'limit_requested' => $limit,
+                        'actual_returned' => count($artists)
                     ]);
                     return $artists;
                 }

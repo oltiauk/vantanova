@@ -29,55 +29,55 @@
                   </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Search Button -->
-            <div class="flex justify-center mt-6">
-              <button
-                :disabled="(!searchQuery.trim() && !selectedTrack) || isSearching"
-                class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors"
-                @click="performSearch"
+              <!-- Search Dropdown -->
+              <div
+                v-if="searchResults.length > 0 && !isSearching"
+                class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
+                style="background-color: #302f30; top: 100%;"
               >
-                <span v-if="selectedTrack && hasRecommendations && (hasMoreInQueue || userHasBannedItems)">Search Again (Refill)</span>
-                <span v-else-if="selectedTrack && hasRecommendations">Search Again</span>
-                <span v-else>Search</span>
-              </button>
-            </div>
+                <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
+                  <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
+                    <div
+                      class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
+                      :class="{
+                        'bg-k-accent/10': pendingTrack && pendingTrack.id === track.id,
+                      }"
+                      @click="fillSearchBar(track)"
+                    >
+                      <!-- Track Info -->
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
+                          {{ formatArtists(track) }} - {{ track.name }}
+                        </div>
+                      </div>
 
-            <!-- Search Dropdown -->
-            <div
-              v-if="searchResults.length > 0 && !isSearching"
-              class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
-              style="background-color: #302f30; top: 100%;"
-            >
-              <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
-                <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
-                  <div
-                    class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
-                    :class="{
-                      'bg-k-accent/10': pendingTrack && pendingTrack.id === track.id,
-                    }"
-                    @click="fillSearchBar(track)"
-                  >
-                    <!-- Track Info -->
-                    <div class="flex-1 min-w-0">
-                      <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
-                        {{ formatArtists(track) }} - {{ track.name }}
+                      <!-- Duration Badge -->
+                      <div class="bg-k-bg-primary/30 px-2 py-1 rounded text-k-text-tertiary text-xs font-mono ml-3 flex-shrink-0">
+                        {{ formatDuration(track.duration_ms) }}
                       </div>
                     </div>
+                  </div>
 
-                    <!-- Duration Badge -->
-                    <div class="bg-k-bg-primary/30 px-2 py-1 rounded text-k-text-tertiary text-xs font-mono ml-3 flex-shrink-0">
-                      {{ formatDuration(track.duration_ms) }}
-                    </div>
+                  <div v-if="filteredSearchResults.length > 10" class="px-4 py-3 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/20">
+                    <Icon :icon="faMusic" class="mr-1 opacity-50" />
+                    {{ filteredSearchResults.length - 10 }} more tracks found
                   </div>
                 </div>
-
-                <div v-if="filteredSearchResults.length > 10" class="px-4 py-3 text-center text-k-text-tertiary text-sm border-t border-k-border bg-k-bg-tertiary/20">
-                  <Icon :icon="faMusic" class="mr-1 opacity-50" />
-                  {{ filteredSearchResults.length - 10 }} more tracks found
-                </div>
               </div>
+            </div>
+
+            <!-- Search Button - Show when track is pending, no results yet, or there are empty slots -->
+            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim()) || emptySlotCount > 0" class="flex justify-center mt-6">
+              <button
+                :disabled="isSearching"
+                class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
+                @click="performSearch"
+              >
+                <span v-if="emptySlotCount > 0">Search Again ({{ emptySlotCount }} empty slot{{ emptySlotCount !== 1 ? 's' : '' }})</span>
+                <span v-else-if="pendingTrack">Search Related Tracks</span>
+                <span v-else>Search</span>
+              </button>
             </div>
           </div>
         </div>
@@ -163,7 +163,8 @@ interface Props {
   hasRecommendations?: boolean
   hasMoreInQueue?: boolean
   queueKey?: string | null
-  userHasBannedItems?: boolean
+  currentBatchHasBannedItems?: boolean
+  emptySlotCount?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -171,7 +172,8 @@ const props = withDefaults(defineProps<Props>(), {
   hasRecommendations: false,
   hasMoreInQueue: false,
   queueKey: null,
-  userHasBannedItems: false,
+  currentBatchHasBannedItems: false,
+  emptySlotCount: 0,
 })
 
 // Emits
@@ -181,6 +183,7 @@ const emit = defineEmits<{
   'related-tracks': [track: Track, isRefresh?: boolean]
   'search-results-changed': [hasResults: boolean]
   'clear-recommendations': []
+  'current-batch-banned-item': []
 }>()
 
 // State
@@ -190,13 +193,11 @@ const searchError = ref('')
 const currentPage = ref(1)
 const isSearching = ref(false)
 const searchContainer = ref<HTMLElement | null>(null)
-const searchTimeout = ref<NodeJS.Timeout | null>(null)
 const pendingTrack = ref<Track | null>(null) // Track selected from dropdown, pending search button click
 
 // Queue state management
 const hasMoreInQueue = ref(false) // Track if more results available
 const currentQueueKey = ref<string | null>(null) // Session key for queue
-const userHasBannedItems = ref(false) // Track if user has banned items since last search
 
 // Music preferences state
 const savedTracks = ref<Set<string>>(new Set())
@@ -281,26 +282,12 @@ const fillSearchBar = (track: Track) => {
   searchResults.value = [] // Clear dropdown
 }
 
-// Handle search input with debounced search
+// Handle search input - clear pending track when user types
 const onSearchInput = () => {
   // Clear pending track when user types
   pendingTrack.value = null
-
-  // Clear any existing timeout
-  if (searchTimeout.value) {
-    clearTimeout(searchTimeout.value)
-  }
-
-  // If search query is empty, clear results
-  if (!searchQuery.value.trim()) {
-    searchResults.value = []
-    return
-  }
-
-  // Debounce the search to avoid too many API calls
-  searchTimeout.value = setTimeout(() => {
-    searchTracks()
-  }, 300) // 300ms delay
+  // Clear search results when user types
+  searchResults.value = []
 }
 
 // Manual search functionality
@@ -312,24 +299,25 @@ const performSearch = () => {
     return
   }
 
-  // For all other cases, require a search query
-  if (!searchQuery.value.trim()) {
+  // If there are empty slots, this is a search again to refill
+  if (props.emptySlotCount > 0) {
+    handleSearchAgain()
     return
   }
 
-  // If we have a pending track from dropdown, select it directly
+  // If we have a pending track from dropdown, select it and search for related tracks
   if (pendingTrack.value) {
     selectSeedTrack(pendingTrack.value)
     pendingTrack.value = null
     return
   }
 
-  // Otherwise, perform a regular search
-  // Clear any existing timeout
-  if (searchTimeout.value) {
-    clearTimeout(searchTimeout.value)
+  // For all other cases, require a search query
+  if (!searchQuery.value.trim()) {
+    return
   }
 
+  // Otherwise, perform a search to get suggestions
   searchTracks()
 }
 
@@ -413,11 +401,14 @@ const getRelatedTracks = (track: Track, isRefresh = false) => {
   emit('related-tracks', track, isRefresh)
 }
 
+// Note: currentBatchHasBannedItems is now managed by parent via props
+
 // Handle search button click when there's already a selected seed track
 const handleSearchAgain = () => {
   if (props.selectedTrack && props.hasRecommendations) {
     // This is a refresh - user wants to see more tracks from the queue
     getRelatedTracks(props.selectedTrack, true) // true = refresh search
+    // The parent will reset currentBatchHasBannedItems flag after refill
   }
 }
 
@@ -638,6 +629,7 @@ watch(() => props.hasRecommendations, (hasRecommendations, wasRecommendations) =
     // Clear search results when recommendations first appear to prevent overlay
     searchResults.value = []
     searchQuery.value = ''
+    // Parent will reset currentBatchHasBannedItems flag when new recommendations arrive
   }
 })
 

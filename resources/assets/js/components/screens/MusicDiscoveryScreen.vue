@@ -28,7 +28,8 @@
         :has-recommendations="allRecommendations.length > 0 || isDiscovering"
         :has-more-in-queue="hasMoreInQueue"
         :queue-key="currentQueueKey"
-        :user-has-banned-items="userHasBannedItems"
+        :current-batch-has-banned-items="userHasBannedItems"
+        :empty-slot-count="emptySlotCount"
         @track-selected="onTrackSelected"
         @related-tracks="(track, isRefresh) => onRelatedTracksRequested(track, isRefresh)"
         @search-results-changed="onSearchResultsChanged"
@@ -41,6 +42,7 @@
           v-if="(allRecommendations.length > 0 || isDiscovering || errorMessage) && selectedSeedTrack"
           :key="`recommendations-${selectedSeedTrack.id}`"
           :recommendations="allRecommendations"
+          :slot-map="slotMap"
           :is-discovering="isDiscovering"
           :error-message="errorMessage"
           :current-provider="currentProvider"
@@ -54,6 +56,7 @@
           @related-tracks="onRelatedTracksRequested"
           @pending-blacklist="onPendingBlacklist"
           @user-banned-item="onUserBannedItem"
+          @current-batch-banned-item="onCurrentBatchBannedItem"
         />
       </div>
     </div>
@@ -150,6 +153,9 @@ const errorMessage = ref('')
 const currentProvider = ref('')
 const hasSearchResults = ref(false)
 
+// Virtual Slot System: Maps slot position (0-19) to track object or null
+const slotMap = ref<Record<number, Track | null>>({})
+
 // Queue state management
 const hasMoreInQueue = ref(false) // Track if more results available
 const currentQueueKey = ref<string | null>(null) // Session key for queue
@@ -214,6 +220,11 @@ const hasEnabledParameters = computed(() => {
   return Object.values(enabledParameters.value).some(enabled => enabled)
 })
 
+// Count empty slots in the slot map
+const emptySlotCount = computed(() => {
+  return Object.values(slotMap.value).filter(track => track === null).length
+})
+
 // Note: Pagination is now handled by the RecommendationsTable component
 
 const onTrackSelected = async (track: Track) => {
@@ -238,6 +249,7 @@ const onClearRecommendations = () => {
   allRecommendations.value = []
   trackQueue.value = []
   displayedTracks.value = []
+  slotMap.value = {} // Clear the slot map
   totalTracks.value = 0
   currentPage.value = 1
   errorMessage.value = ''
@@ -280,73 +292,60 @@ const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
   }, 300)
 }
 
-// Refill from queue: replace only pending blacklisted tracks with queue items
+// Refill from queue: Fill only null/empty slots with queue tracks
 const refillFromQueue = () => {
-  console.log(`🔄 Starting refill from queue`)
+  console.log(`🔄 [SLOT SYSTEM] Starting refill from queue`)
 
-  // Count how many tracks are pending blacklist
-  const pendingBlacklistCount = allRecommendations.value.filter(track => track.isPendingBlacklist).length
-  console.log(`🔄 Found ${pendingBlacklistCount} pending blacklisted tracks to replace`)
+  // Count empty slots
+  const emptySlots = Object.keys(slotMap.value).filter(slotIdx => slotMap.value[Number(slotIdx)] === null)
+  console.log(`🔄 [SLOT SYSTEM] Found ${emptySlots.length} empty slots to fill`)
 
-  if (pendingBlacklistCount === 0) {
-    console.log(`🔄 No pending blacklisted tracks to replace`)
+  if (emptySlots.length === 0) {
+    console.log(`🔄 [SLOT SYSTEM] No empty slots to refill`)
     userHasBannedItems.value = false
     return
   }
 
-  // Calculate how many we can pull from queue (excluding pending blacklist)
-  const availableInQueue = trackQueue.value.filter(t => !t.isPendingBlacklist).length
-  const toPull = Math.min(pendingBlacklistCount, availableInQueue)
-  console.log(`🔄 Can pull ${toPull} clean tracks from queue (${availableInQueue} available, need ${pendingBlacklistCount})`)
-
-  if (toPull > 0) {
-    // Get clean tracks from queue
-    const cleanQueueTracks: Track[] = []
-    const remainingQueue: Track[] = []
-
-    for (const track of trackQueue.value) {
-      if (!track.isPendingBlacklist && cleanQueueTracks.length < toPull) {
-        cleanQueueTracks.push(track)
-      } else {
-        remainingQueue.push(track)
-      }
-    }
-
-    // Create new array with replacements to trigger Vue reactivity
-    const updatedRecommendations: Track[] = []
-    let queueIndex = 0
-
-    for (let i = 0; i < allRecommendations.value.length; i++) {
-      const track = allRecommendations.value[i]
-      if (track.isPendingBlacklist && queueIndex < cleanQueueTracks.length) {
-        // Replace this blacklisted track with a clean one from queue
-        updatedRecommendations.push(cleanQueueTracks[queueIndex])
-        console.log(`🔄 Position ${i}: Replaced "${track.artist} - ${track.name}" with "${cleanQueueTracks[queueIndex].artist} - ${cleanQueueTracks[queueIndex].name}"`)
-        queueIndex++
-      } else if (!track.isPendingBlacklist) {
-        // Keep non-blacklisted tracks in same position
-        updatedRecommendations.push(track)
-      }
-      // Skip blacklisted tracks without replacements
-    }
-
-    // Update the reactive array with new reference
-    allRecommendations.value = updatedRecommendations
-    trackQueue.value = remainingQueue
-    totalTracks.value = updatedRecommendations.length
-
-    console.log(`🔄 Replaced ${queueIndex} blacklisted tracks, kept ${updatedRecommendations.length - queueIndex} original tracks`)
-  } else {
-    // No queue tracks available, just remove the blacklisted ones
-    allRecommendations.value = allRecommendations.value.filter(track => !track.isPendingBlacklist)
-    totalTracks.value = allRecommendations.value.length
-    console.log(`🔄 No queue tracks available, removed ${pendingBlacklistCount} blacklisted tracks`)
-  }
-
-  // Clear the banned items flag since we've processed them
+  // Reset the banned items flag BEFORE refilling
   userHasBannedItems.value = false
 
-  console.log(`🔄 Refill complete: displaying ${allRecommendations.value.length} tracks, ${trackQueue.value.length} in queue`)
+  // Calculate how many tracks we can pull from queue (only count non-null tracks)
+  const availableInQueue = trackQueue.value.length
+  console.log(`🔄 [SLOT SYSTEM] Queue has ${availableInQueue} tracks available`)
+
+  if (availableInQueue === 0) {
+    console.log(`⚠️ [SLOT SYSTEM] Queue is empty - cannot refill ${emptySlots.length} empty slots`)
+    console.log(`🔄 [SLOT SYSTEM] Search Again button should remain VISIBLE (empty slots remain)`)
+    return
+  }
+
+  // Pull tracks from queue one by one and fill empty slots
+  let filledCount = 0
+  const emptySlotNumbers = emptySlots.map(s => Number(s))
+
+  for (const slotNumber of emptySlotNumbers) {
+    if (trackQueue.value.length === 0) {
+      console.log(`⚠️ [SLOT SYSTEM] Queue exhausted after filling ${filledCount} slots`)
+      break
+    }
+
+    // Pull next track from queue
+    const nextTrack = trackQueue.value.shift()
+    if (nextTrack) {
+      slotMap.value[slotNumber] = nextTrack
+      console.log(`🔄 [SLOT SYSTEM] Filled slot ${slotNumber} with "${nextTrack.artist} - ${nextTrack.name}"`)
+      filledCount++
+    }
+  }
+
+  // Update allRecommendations to reflect the slotMap
+  allRecommendations.value = Object.values(slotMap.value).filter(track => track !== null) as Track[]
+  totalTracks.value = allRecommendations.value.length
+
+  const remainingEmptySlots = emptySlotNumbers.length - filledCount
+  console.log(`🔄 [SLOT SYSTEM] Filled ${filledCount} slots, ${trackQueue.value.length} tracks remaining in queue`)
+  console.log(`🔄 [SLOT SYSTEM] Refill complete: ${allRecommendations.value.length} filled slots, ${remainingEmptySlots} empty slots remaining`)
+  console.log(`🔄 [SLOT SYSTEM] Search Again button should now be ${remainingEmptySlots > 0 ? 'VISIBLE' : 'HIDDEN'}`)
 }
 
 const getSeedTrackKey = async (trackId: string) => {
@@ -633,13 +632,20 @@ const getRelatedTracks = async (track: Track, isRefresh = false) => {
       // Store tracks 21+ in the queue (already pre-filtered)
       trackQueue.value = filteredTracks.slice(20)
 
+      // Initialize slot map with first 20 tracks (slots 0-19)
+      const initialTracks = filteredTracks.slice(0, 20)
+      slotMap.value = {}
+      initialTracks.forEach((track, index) => {
+        slotMap.value[index] = track
+      })
+
       // Display the first 20 filtered tracks (or fewer if less than 20 available)
-      displayedTracks.value = filteredTracks.slice(0, 20)
+      displayedTracks.value = initialTracks
       allRecommendations.value = displayedTracks.value
       totalTracks.value = displayedTracks.value.length
       currentPage.value = 1
 
-      console.log(`✅ Displaying ${displayCount} tracks, ${queueCount} tracks queued (${allTracks.length} total fetched, ${filteredCount} OLD blacklisted filtered out)`)
+      console.log(`✅ [SLOT SYSTEM] Initialized ${initialTracks.length} slots, ${queueCount} tracks queued (${allTracks.length} total fetched, ${filteredCount} OLD blacklisted filtered out)`)
 
       // Auto-scroll to bottom of page after a brief delay
       setTimeout(() => {
@@ -672,62 +678,57 @@ const discoverRelatedTracks = async () => {
 
 // Removed loadMoreRecommendations - pagination is now handled by RecommendationsTable
 
-// Handle pending blacklist (track or artist banned, stays visible until Search Again)
-const onPendingBlacklist = (trackKey: string) => {
-  console.log(`📋 Track/Artist marked as pending blacklist: ${trackKey}`)
+// Handle pending blacklist (track or artist banned) - Set slots to null immediately
+const onPendingBlacklist = (identifier: string) => {
+  console.log(`📋 [SLOT SYSTEM] Track/Artist blacklisted: ${identifier}`)
 
-  // Try to find matching track first (format: artist-trackname)
-  const track = allRecommendations.value.find(t =>
-    `${t.artist}-${t.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-') === trackKey,
-  )
+  // Try to find matching track by ID first (if it's a track ban)
+  let removedCount = 0
 
-  if (track) {
-    // This is a track ban
-    track.isPendingBlacklist = true
-    console.log(`✅ Marked track as pending blacklist: ${track.artist} - ${track.name}`)
+  // Check each slot and remove matching tracks
+  Object.keys(slotMap.value).forEach(slotIdx => {
+    const slotNumber = Number(slotIdx)
+    const track = slotMap.value[slotNumber]
 
-    // Also mark matching track in queue if it exists
-    const queueTrack = trackQueue.value.find(t =>
-      `${t.artist}-${t.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-') === trackKey,
-    )
-    if (queueTrack) {
-      queueTrack.isPendingBlacklist = true
+    if (!track) {
+      return
+    } // Skip empty slots
+
+    // Check if this track matches the identifier (by ID or artist)
+    const normalizedArtist = track.artist.toLowerCase().replace(/[^a-z0-9]/g, '-')
+    const matchesByID = track.id === identifier
+    const matchesByArtist = normalizedArtist === identifier
+
+    if (matchesByID || matchesByArtist) {
+      // Set slot to null (creates empty slot)
+      slotMap.value[slotNumber] = null
+      console.log(`✅ [SLOT SYSTEM] Cleared slot ${slotNumber}: "${track.artist} - ${track.name}"`)
+      removedCount++
     }
-  } else {
-    // If no track found, this is likely an artist ban
-    // Mark ALL tracks by this artist as pending blacklist (both in display AND queue)
-    let markedCount = 0
-    let queueMarkedCount = 0
+  })
 
-    allRecommendations.value.forEach(t => {
-      const normalizedArtist = t.artist.toLowerCase().replace(/[^a-z0-9]/g, '-')
-      if (normalizedArtist === trackKey) {
-        t.isPendingBlacklist = true
-        markedCount++
-      }
-    })
+  // DON'T remove from queue - we need those tracks to refill the empty slots!
+  // The queue should remain intact so we can pull from it when "Search Again" is clicked
+  console.log(`✅ [SLOT SYSTEM] Removed ${removedCount} tracks from slots`)
+  console.log(`✅ [SLOT SYSTEM] Queue unchanged: ${trackQueue.value.length} tracks available for refill`)
 
-    // Also mark all tracks by this artist in the queue
-    trackQueue.value.forEach(t => {
-      const normalizedArtist = t.artist.toLowerCase().replace(/[^a-z0-9]/g, '-')
-      if (normalizedArtist === trackKey) {
-        t.isPendingBlacklist = true
-        queueMarkedCount++
-      }
-    })
+  // Update allRecommendations to reflect current slot map (non-null tracks only)
+  allRecommendations.value = Object.values(slotMap.value).filter(track => track !== null) as Track[]
+  totalTracks.value = allRecommendations.value.length
 
-    if (markedCount > 0) {
-      console.log(`✅ Marked ${markedCount} tracks in display + ${queueMarkedCount} tracks in queue by artist as pending blacklist (key: ${trackKey})`)
-    } else {
-      console.warn(`⚠️ Could not find track or artist for key: ${trackKey}`)
-    }
-  }
+  console.log(`✅ [SLOT SYSTEM] Current state: ${allRecommendations.value.length} visible tracks, ${emptySlotCount.value} empty slots`)
 }
 
-// Handle when user bans an item (track or artist)
+// Handle when user bans an item (track or artist) - sets flag for current batch
 const onUserBannedItem = () => {
   userHasBannedItems.value = true
-  console.log('🚫 User banned an item - Search Again button will be enabled')
+  console.log('🚫 User banned an item from current batch - Search Again button will be enabled')
+}
+
+// Handle when user bans an item from current batch (same as onUserBannedItem)
+const onCurrentBatchBannedItem = () => {
+  userHasBannedItems.value = true
+  console.log('🚫 User banned an item from current batch - Search Again button will be enabled')
 }
 
 // Pagination event handlers
