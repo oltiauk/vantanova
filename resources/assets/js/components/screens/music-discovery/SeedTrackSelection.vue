@@ -67,14 +67,15 @@
               </div>
             </div>
 
-            <!-- Search Button - Show when track is pending, no results yet, or there are empty slots -->
-            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim()) || emptySlotCount > 0" class="flex justify-center mt-6">
+            <!-- Search Button - Show when track is pending, no results yet, empty slots, or user has banned items -->
+            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim()) || emptySlotCount > 0 || currentBatchHasBannedItems" class="flex justify-center mt-6">
               <button
                 :disabled="isSearching"
                 class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
                 @click="performSearch"
               >
                 <span v-if="emptySlotCount > 0">Search Again ({{ emptySlotCount }} empty slot{{ emptySlotCount !== 1 ? 's' : '' }})</span>
+                <span v-else-if="currentBatchHasBannedItems">Search Again</span>
                 <span v-else-if="pendingTrack">Search Related Tracks</span>
                 <span v-else>Search</span>
               </button>
@@ -315,7 +316,6 @@ const performSearch = () => {
   // If there are empty slots, this is a search again to refill
   if (props.emptySlotCount > 0) {
     handleSearchAgain()
-    return
   }
 }
 

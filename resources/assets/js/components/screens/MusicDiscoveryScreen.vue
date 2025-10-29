@@ -39,6 +39,7 @@
       <!-- Related Tracks Results Table -->
       <div id="related-tracks-section">
         <RecommendationsTable
+          ref="recommendationsTableRef"
           v-if="(allRecommendations.length > 0 || isDiscovering || errorMessage) && selectedSeedTrack"
           :key="`recommendations-${selectedSeedTrack.id}`"
           :recommendations="allRecommendations"
@@ -57,6 +58,7 @@
           @pending-blacklist="onPendingBlacklist"
           @user-banned-item="onUserBannedItem"
           @current-batch-banned-item="onCurrentBatchBannedItem"
+          @pending-auto-bans-cleared="onPendingAutoBansCleared"
         />
       </div>
     </div>
@@ -147,6 +149,7 @@ const keyNames = {
 const selectedSeedTrack = ref<Track | null>(null)
 const allRecommendations = ref<Track[]>([])
 const trackQueue = ref<Track[]>([]) // Full queue of all tracks fetched
+const recommendationsTableRef = ref<InstanceType<typeof RecommendationsTable> | null>(null)
 const displayedTracks = ref<Track[]>([]) // Currently displayed 20 tracks
 const isDiscovering = ref(false)
 const errorMessage = ref('')
@@ -295,6 +298,11 @@ const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
 // Refill from queue: Fill only null/empty slots with queue tracks
 const refillFromQueue = () => {
   console.log(`🔄 [SLOT SYSTEM] Starting refill from queue`)
+
+  // Flush pending auto-banned tracks before refilling
+  if (recommendationsTableRef.value) {
+    recommendationsTableRef.value.flushPendingAutoBans()
+  }
 
   // Count empty slots
   const emptySlots = Object.keys(slotMap.value).filter(slotIdx => slotMap.value[Number(slotIdx)] === null)
@@ -729,6 +737,12 @@ const onUserBannedItem = () => {
 const onCurrentBatchBannedItem = () => {
   userHasBannedItems.value = true
   console.log('🚫 User banned an item from current batch - Search Again button will be enabled')
+}
+
+// Handle when all pending auto-bans have been cleared (user unbanned all listened tracks)
+const onPendingAutoBansCleared = () => {
+  userHasBannedItems.value = false
+  console.log('✅ All pending auto-bans cleared - Search Again button will be hidden')
 }
 
 // Pagination event handlers

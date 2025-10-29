@@ -347,6 +347,7 @@ const emit = defineEmits<{
   'pending-blacklist': [trackKey: string]
   'user-banned-item': []
   'current-batch-banned-item': []
+  'pending-auto-bans-cleared': []
 }>()
 
 // State
@@ -370,6 +371,9 @@ const allowAnimations = ref(true)
 // Track which tracks have been listened to (previewed)
 const listenedTracks = ref(new Set<string>())
 const banListenedTracks = ref(false)
+
+// Store track IDs that were auto-banned but should remain visible until "Search Again"
+const pendingAutoBannedTracks = ref(new Set<string>())
 
 // Stats fetching tracking - to avoid duplicate API calls
 const tracksWithStatsFetched = ref(new Set<string>()) // Track keys that have had stats fetched
@@ -823,7 +827,17 @@ const blacklistTrack = async (track: Track) => {
   if (isTrackBlacklisted(track)) {
     // UNBAN TRACK - Update UI immediately for better UX
     blacklistedTracks.value.delete(trackKey)
-    
+
+    // Remove from pending auto-bans if it was auto-banned (prevents removal on "Search Again")
+    if (pendingAutoBannedTracks.value.has(track.id)) {
+      pendingAutoBannedTracks.value.delete(track.id)
+
+      // If all pending auto-bans have been removed, notify parent to hide button
+      if (pendingAutoBannedTracks.value.size === 0) {
+        emit('pending-auto-bans-cleared')
+      }
+    }
+
     // Clear the pending blacklist flag if it was set
     if (track.isPendingBlacklist) {
       track.isPendingBlacklist = false
@@ -1019,35 +1033,29 @@ const handlePreviewClick = (track: Track) => {
 // Mark track as listened and potentially ban it
 const markTrackAsListened = async (track: Track) => {
   const trackKey = getTrackKey(track)
-  console.log('🎵 Marking track as listened:', trackKey, track.artist, '-', track.name)
-  
+
   // Mark as listened (optimistic)
   listenedTracks.value.add(trackKey)
   // Reassign to trigger Vue reactivity for Set mutations
   listenedTracks.value = new Set(listenedTracks.value)
-  console.log('🎵 Listened tracks after add:', Array.from(listenedTracks.value))
-  
+
   // Persist listened state
   try {
-    console.log('🎵 POSTing to listened-track API...')
-    const response = await http.post('music-preferences/listened-track', {
+    await http.post('music-preferences/listened-track', {
       track_key: trackKey,
       track_name: track.name,
       artist_name: track.artist,
       spotify_id: track.id,
       isrc: track.external_ids?.isrc
     })
-    console.log('🎵 Listened-track API response:', response)
   } catch (e) {
-    console.log('🎵 Listened-track API failed, using localStorage:', e)
     // If unauthenticated, store locally
     try {
       const keys = Array.from(listenedTracks.value)
       localStorage.setItem('koel-listened-tracks', JSON.stringify(keys))
-      console.log('🎵 Saved to localStorage:', keys)
     } catch {}
   }
-  
+
   // If auto-ban is enabled, ban the track
   if (banListenedTracks.value) {
     try {
@@ -1062,15 +1070,34 @@ const markTrackAsListened = async (track: Track) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
-        emit('pending-blacklist', track.id)
+
+        // Store track ID for deferred removal (will be removed on "Search Again")
+        pendingAutoBannedTracks.value.add(track.id)
+
+        // Emit that user has banned an item (enables "Search Again" button)
+        // But DON'T emit 'pending-blacklist' yet - track stays visible until Search Again
         emit('user-banned-item')
         emit('current-batch-banned-item')
-        console.log('🎵 Auto-banned listened track:', track.name)
       }
     } catch (error) {
       console.warn('Failed to auto-ban listened track:', error)
     }
   }
+}
+
+// Flush pending auto-banned tracks (called before "Search Again" refill)
+const flushPendingAutoBans = () => {
+  if (pendingAutoBannedTracks.value.size === 0) {
+    return
+  }
+
+  // Emit 'pending-blacklist' for each track that was auto-banned
+  pendingAutoBannedTracks.value.forEach(trackId => {
+    emit('pending-blacklist', trackId)
+  })
+
+  // Clear the pending set
+  pendingAutoBannedTracks.value.clear()
 }
 
 const getRelatedTracks = (track: Track) => {
@@ -1900,6 +1927,60 @@ watch([currentPage, currentTracksPerPage], async () => {
   await fetchStatsForCurrentPage()
 }, { immediate: false })
 
+// Watch for "Ban listened tracks" toggle being turned ON
+// Auto-ban all tracks that are already in "Listened" state
+watch(banListenedTracks, async (newValue, oldValue) => {
+  // Only act when toggle changes from OFF to ON
+  if (newValue === true && oldValue === false) {
+    console.log('🎵 Ban listened tracks toggle turned ON - auto-banning all listened tracks')
+
+    // Get all currently displayed tracks from slot map
+    const tracksToAutoBan: Track[] = []
+    for (let i = 0; i < 20; i++) {
+      const track = props.slotMap[i]
+      if (track && listenedTracks.value.has(getTrackKey(track))) {
+        tracksToAutoBan.push(track)
+      }
+    }
+
+    console.log(`🎵 Found ${tracksToAutoBan.length} listened tracks to auto-ban`)
+
+    // Ban each listened track
+    for (const track of tracksToAutoBan) {
+      const trackKey = getTrackKey(track)
+
+      // Skip if already blacklisted
+      if (blacklistedTracks.value.has(trackKey)) {
+        continue
+      }
+
+      try {
+        const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+        const response = await http.post('music-preferences/blacklist-track', {
+          isrc: isrcValue,
+          track_name: track.name,
+          artist_name: track.artist
+        })
+
+        if (response.success) {
+          blacklistedTracks.value.add(trackKey)
+          pendingAutoBannedTracks.value.add(track.id)
+          console.log(`🎵 Auto-banned listened track: ${track.name}`)
+        }
+      } catch (error) {
+        console.warn(`Failed to auto-ban listened track: ${track.name}`, error)
+      }
+    }
+
+    // If any tracks were banned, emit events to show "Search Again" button
+    if (tracksToAutoBan.length > 0) {
+      emit('user-banned-item')
+      emit('current-batch-banned-item')
+    }
+  }
+})
+
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {
   try {
@@ -1945,6 +2026,11 @@ const loadUserPreferences = async () => {
     // console.log('Could not load user preferences (user may not be logged in)')
   }
 }
+
+// Expose method for parent component to call before "Search Again"
+defineExpose({
+  flushPendingAutoBans
+})
 </script>
 
 <style scoped>
