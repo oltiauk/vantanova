@@ -292,8 +292,21 @@ const onSearchInput = () => {
 
 // Manual search functionality
 const performSearch = () => {
+  // If we have a pending track from dropdown, select it and search for related tracks
+  if (pendingTrack.value) {
+    selectSeedTrack(pendingTrack.value)
+    pendingTrack.value = null
+    return
+  }
+
+  // If user has typed a search query, prioritize searching for new tracks
+  if (searchQuery.value.trim()) {
+    searchTracks()
+    return
+  }
+
   // If there's already a selected seed track and recommendations, this is a refresh search
-  // Allow this even if search query is empty
+  // This only triggers when search query is empty
   if (props.selectedTrack && props.hasRecommendations) {
     handleSearchAgain()
     return
@@ -304,21 +317,6 @@ const performSearch = () => {
     handleSearchAgain()
     return
   }
-
-  // If we have a pending track from dropdown, select it and search for related tracks
-  if (pendingTrack.value) {
-    selectSeedTrack(pendingTrack.value)
-    pendingTrack.value = null
-    return
-  }
-
-  // For all other cases, require a search query
-  if (!searchQuery.value.trim()) {
-    return
-  }
-
-  // Otherwise, perform a search to get suggestions
-  searchTracks()
 }
 
 // Search functionality

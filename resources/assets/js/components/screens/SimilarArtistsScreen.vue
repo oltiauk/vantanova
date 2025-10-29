@@ -164,229 +164,213 @@
                 </tr>
               </thead>
               <tbody>
-                <template v-for="slotIdx in 20" :key="`slot-${slotIdx - 1}`">
-                  <template v-if="slotMap[slotIdx - 1]">
-                    <template v-for="artist in [slotMap[slotIdx - 1]]" :key="`artist-${artist!.mbid || artist!.name}`">
-                      <!-- Artist Row -->
-                      <tr
-                        class="hover:bg-white/5 transition h-16 border-b border-white/5"
-                        :class="[
-                          currentlyPreviewingArtist === artist!.name ? 'bg-white/5' : '',
-                        ]"
-                      >
-                        <!-- Index -->
-                        <td class="p-3 align-middle">
-                          <span class="text-white/60">{{ slotIdx }}</span>
-                        </td>
+                <template v-for="(slot, index) in displayedSlots" :key="`artist-${slot.artist.mbid || slot.artist.name}`">
+                  <!-- Artist Row -->
+                  <tr
+                    class="hover:bg-white/5 transition h-16 border-b border-white/5"
+                    :class="[
+                      currentlyPreviewingArtist === slot.artist.name ? 'bg-white/5' : '',
+                    ]"
+                  >
+                    <!-- Index -->
+                    <td class="p-3 align-middle">
+                      <span class="text-white/60">{{ index + 1 }}</span>
+                    </td>
 
-                        <!-- Ban Button -->
-                        <td class="p-3 align-middle">
-                          <div class="flex items-center justify-center">
-                            <button
-                              class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
-                                isArtistBanned(artist!)
-                                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                                  : 'bg-[#484948] hover:bg-gray-500 text-white',
-                              ]"
-                              :title="isArtistBanned(artist!) ? 'Click to unban this artist' : 'Ban this artist'"
-                              @click="banArtist(artist!)"
-                            >
-                              <Icon :icon="faUserSlash" class="text-xs" />
-                            </button>
+                    <!-- Ban Button -->
+                    <td class="p-3 align-middle">
+                      <div class="flex items-center justify-center">
+                        <button
+                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
+                            isArtistBanned(slot.artist)
+                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              : 'bg-[#484948] hover:bg-gray-500 text-white',
+                          ]"
+                          :title="isArtistBanned(slot.artist) ? 'Click to unban this artist' : 'Ban this artist'"
+                          @click="banArtist(slot.artist)"
+                        >
+                          <Icon :icon="faUserSlash" class="text-xs" />
+                        </button>
+                      </div>
+                    </td>
+
+                    <!-- Artist Name -->
+                    <td class="p-3 align-middle">
+                      <span class="font-medium text-white">
+                        {{ slot.artist.name }}
+                      </span>
+                    </td>
+
+                    <!-- Followers -->
+                    <td class="p-3 align-middle text-right">
+                      <span class="text-white/80">{{ formatFollowers(slot.artist.followers || 0) }}</span>
+                    </td>
+
+                    <!-- Actions -->
+                    <td class="p-3 align-middle">
+                      <div class="flex gap-2 justify-end">
+                        <button
+                          class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                          title="Find Similar Artists"
+                          @click="findSimilarArtists(slot.artist)"
+                        >
+                          <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
+                          <span>Similars</span>
+                        </button>
+                        <button
+                          :disabled="loadingPreviewArtist === slot.artist.name"
+                          class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center" :class="[
+                            (currentlyPreviewingArtist === slot.artist.name || hasListenedTracks(slot.artist))
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-[#484948] hover:bg-gray-500 text-white',
+                          ]"
+                          :title="loadingPreviewArtist === slot.artist.name ? 'Loading...' : (currentlyPreviewingArtist === slot.artist.name ? 'Close preview' : (hasListenedTracks(slot.artist) ? 'Tracks have been listened to' : 'Preview artist tracks'))"
+                          @click="previewArtist(slot.artist)"
+                        >
+                          <!-- Regular icon when not processing -->
+                          <img v-if="currentlyPreviewingArtist !== slot.artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                          <Icon v-else :icon="faTimes" class="w-3 h-3" />
+                          <span :class="loadingPreviewArtist === slot.artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === slot.artist.name ? 'Loading...' : (currentlyPreviewingArtist === slot.artist.name ? 'Close' : (hasListenedTracks(slot.artist) ? 'Listened' : 'Preview')) }}</span>
+                        </button>
+
+                        <!-- Hide Artist Button -->
+                        <button
+                          class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center bg-[#484948] hover:bg-gray-500 text-white"
+                          title="Hide this artist from results"
+                          @click="hideArtist(slot.artist)"
+                        >
+                          <Icon :icon="faTrash" class="text-xs" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Spotify Preview Section -->
+                  <tr v-if="currentlyPreviewingArtist === slot.artist.name" class="bg-white/5 border-b border-white/5">
+                    <td colspan="8" class="p-0">
+                      <div class="spotify-player-container p-6 bg-white/3 relative">
+                        <!-- Loading State -->
+                        <div v-if="loadingPreviewArtist === slot.artist.name" class="flex items-center justify-center" style="height: 80px;">
+                          <div class="flex items-center gap-3">
+                            <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
+                            <span class="text-k-text-secondary">Loading tracks...</span>
                           </div>
-                        </td>
-
-                        <!-- Artist Name -->
-                        <td class="p-3 align-middle">
-                          <span class="font-medium text-white">
-                            {{ artist!.name }}
-                          </span>
-                        </td>
-
-                        <!-- Followers -->
-                        <td class="p-3 align-middle text-right">
-                          <span class="text-white/80">{{ formatFollowers(artist!.followers || 0) }}</span>
-                        </td>
-
-                        <!-- Actions -->
-                        <td class="p-3 align-middle">
-                          <div class="flex gap-2 justify-end">
-                            <button
-                              class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                              title="Find Similar Artists"
-                              @click="findSimilarArtists(artist!)"
-                            >
-                              <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
-                              <span>Similars</span>
-                            </button>
-                            <button
-                              :disabled="loadingPreviewArtist === artist!.name"
-                              class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center" :class="[
-                                (currentlyPreviewingArtist === artist!.name || hasListenedTracks(artist!))
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-[#484948] hover:bg-gray-500 text-white',
-                              ]"
-                              :title="loadingPreviewArtist === artist!.name ? 'Loading...' : (currentlyPreviewingArtist === artist!.name ? 'Close preview' : (hasListenedTracks(artist!) ? 'Tracks have been listened to' : 'Preview artist tracks'))"
-                              @click="previewArtist(artist!)"
-                            >
-                              <!-- Regular icon when not processing -->
-                              <img v-if="currentlyPreviewingArtist !== artist!.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                              <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                              <span :class="loadingPreviewArtist === artist!.name ? '' : 'ml-1'">{{ loadingPreviewArtist === artist!.name ? 'Loading...' : (currentlyPreviewingArtist === artist!.name ? 'Close' : (hasListenedTracks(artist!) ? 'Listened' : 'Preview')) }}</span>
-                            </button>
-
-                            <!-- Hide Artist Button -->
-                            <button
-                              class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center bg-[#484948] hover:bg-gray-500 text-white"
-                              title="Hide this artist from results"
-                              @click="hideArtist(artist!)"
-                            >
-                              <Icon :icon="faTrash" class="text-xs" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      <!-- Spotify Preview Section -->
-                      <tr v-if="currentlyPreviewingArtist === artist!.name" class="bg-white/5 border-b border-white/5">
-                        <td colspan="8" class="p-0">
-                          <div class="spotify-player-container p-6 bg-white/3 relative">
-                            <!-- Loading State -->
-                            <div v-if="loadingPreviewArtist === artist!.name" class="flex items-center justify-center" style="height: 80px;">
-                              <div class="flex items-center gap-3">
-                                <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
-                                <span class="text-k-text-secondary">Loading tracks...</span>
-                              </div>
-                            </div>
-
-                            <!-- Tracks Display -->
-                            <div v-else-if="artist!.spotifyTracks && artist!.spotifyTracks.length > 0" class="max-w-4xl mx-auto">
-                              <div
-                                v-for="track in artist!.spotifyTracks.slice(0, 1)"
-                                :key="track.id"
-                                class="w-full"
-                              >
-                                <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'" class="flex gap-2 items-center">
-                                  <!-- Save/Ban Buttons -->
-                                  <div class="flex flex-col gap-2 flex-shrink-0">
-                                    <!-- Save Button -->
-                                    <button
-                                      :disabled="processingTrack === getTrackKey(track)"
-                                      :class="isTrackSaved(track)
-                                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                                        : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                                      class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                      :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
-                                      @click="saveTrack(track)"
-                                    >
-                                      <Icon :icon="faHeart" class="text-sm" />
-                                    </button>
-
-                                    <!-- Ban Button -->
-                                    <button
-                                      :disabled="processingTrack === getTrackKey(track)"
-                                      :class="isTrackBanned(track)
-                                        ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                        : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                                      class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                      :title="isTrackBanned(track) ? 'Click to unblock track' : 'Ban the Track'"
-                                      @click="banTrack(track)"
-                                    >
-                                      <Icon :icon="faBan" class="text-sm" />
-                                    </button>
-                                  </div>
-
-                                  <!-- Spotify Embed -->
-                                  <iframe
-                                    :key="track.id"
-                                    :src="`https://open.spotify.com/embed/${track.embed_type || 'track'}/${track.id}?utm_source=generator&theme=0`"
-                                    :title="`${track.artists?.[0]?.name || 'Unknown'} - ${track.name}`"
-                                    class="flex-1 spotify-embed"
-                                    style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
-                                    frameBorder="0"
-                                    scrolling="no"
-                                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                    loading="lazy"
-                                    @load="(event) => { event.target.style.opacity = '1' }"
-                                    @error="() => {}"
-                                  />
-                                </div>
-                                <div v-else class="flex gap-2 items-center">
-                                  <!-- Save/Ban Buttons for No Preview -->
-                                  <div class="flex flex-col gap-2 flex-shrink-0">
-                                    <!-- Save Button -->
-                                    <button
-                                      :disabled="processingTrack === getTrackKey(track)"
-                                      :class="isTrackSaved(track)
-                                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                                        : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                                      class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                      :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
-                                      @click="saveTrack(track)"
-                                    >
-                                      <Icon :icon="faHeart" class="text-sm" />
-                                    </button>
-
-                                    <!-- Ban Button -->
-                                    <button
-                                      :disabled="processingTrack === getTrackKey(track)"
-                                      :class="isTrackBanned(track)
-                                        ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                        : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                                      class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                                      :title="isTrackBanned(track) ? 'Click to unblock track' : 'Ban the Track'"
-                                      @click="banTrack(track)"
-                                    >
-                                      <Icon :icon="faBan" class="text-sm" />
-                                    </button>
-                                  </div>
-
-                                  <!-- No Preview Available -->
-                                  <div class="flex-1 flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);">
-                                    <div class="text-center text-white/60">
-                                      <div class="text-sm font-medium">No Spotify preview available</div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <!-- No Tracks Found -->
-                            <div v-else class="flex items-center justify-center py-8">
-                              <div class="text-center text-white/60">
-                                <div class="text-sm font-medium">No tracks found for this artist</div>
-                              </div>
-                            </div>
-
-                            <!-- Spotify Login Link -->
-                            <div class="absolute bottom-0 right-6">
-                              <span class="text-xs text-white/50 font-light">
-                                <a
-                                  href="https://accounts.spotify.com/login"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  class="text-white/50 hover:text-white/70 transition-colors underline"
-                                >
-                                  Connect</a> to Spotify to listen to the full track
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </template>
-                  </template>
-
-                  <!-- Empty Slot Row -->
-                  <template v-else>
-                    <tr class="transition h-12 border-b border-white/5 bg-white/5 opacity-50">
-                      <td colspan="5" class="p-3">
-                        <div class="flex items-center justify-center gap-2 text-white/40 border border-dashed border-white/10 rounded py-2">
-                          <Icon :icon="faUserSlash" class="w-4 h-4" />
-                          <span class="text-sm">Empty Slot {{ slotIdx }} - Artist hidden</span>
                         </div>
-                      </td>
-                    </tr>
-                  </template>
+
+                        <!-- Tracks Display -->
+                        <div v-else-if="slot.artist.spotifyTracks && slot.artist.spotifyTracks.length > 0" class="max-w-4xl mx-auto">
+                          <div
+                            v-for="track in slot.artist.spotifyTracks.slice(0, 1)"
+                            :key="track.id"
+                            class="w-full"
+                          >
+                            <div v-if="track.id && track.id !== 'NO_TRACK_FOUND'" class="flex gap-2 items-center">
+                              <!-- Save/Ban Buttons -->
+                              <div class="flex flex-col gap-2 flex-shrink-0">
+                                <!-- Save Button -->
+                                <button
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackSaved(track)
+                                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
+                                  @click="saveTrack(track)"
+                                >
+                                  <Icon :icon="faHeart" class="text-sm" />
+                                </button>
+
+                                <!-- Ban Button -->
+                                <button
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackBanned(track)
+                                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Ban the Track'"
+                                  @click="banTrack(track)"
+                                >
+                                  <Icon :icon="faBan" class="text-sm" />
+                                </button>
+                              </div>
+
+                              <!-- Spotify Embed -->
+                              <iframe
+                                :key="track.id"
+                                :src="`https://open.spotify.com/embed/${track.embed_type || 'track'}/${track.id}?utm_source=generator&theme=0`"
+                                :title="`${track.artists?.[0]?.name || 'Unknown'} - ${track.name}`"
+                                class="flex-1 spotify-embed"
+                                style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                                frameBorder="0"
+                                scrolling="no"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                                @load="(event) => { event.target.style.opacity = '1' }"
+                                @error="() => {}"
+                              />
+                            </div>
+                            <div v-else class="flex gap-2 items-center">
+                              <!-- Save/Ban Buttons for No Preview -->
+                              <div class="flex flex-col gap-2 flex-shrink-0">
+                                <!-- Save Button -->
+                                <button
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackSaved(track)
+                                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
+                                  @click="saveTrack(track)"
+                                >
+                                  <Icon :icon="faHeart" class="text-sm" />
+                                </button>
+
+                                <!-- Ban Button -->
+                                <button
+                                  :disabled="processingTrack === getTrackKey(track)"
+                                  :class="isTrackBanned(track)
+                                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                                  class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                                  :title="isTrackBanned(track) ? 'Click to unblock track' : 'Ban the Track'"
+                                  @click="banTrack(track)"
+                                >
+                                  <Icon :icon="faBan" class="text-sm" />
+                                </button>
+                              </div>
+
+                              <!-- No Preview Available -->
+                              <div class="flex-1 flex items-center justify-center" style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);">
+                                <div class="text-center text-white/60">
+                                  <div class="text-sm font-medium">No Spotify preview available</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- No Tracks Found -->
+                        <div v-else class="flex items-center justify-center py-8">
+                          <div class="text-center text-white/60">
+                            <div class="text-sm font-medium">No tracks found for this artist</div>
+                          </div>
+                        </div>
+
+                        <!-- Spotify Login Link -->
+                        <div class="absolute bottom-0 right-6">
+                          <span class="text-xs text-white/50 font-light">
+                            <a
+                              href="https://accounts.spotify.com/login"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-white/50 hover:text-white/70 transition-colors underline"
+                            >
+                              Connect</a> to Spotify to listen to the full track
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 </template>
               </tbody>
             </table>
@@ -549,6 +533,21 @@ const emptySlotCount = computed(() => {
 // Check if we can refill from queue
 const canRefillFromQueue = computed(() => {
   return emptySlotCount.value > 0 && artistQueue.value.length > 0
+})
+
+// Computed property for displayed slots (filters out null slots for continuous display)
+const displayedSlots = computed(() => {
+  const slots: Array<{ slotIndex: number, artist: LastfmArtist }> = []
+  for (let i = 0; i < 20; i++) {
+    const artist = slotMap.value[i]
+    if (artist !== null && artist !== undefined) {
+      slots.push({
+        slotIndex: i,
+        artist,
+      })
+    }
+  }
+  return slots
 })
 
 // Loading states

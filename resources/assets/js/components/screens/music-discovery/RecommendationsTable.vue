@@ -2,13 +2,9 @@
   <div class="recommendations-table">
     <!-- Header -->
     <div v-if="recommendations.length > 0 || isDiscovering" class="mb-6">
-      <div class="flex justify-between items-center mb-4">
-        <!-- <h3 class="text-lg font-medium text-white">
-          {{ isDiscovering ? 'Searching...' : 'Related Tracks' }}
-        </h3> -->
-        
+      <div class="max-w-6xl mx-auto">
         <!-- Ban Listened Tracks Toggle -->
-        <div v-if="recommendations.length > 0" class="flex items-center gap-3">
+        <div v-if="recommendations.length > 0" class="flex items-center gap-3 mb-4">
           <span class="text-sm text-white/80">Ban listened tracks</span>
           <button
             class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
@@ -70,22 +66,8 @@
             </thead>
             <tbody>
               <template v-for="(slot, index) in displayRecommendations" :key="`slot-${slot.slotIndex}`">
-                <!-- Empty Slot Row -->
-                <tr
-                  v-if="!slot.track"
-                  class="transition h-12 border-b border-white/5 bg-white/5 opacity-50"
-                >
-                  <td colspan="7" class="p-3">
-                    <div class="flex items-center justify-center gap-2 text-white/40 border border-dashed border-white/10 rounded py-2">
-                      <Icon :icon="faBan" class="w-4 h-4" />
-                      <span class="text-sm">Empty Slot {{ slot.slotIndex + 1 }} - Click "Search Again" to refill</span>
-                    </div>
-                  </td>
-                </tr>
-                
                 <!-- Track Row -->
                 <tr
-                  v-else
                   :class="[
                     'transition h-16 border-b border-white/5',
                     (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5'
@@ -93,7 +75,7 @@
                 >
                   <!-- Index -->
                   <td class="p-3 align-middle">
-                    <span class="text-white/60">{{ slot.slotIndex + 1 }}</span>
+                    <span class="text-white/60">{{ index + 1 }}</span>
                   </td>
 
                   <!-- Ban Button -->
@@ -591,18 +573,23 @@ const filteredRecommendations = computed(() => {
 })
 
 // Computed property for displayed recommendations with slot-based system
-// Returns array of objects with slot info: { slotIndex: number, track: Track | null }
+// Returns array of objects with slot info: { slotIndex: number, track: Track }
+// Filters out null slots so banned tracks are completely removed from display
 const displayRecommendations = computed(() => {
-  // Create array of slot entries from the slot map (slots 0-19)
-  const slotEntries: Array<{ slotIndex: number; track: Track | null }> = []
-  
+  // Create array of slot entries from the slot map (slots 0-19), filtering out empty slots
+  const slotEntries: Array<{ slotIndex: number; track: Track }> = []
+
   for (let i = 0; i < 20; i++) {
-    slotEntries.push({
-      slotIndex: i,
-      track: props.slotMap[i] !== undefined ? props.slotMap[i] : null
-    })
+    const track = props.slotMap[i]
+    // Only include slots that have actual tracks (skip null/undefined)
+    if (track !== null && track !== undefined) {
+      slotEntries.push({
+        slotIndex: i,
+        track: track
+      })
+    }
   }
-  
+
   return slotEntries
 })
 
