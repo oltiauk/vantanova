@@ -74,7 +74,7 @@
                 class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
                 @click="performSearch"
               >
-                <span v-if="emptySlotCount > 0">Search Again ({{ emptySlotCount }} empty slot{{ emptySlotCount !== 1 ? 's' : '' }})</span>
+                <span v-if="emptySlotCount > 0">Search Again</span>
                 <span v-else-if="currentBatchHasBannedItems">Search Again</span>
                 <span v-else-if="pendingTrack">Search Related Tracks</span>
                 <span v-else>Search</span>

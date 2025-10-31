@@ -83,14 +83,14 @@ class LabelSearchController extends Controller
                 return response()->json(['tracks' => []]);
             }
 
-            // Sort albums by release date (most recent first) and take 20
+            // Sort albums by release date (most recent first) and take 50
             $albums = $searchResults['albums']['items'];
             usort($albums, function($a, $b) {
                 return strcmp($b['release_date'] ?? '', $a['release_date'] ?? '');
             });
-            $recentAlbums = array_slice($albums, 0, 20);
+            $recentAlbums = array_slice($albums, 0, 50);
 
-            // Extract album IDs from the 20 most recent
+            // Extract album IDs from the 50 most recent
             $albumIds = array_map(fn($album) => $album['id'], $recentAlbums);
 
             // Batch get album details with tracks
@@ -249,7 +249,7 @@ class LabelSearchController extends Controller
 
         usort($tracks, fn($a, $b) => $b['popularity'] <=> $a['popularity']);
 
-        return array_slice($tracks, 0, 20);
+        return array_slice($tracks, 0, 50);
     }
 
     private function filterByLabelMatch(array $tracks, string $searchLabel): array
