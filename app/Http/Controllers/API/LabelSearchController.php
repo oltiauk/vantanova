@@ -261,28 +261,32 @@ class LabelSearchController extends Controller
                 return false;
             }
 
-            $searchLower = strtolower($searchLabel);
-            $actualLower = strtolower($actualLabel);
+            // Normalize both strings: lowercase and remove special characters
+            $searchNormalized = preg_replace('/[^a-z0-9\s]/i', ' ', strtolower($searchLabel));
+            $actualNormalized = preg_replace('/[^a-z0-9\s]/i', ' ', strtolower($actualLabel));
+            
+            // Split into words and filter empty strings
+            $searchWords = array_filter(preg_split('/\s+/', trim($searchNormalized)));
+            $actualWords = array_filter(preg_split('/\s+/', trim($actualNormalized)));
 
-            if (stripos($actualLabel, $searchLabel) !== false) {
-                return true;
+            // Check if all search words exist as exact words in the actual label
+            $allWordsMatch = true;
+            foreach ($searchWords as $searchWord) {
+                if (!in_array($searchWord, $actualWords, true)) {
+                    $allWordsMatch = false;
+                    break;
+                }
             }
 
-            if (stripos($searchLabel, $actualLabel) !== false) {
-                return true;
-            }
+            // Log::info('Label match check', [
+            //     'search_label' => $searchLabel,
+            //     'actual_label' => $actualLabel,
+            //     'search_words' => $searchWords,
+            //     'actual_words' => $actualWords,
+            //     'is_match' => $allWordsMatch
+            // ]);
 
-            similar_text($actualLower, $searchLower, $percent);
-            $isMatch = $percent >= 70;
-
-            Log::info('Label match check', [
-                'search_label' => $searchLabel,
-                'actual_label' => $actualLabel,
-                'similarity_percent' => $percent,
-                'is_match' => $isMatch
-            ]);
-
-            return $isMatch;
+            return $allWordsMatch;
         });
     }
 

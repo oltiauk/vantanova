@@ -550,7 +550,9 @@ class RapidApiSpotifyService
      */
     public function findExactMatch(array $searchResults, string $artistName, string $trackTitle): ?string
     {
-        // Handle the actual RapidAPI response structure: data.tracks[] where each item has a nested 'data' object
+        // Handle different provider response structures
+        // Official Spotify structure: data.tracks.items[]
+        // RapidAPI structure: data.tracks[]
         if (!isset($searchResults['data']['tracks']) || !is_array($searchResults['data']['tracks'])) {
             Log::warning("🔥 RapidAPI: No tracks in search results", [
                 'expected_path' => 'data.tracks',
@@ -558,6 +560,12 @@ class RapidApiSpotifyService
             ]);
             return null;
         }
+
+        // Detect structure and extract tracks array
+        $isOfficialStructure = isset($searchResults['data']['tracks']['items']);
+        $tracks = $isOfficialStructure
+            ? ($searchResults['data']['tracks']['items'] ?? [])
+            : ($searchResults['data']['tracks'] ?? []);
 
         $cleanedExpectedArtist = $this->normalizeString($artistName);
         $cleanedExpectedTitle = $this->normalizeString($trackTitle);
@@ -567,15 +575,21 @@ class RapidApiSpotifyService
             'expected_title' => $trackTitle,
             'normalized_artist' => $cleanedExpectedArtist,
             'normalized_title' => $cleanedExpectedTitle,
-            'total_results' => count($searchResults['data']['tracks'])
+            'total_results' => count($tracks),
+            'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
         ]);
 
-        foreach ($searchResults['data']['tracks'] as $index => $trackWrapper) {
-            // Each track is wrapped in a 'data' object
+        foreach ($tracks as $index => $trackWrapper) {
+            // Each track might be wrapped in a 'data' object (RapidAPI structure)
             $track = $trackWrapper['data'] ?? $trackWrapper;
 
-            // Artist name is in artists.items[0].profile.name
-            $trackArtist = $track['artists']['items'][0]['profile']['name'] ?? '';
+            // Detect structure and extract artist name
+            // RapidAPI: artists.items[0].profile.name
+            // Official Spotify: artists[0].name
+            $isRapidApiStructure = isset($track['artists']['items']);
+            $trackArtist = $isRapidApiStructure
+                ? ($track['artists']['items'][0]['profile']['name'] ?? '')
+                : ($track['artists'][0]['name'] ?? '');
             $trackName = $track['name'] ?? '';
             $trackId = $track['id'] ?? null;
 
@@ -703,48 +717,123 @@ class RapidApiSpotifyService
     }
 
     /**
-     * Get similar artists recommendations using RapidAPI Spotify
-     * GET /artists/{artist_id}/related-artists
+     * Get similar artists recommendations using RapidAPI Spotify with 3-tier backup
+     * Uses artist_related endpoint
      */
     public function getSimilarArtists(string $artistId, int $limit = 20): array
     {
         try {
-            \Log::info('🎵 [RAPIDAPI SPOTIFY] Getting similar artists', [
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Getting similar artists with 3-tier backup', [
                 'artist_id' => $artistId,
                 'limit' => $limit,
                 'timestamp' => now()->toISOString()
             ]);
 
-            $params = [
-                'limit' => min($limit, 50) // API limit
-            ];
-
+            // Try primary API first (spotify81)
             $result = $this->makeRequest(
-                "/artists/{$artistId}/related-artists",
-                $params,
-                'spotify81.p.rapidapi.com',
-                config('services.rapidapi.key'),
+                '/artist_related',
+                ['id' => $artistId],
+                $this->primaryHost,
+                $this->apiKey,
                 'Spotify81'
             );
 
             if ($result['success'] && isset($result['data']['artists'])) {
-                $artists = $this->formatArtistsArray($result['data']['artists']);
-                \Log::info('🎵 [RAPIDAPI SPOTIFY] Similar artists successful', [
-                    'artist_id' => $artistId,
-                    'found_count' => count($artists),
-                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $artists), 0, 3)
-                ]);
-                return $artists;
+                // Detect structure and extract artists array
+                $isOfficialStructure = isset($result['data']['artists']['items']);
+                $artistsData = $isOfficialStructure
+                    ? ($result['data']['artists']['items'] ?? [])
+                    : ($result['data']['artists'] ?? []);
+
+                if (!empty($artistsData)) {
+                    $artists = $this->formatArtistsArray($artistsData);
+                    \Log::info('🎵 [RAPIDAPI SPOTIFY] Primary similar artists successful', [
+                        'provider' => 'Spotify81',
+                        'artist_id' => $artistId,
+                        'found_count' => count($artists),
+                        'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
+                    ]);
+                    return $artists;
+                }
             }
 
-            \Log::warning('🎵 [RAPIDAPI SPOTIFY] Similar artists returned no results', [
-                'artist_id' => $artistId,
-                'result_success' => $result['success'] ?? false,
-                'has_artists' => isset($result['data']['artists'])
+            // If primary failed, try backup (spotify-web2)
+            \Log::warning('🎵 [RAPIDAPI SPOTIFY] Primary failed, trying backup', [
+                'primary_error' => $result['error'] ?? 'Unknown error',
+                'backup_provider' => 'SpotifyWeb2'
             ]);
+
+            $backupResult = $this->makeRequest(
+                '/artist_related',
+                ['id' => $artistId],
+                $this->backupHost,
+                $this->backupApiKey,
+                'SpotifyWeb2'
+            );
+
+            if ($backupResult['success'] && isset($backupResult['data']['artists'])) {
+                // Detect structure and extract artists array
+                $isOfficialStructure = isset($backupResult['data']['artists']['items']);
+                $artistsData = $isOfficialStructure
+                    ? ($backupResult['data']['artists']['items'] ?? [])
+                    : ($backupResult['data']['artists'] ?? []);
+
+                if (!empty($artistsData)) {
+                    $artists = $this->formatArtistsArray($artistsData);
+                    \Log::info('🎵 [RAPIDAPI SPOTIFY] Backup similar artists successful', [
+                        'provider' => 'SpotifyWeb2',
+                        'artist_id' => $artistId,
+                        'found_count' => count($artists),
+                        'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
+                    ]);
+                    return $artists;
+                }
+            }
+
+            // If backup failed, try tertiary (spotify23)
+            \Log::warning('🎵 [RAPIDAPI SPOTIFY] Backup failed, trying tertiary', [
+                'backup_error' => $backupResult['error'] ?? 'Unknown error',
+                'tertiary_provider' => 'Spotify23'
+            ]);
+
+            $tertiaryResult = $this->makeRequest(
+                '/artist_related',
+                ['id' => $artistId],
+                $this->tertiaryHost,
+                $this->tertiaryApiKey,
+                'Spotify23'
+            );
+
+            if ($tertiaryResult['success'] && isset($tertiaryResult['data']['artists'])) {
+                // Detect structure and extract artists array
+                $isOfficialStructure = isset($tertiaryResult['data']['artists']['items']);
+                $artistsData = $isOfficialStructure
+                    ? ($tertiaryResult['data']['artists']['items'] ?? [])
+                    : ($tertiaryResult['data']['artists'] ?? []);
+
+                if (!empty($artistsData)) {
+                    $artists = $this->formatArtistsArray($artistsData);
+                    \Log::info('🎵 [RAPIDAPI SPOTIFY] Tertiary similar artists successful', [
+                        'provider' => 'Spotify23',
+                        'artist_id' => $artistId,
+                        'found_count' => count($artists),
+                        'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
+                    ]);
+                    return $artists;
+                }
+            }
+
+            // All APIs failed
+            \Log::error('🎵 [RAPIDAPI SPOTIFY] All similar artists APIs failed', [
+                'artist_id' => $artistId,
+                'primary_error' => $result['error'] ?? 'Unknown',
+                'backup_error' => $backupResult['error'] ?? 'Unknown',
+                'tertiary_error' => $tertiaryResult['error'] ?? 'Unknown'
+            ]);
+
             return [];
         } catch (\Exception $e) {
-            \Log::error('🎵 [RAPIDAPI SPOTIFY] Similar artists failed', [
+            \Log::error('🎵 [RAPIDAPI SPOTIFY] Similar artists failed with exception', [
                 'artist_id' => $artistId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()

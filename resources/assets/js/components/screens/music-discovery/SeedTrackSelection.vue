@@ -293,8 +293,21 @@ const onSearchInput = () => {
 
 // Manual search functionality
 const performSearch = () => {
+  console.log('🔎 [SEED] performSearch clicked', {
+    hasPendingTrack: !!pendingTrack.value,
+    hasQuery: !!searchQuery.value.trim(),
+    hasSelectedTrack: !!props.selectedTrack,
+    hasRecommendations: !!props.hasRecommendations,
+    emptySlotCount: props.emptySlotCount,
+    currentBatchHasBannedItems: props.currentBatchHasBannedItems,
+  })
   // If we have a pending track from dropdown, select it and search for related tracks
   if (pendingTrack.value) {
+    console.log('🔎 [SEED] Selecting pending track and starting related search', {
+      trackId: pendingTrack.value.id,
+      artist: pendingTrack.value.artist,
+      title: pendingTrack.value.name,
+    })
     selectSeedTrack(pendingTrack.value)
     pendingTrack.value = null
     return
@@ -302,6 +315,7 @@ const performSearch = () => {
 
   // If user has typed a search query, prioritize searching for new tracks
   if (searchQuery.value.trim()) {
+    console.log('🔎 [SEED] Manual query search path')
     searchTracks()
     return
   }
@@ -309,12 +323,14 @@ const performSearch = () => {
   // If there's already a selected seed track and recommendations, this is a refresh search
   // This only triggers when search query is empty
   if (props.selectedTrack && props.hasRecommendations) {
+    console.log('🔎 [SEED] Refresh search path (Search Again) with selected track and recommendations present')
     handleSearchAgain()
     return
   }
 
   // If there are empty slots, this is a search again to refill
   if (props.emptySlotCount > 0) {
+    console.log('🔎 [SEED] Empty slots present, triggering Search Again')
     handleSearchAgain()
   }
 }
@@ -389,6 +405,12 @@ const clearSeedTrack = () => {
 }
 
 const getRelatedTracks = (track: Track, isRefresh = false) => {
+  console.log('📨 [SEED] Emitting related-tracks', {
+    isRefresh,
+    trackId: track?.id,
+    artist: track?.artist,
+    title: track?.name,
+  })
   // Clear search results when getting related tracks to prevent overlay
   searchResults.value = []
   searchQuery.value = ''
@@ -403,10 +425,31 @@ const getRelatedTracks = (track: Track, isRefresh = false) => {
 
 // Handle search button click when there's already a selected seed track
 const handleSearchAgain = () => {
-  if (props.selectedTrack && props.hasRecommendations) {
+  console.log('🔁 [SEED] handleSearchAgain invoked', {
+    hasSelectedTrack: !!props.selectedTrack,
+    hasRecommendations: !!props.hasRecommendations,
+    emptySlotCount: props.emptySlotCount,
+    currentBatchHasBannedItems: props.currentBatchHasBannedItems,
+  })
+  if (
+    props.selectedTrack
+    && (props.hasRecommendations || props.emptySlotCount > 0 || props.currentBatchHasBannedItems)
+  ) {
     // This is a refresh - user wants to see more tracks from the queue
+    console.log('🔁 [SEED] Emitting refresh for selected track', {
+      trackId: props.selectedTrack.id,
+      artist: props.selectedTrack.artist,
+      title: props.selectedTrack.name,
+    })
     getRelatedTracks(props.selectedTrack, true) // true = refresh search
     // The parent will reset currentBatchHasBannedItems flag after refill
+  } else {
+    console.log('🔁 [SEED] Refresh conditions not met, not emitting', {
+      hasSelectedTrack: !!props.selectedTrack,
+      hasRecommendations: !!props.hasRecommendations,
+      emptySlotCount: props.emptySlotCount,
+      currentBatchHasBannedItems: props.currentBatchHasBannedItems,
+    })
   }
 }
 

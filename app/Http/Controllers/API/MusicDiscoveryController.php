@@ -140,24 +140,29 @@ class MusicDiscoveryController extends Controller
                 $rapidApiSearchResults = $this->rapidApiSpotifyService->searchTracks($query, 20, 'tracks');
             }
 
+            // Detect structure and extract tracks array
+            $isOfficialStructure = isset($rapidApiSearchResults['data']['tracks']['items']);
+            $tracks = $isOfficialStructure
+                ? ($rapidApiSearchResults['data']['tracks']['items'] ?? [])
+                : ($rapidApiSearchResults['data']['tracks'] ?? []);
+
             Log::info("🔍 RapidAPI Spotify search results", [
                 'artist' => $artistName,
                 'title' => $trackTitle,
                 'found_results' => !empty($rapidApiSearchResults),
                 'has_data' => isset($rapidApiSearchResults['data']),
-                'track_count' => isset($rapidApiSearchResults['data']['tracks']) ? count($rapidApiSearchResults['data']['tracks']) : 0
+                'track_count' => count($tracks),
+                'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
             ]);
             $spotifyTrackId = null;
 
-            if ($rapidApiSearchResults && isset($rapidApiSearchResults['data']['tracks'])) {
-                $tracks = $rapidApiSearchResults['data']['tracks'];
-
+            if ($rapidApiSearchResults && !empty($tracks)) {
                 Log::info("🔍 Using RapidAPI search results for track matching", [
                     'total_results' => count($tracks),
                     'first_result' => [
-                        'id' => $tracks[0]['data']['id'] ?? 'unknown',
-                        'artist' => $tracks[0]['data']['artists']['items'][0]['profile']['name'] ?? 'unknown',
-                        'title' => $tracks[0]['data']['name'] ?? 'unknown'
+                        'id' => $tracks[0]['data']['id'] ?? $tracks[0]['id'] ?? 'unknown',
+                        'artist' => $tracks[0]['data']['artists']['items'][0]['profile']['name'] ?? $tracks[0]['artists'][0]['name'] ?? 'unknown',
+                        'title' => $tracks[0]['data']['name'] ?? $tracks[0]['name'] ?? 'unknown'
                     ]
                 ]);
 
@@ -322,14 +327,19 @@ class MusicDiscoveryController extends Controller
                 Log::info('🔍 [BACKEND] Using RapidAPI Spotify for search', ['query' => $query, 'limit' => $limit]);
                 $result = $this->rapidApiSpotifyService->searchTracks($query, $limit, 'tracks');
 
-                // RapidAPI returns data.tracks[] not data.tracks.items[]
-                $tracks = $result['data']['tracks'] ?? [];
+                // Different providers return different structures
+                // Official Spotify structure: data.tracks.items[]
+                // RapidAPI structure: data.tracks[]
+                $isOfficialStructure = isset($result['data']['tracks']['items']);
+                $tracks = $isOfficialStructure
+                    ? ($result['data']['tracks']['items'] ?? [])
+                    : ($result['data']['tracks'] ?? []);
 
                 Log::info('🔍 [BACKEND] RapidAPI Spotify search results', [
                     'success' => $result['success'] ?? false,
                     'has_data' => isset($result['data']),
                     'items_count' => count($tracks),
-                    'structure' => isset($result['data']['tracks']['items']) ? 'official_spotify' : 'rapidapi'
+                    'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
                 ]);
 
                 if ($result['success'] && !empty($tracks)) {
@@ -1154,12 +1164,12 @@ class MusicDiscoveryController extends Controller
 
     /**
      * Parse raw RapidAPI search response and format for frontend
-     * RapidAPI structure: data.tracks[].data.{id, name, artists.items[].profile.name, ...}
+     * Supports both RapidAPI and Official Spotify structures
      */
     private function parseRawRapidApiTracks(array $tracks): array
     {
         return array_filter(array_map(function ($trackWrapper) {
-            // Each track is wrapped in a 'data' object
+            // Each track might be wrapped in a 'data' object (RapidAPI structure)
             $track = $trackWrapper['data'] ?? $trackWrapper;
 
             // Skip tracks without required fields
@@ -1167,33 +1177,61 @@ class MusicDiscoveryController extends Controller
                 \Log::warning('🚫 Skipping track without id or name', [
                     'has_id' => isset($track['id']),
                     'has_name' => isset($track['name']),
-                    'track_keys' => array_keys($track)
+                    'track_keys' => is_array($track) ? array_keys($track) : gettype($track)
                 ]);
                 return null;
             }
 
             $trackId = $track['id'];
 
+            // Detect structure: RapidAPI has nested artists.items, Official has direct artists array
+            $isRapidApiStructure = isset($track['artists']['items']);
+
+            // Extract artist info based on structure
+            if ($isRapidApiStructure) {
+                // RapidAPI structure: artists.items[].profile.name
+                $primaryArtist = $track['artists']['items'][0]['profile']['name'] ?? 'Unknown Artist';
+                $artists = array_map(fn($artist) => [
+                    'id' => str_replace('spotify:artist:', '', $artist['uri'] ?? ''),
+                    'name' => $artist['profile']['name'] ?? 'Unknown'
+                ], $track['artists']['items'] ?? []);
+            } else {
+                // Official Spotify structure: artists[].name
+                $primaryArtist = $track['artists'][0]['name'] ?? 'Unknown Artist';
+                $artists = array_map(fn($artist) => [
+                    'id' => $artist['id'] ?? '',
+                    'name' => $artist['name'] ?? 'Unknown'
+                ], $track['artists'] ?? []);
+            }
+
+            // Extract album info based on structure
+            if ($isRapidApiStructure) {
+                $albumName = $track['albumOfTrack']['name'] ?? 'Unknown Album';
+                $albumImage = $track['albumOfTrack']['coverArt']['sources'][0]['url'] ?? null;
+                $durationMs = $track['duration']['totalMilliseconds'] ?? 0;
+            } else {
+                $albumName = $track['album']['name'] ?? 'Unknown Album';
+                $albumImage = $track['album']['images'][0]['url'] ?? null;
+                $durationMs = $track['duration_ms'] ?? 0;
+            }
+
             return [
                 'id' => $trackId,
                 'name' => $track['name'],
-                'artist' => $track['artists']['items'][0]['profile']['name'] ?? 'Unknown Artist',
-                'artists' => array_map(fn($artist) => [
-                    'id' => str_replace('spotify:artist:', '', $artist['uri'] ?? ''),
-                    'name' => $artist['profile']['name'] ?? 'Unknown'
-                ], $track['artists']['items'] ?? []),
-                'album' => $track['albumOfTrack']['name'] ?? 'Unknown Album',
-                'album_image' => $track['albumOfTrack']['coverArt']['sources'][0]['url'] ?? null,
-                'image' => $track['albumOfTrack']['coverArt']['sources'][0]['url'] ?? null,
-                'duration_ms' => $track['duration']['totalMilliseconds'] ?? 0,
-                'duration' => $this->formatDuration($track['duration']['totalMilliseconds'] ?? 0),
-                'preview_url' => null, // RapidAPI doesn't provide preview URLs
-                'external_url' => "https://open.spotify.com/track/{$trackId}",
-                'popularity' => 0, // Not available in search response
-                'release_date' => null, // Not available in search response
+                'artist' => $primaryArtist,
+                'artists' => $artists,
+                'album' => $albumName,
+                'album_image' => $albumImage,
+                'image' => $albumImage,
+                'duration_ms' => $durationMs,
+                'duration' => $this->formatDuration($durationMs),
+                'preview_url' => $track['preview_url'] ?? null,
+                'external_url' => $track['external_urls']['spotify'] ?? "https://open.spotify.com/track/{$trackId}",
+                'popularity' => $track['popularity'] ?? 0,
+                'release_date' => $track['album']['release_date'] ?? null,
                 'label' => null,
                 'followers' => null,
-                'external_ids' => [], // Add ISRC if available
+                'external_ids' => $track['external_ids'] ?? [],
             ];
         }, $tracks));
     }

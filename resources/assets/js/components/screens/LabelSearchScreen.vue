@@ -574,17 +574,17 @@ const refillFromQueue = () => {
   // Flush pending auto-banned tracks first
   flushPendingAutoBans()
 
-  // Find empty slots
-  const emptySlots: number[] = []
+  // Count how many empty slots we have
+  let emptyCount = 0
   for (let i = 0; i < 20; i++) {
     if (slotMap.value[i] === null || slotMap.value[i] === undefined) {
-      emptySlots.push(i)
+      emptyCount++
     }
   }
 
-  console.log(`🔄 [LABEL SEARCH] Found ${emptySlots.length} empty slots to fill`)
+  console.log(`🔄 [LABEL SEARCH] Found ${emptyCount} empty slots to fill`)
 
-  if (emptySlots.length === 0) {
+  if (emptyCount === 0) {
     console.log(`🔄 [LABEL SEARCH] No empty slots to refill`)
     userHasBannedItems.value = false
     return
@@ -592,30 +592,56 @@ const refillFromQueue = () => {
 
   userHasBannedItems.value = false
 
+  // Filter queue to remove tracks by banned artists
+  const filteredQueue = trackQueue.value.filter(track => {
+    const isBanned = bannedArtists.value.has(track.artist_name)
+    if (isBanned) {
+      console.log(`🔄 [LABEL SEARCH] Skipping track by banned artist: ${track.artist_name} - ${track.track_name}`)
+    }
+    return !isBanned
+  })
+
+  // Update queue to only contain non-banned tracks
+  trackQueue.value = filteredQueue
+
   const availableInQueue = trackQueue.value.length
-  console.log(`🔄 [LABEL SEARCH] Queue has ${availableInQueue} tracks available`)
+  console.log(`🔄 [LABEL SEARCH] Queue has ${availableInQueue} tracks available (after filtering banned artists)`)
 
   if (availableInQueue === 0) {
     console.log(`⚠️ [LABEL SEARCH] Queue is empty - cannot refill`)
     return
   }
 
-  // Fill empty slots from queue
-  let filledCount = 0
-  for (const slotNumber of emptySlots) {
-    if (trackQueue.value.length === 0) {
-      break
+  // Compact existing tracks to the front, then add new tracks at the end
+  const existingTracks: any[] = []
+  for (let i = 0; i < 20; i++) {
+    const track = slotMap.value[i]
+    if (track !== null && track !== undefined) {
+      existingTracks.push(track)
     }
+  }
 
+  console.log(`🔄 [LABEL SEARCH] Compacted ${existingTracks.length} existing tracks`)
+
+  // Add new tracks from queue to fill up to 20 slots
+  let filledCount = 0
+  const tracksNeeded = Math.min(emptyCount, trackQueue.value.length)
+  
+  for (let i = 0; i < tracksNeeded; i++) {
     const nextTrack = trackQueue.value.shift()
     if (nextTrack) {
-      slotMap.value[slotNumber] = nextTrack
-      console.log(`🔄 [LABEL SEARCH] Filled slot ${slotNumber}`)
+      existingTracks.push(nextTrack)
       filledCount++
     }
   }
 
-  console.log(`🔄 [LABEL SEARCH] Filled ${filledCount} slots, ${trackQueue.value.length} tracks remaining in queue`)
+  // Rebuild slot map with compacted tracks (existing first, new at end)
+  slotMap.value = {}
+  for (let i = 0; i < existingTracks.length; i++) {
+    slotMap.value[i] = existingTracks[i]
+  }
+
+  console.log(`🔄 [LABEL SEARCH] Refilled with ${filledCount} new tracks at bottom, ${trackQueue.value.length} tracks remaining in queue`)
 }
 
 // Mark track as listened and auto-ban if toggle is ON
@@ -711,6 +737,9 @@ const togglePreview = track => {
 }
 
 const saveTrack = async track => {
+  // Close any open preview dropdown before saving (prevents animation glitch)
+  expandedTrackId.value = null
+  
   try {
     if (track.isSaved) {
       // Remove from saved tracks - update UI immediately for better UX
@@ -755,6 +784,17 @@ const saveTrack = async track => {
     } else {
       // Save track - Update UI immediately for instant feedback
       track.isSaved = true
+      
+      // IMMEDIATELY remove track from table for instant UX (before API calls)
+      const trackKey = getTrackKey(track)
+      for (let i = 0; i < 20; i++) {
+        if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
+          slotMap.value[i] = null
+          console.log(`💾 [LABEL SEARCH] Saved track - immediately removed from slot ${i}`)
+          userHasBannedItems.value = true
+          break
+        }
+      }
 
       // Do backend work in background without blocking UI
       try {
@@ -834,33 +874,36 @@ const saveTrack = async track => {
         console.log('🎵 [LABEL SEARCH] Save response:', response)
 
         if (response.success) {
-          // ALSO add to blacklist when saving (for fresh discovery results)
-          // BUT don't update the UI blacklist state - only the backend
+          // Update localStorage timestamp to trigger cross-tab refresh
+          localStorage.setItem('track-saved-timestamp', Date.now().toString())
+          
+          // Blacklist the track in backend (UI already updated)
+          console.log('🎵 [LABEL SEARCH] Track saved successfully, blacklisting in backend...')
+          
           try {
             const blacklistResponse = await http.post('music-preferences/blacklist-track', {
+              spotify_id: track.spotify_id,
               isrc: track.isrc,
               track_name: track.track_name,
               artist_name: track.artist_name,
             })
-
+            
             if (blacklistResponse.success) {
-              // DON'T update track.isBanned - keep ban button gray
-              // The track is blacklisted in the backend, but we don't show it as "banned" in the UI
-              console.log('✅ Track added to blacklist on save (silent):', track.track_name)
-
+              track.isBanned = true
+              blacklistedTracks.value.add(trackKey)
+              console.log('✅ [LABEL SEARCH] Track blacklisted in backend:', track.track_name)
+              
               // Trigger BannedTracksScreen refresh
               window.dispatchEvent(new CustomEvent('track-blacklisted', {
-                detail: { track, trackKey: getTrackKey(track) },
+                detail: { track, trackKey },
               }))
               localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+            } else {
+              console.warn('⚠️ [LABEL SEARCH] Failed to blacklist in backend:', blacklistResponse.error)
             }
           } catch (error) {
-            console.warn('Failed to add track to blacklist on save:', error)
-            // Don't fail the save operation if blacklisting fails
+            console.error('❌ [LABEL SEARCH] Error blacklisting track:', error)
           }
-
-          // Update localStorage timestamp to trigger cross-tab refresh
-          localStorage.setItem('track-saved-timestamp', Date.now().toString())
         } else {
           // Revert UI change on failure
           track.isSaved = false
@@ -1151,6 +1194,8 @@ const banArtist = async (track: any) => {
   if (isCurrentlyBanned) {
     console.log(`🔓 UNBANNING artist: ${artistName}`)
     bannedArtists.value.delete(artistName)
+    // Force reactive update by creating a new Set
+    bannedArtists.value = new Set(bannedArtists.value)
     saveBannedArtists()
     console.log(`🔴 Banned artists after unban:`, Array.from(bannedArtists.value))
 
@@ -1169,6 +1214,8 @@ const banArtist = async (track: any) => {
   } else {
     console.log(`🚫 BANNING artist: ${artistName}`)
     bannedArtists.value.add(artistName)
+    // Force reactive update by creating a new Set
+    bannedArtists.value = new Set(bannedArtists.value)
     saveBannedArtists()
     console.log(`🔴 Banned artists after ban:`, Array.from(bannedArtists.value))
 
@@ -1182,20 +1229,35 @@ const banArtist = async (track: any) => {
     } catch (apiError: any) {
       console.error('Failed to add artist to blacklist:', apiError)
     }
-  }
 
-  // NOTE: Tracks from banned artists stay visible in current results
-  // Filtering only happens when you perform a new search (matches SimilarArtistsScreen behavior)
-  console.log(`${isCurrentlyBanned ? '✅ Unbanned' : '🚫 Banned'} artist "${artistName}" - stays visible in current results`)
+    // Remove all tracks by this artist from the slot system
+    let removedCount = 0
+    for (let i = 0; i < 20; i++) {
+      const slotTrack = slotMap.value[i]
+      if (slotTrack && slotTrack.artist_name === artistName) {
+        slotMap.value[i] = null
+        removedCount++
+        console.log(`🚫 [LABEL SEARCH] Removed track from slot ${i} (banned artist: ${artistName})`)
+      }
+    }
+
+    if (removedCount > 0) {
+      userHasBannedItems.value = true
+      console.log(`🚫 [LABEL SEARCH] Removed ${removedCount} tracks by banned artist "${artistName}"`)
+    }
+  }
 }
 
 // Clear search state function
 const clearSearchState = () => {
   tracks.value = []
+  slotMap.value = {}
+  trackQueue.value = []
   hasSearched.value = false
   lastSearchQuery.value = ''
   errorMessage.value = ''
   expandedTrackId.value = null
+  userHasBannedItems.value = false
   console.log('🏷️ [LABEL SEARCH] Search state cleared')
 }
 
@@ -1284,6 +1346,42 @@ watch(banListenedTracks, async (newValue, oldValue) => {
     if (tracksToAutoBan.length > 0) {
       userHasBannedItems.value = true
     }
+  }
+})
+
+// Watch search query - clear results when user modifies it
+watch(searchQuery, (newValue, oldValue) => {
+  // Only clear if there are existing results and the query actually changed
+  if (hasSearched.value && oldValue !== '' && newValue !== oldValue) {
+    console.log('🏷️ [LABEL SEARCH] Search query changed - clearing previous results')
+    clearSearchState()
+  }
+})
+
+// Watch Fresh Drops filter - clear results when toggled
+watch(freshDropsFilter, (newValue, oldValue) => {
+  // Only clear if there are existing results
+  if (hasSearched.value && newValue !== oldValue) {
+    console.log('🏷️ [LABEL SEARCH] Fresh Drops filter changed - clearing previous results')
+    clearSearchState()
+  }
+})
+
+// Watch Release Year filter - clear results when changed
+watch(releaseYearFilter, (newValue, oldValue) => {
+  // Only clear if there are existing results and the value actually changed
+  if (hasSearched.value && newValue !== oldValue) {
+    console.log('🏷️ [LABEL SEARCH] Release Year filter changed - clearing previous results')
+    clearSearchState()
+  }
+})
+
+// Watch Hidden Gems (popularity) filter - clear results when toggled
+watch(popularityFilter, (newValue, oldValue) => {
+  // Only clear if there are existing results
+  if (hasSearched.value && newValue !== oldValue) {
+    console.log('🏷️ [LABEL SEARCH] Hidden Gems filter changed - clearing previous results')
+    clearSearchState()
   }
 })
 

@@ -496,7 +496,9 @@ class SimilarArtistsController extends Controller
             // Fallback to regular Spotify client if we have artist name OR only artistId
             if ((!empty($artistName) || !empty($artistId)) && SpotifyService::enabled()) {
                 Log::info('🎵 [SIMILAR ARTISTS] Falling back to regular Spotify client');
-                
+
+                $spotifyArtist = null;
+
                 // If we already have artistId, use it; otherwise search by name
                 if (empty($artistId)) {
                     $artistResults = $this->spotifyClient->search($artistName, 'artist', ['limit' => 10]);
@@ -508,7 +510,6 @@ class SimilarArtistsController extends Controller
                         ]);
                     }
                     // Find exact match or fallback to first
-                    $spotifyArtist = null;
                     $artistNameLower = strtolower($artistName);
                     foreach ($artistResults['artists']['items'] as $artist) {
                         if (strtolower($artist['name']) === $artistNameLower) {
@@ -520,8 +521,23 @@ class SimilarArtistsController extends Controller
                         $spotifyArtist = $artistResults['artists']['items'][0];
                     }
                     $artistId = $spotifyArtist['id'];
+                } else {
+                    // We have artistId, fetch artist details from Spotify
+                    $artistDetails = $this->spotifyClient->getArtist($artistId);
+                    if (!empty($artistDetails)) {
+                        $spotifyArtist = $artistDetails;
+                    }
                 }
-                
+
+                // If we still don't have artist details, return error
+                if (!$spotifyArtist) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Could not fetch artist details from Spotify',
+                        'data' => []
+                    ]);
+                }
+
                 // Get top tracks for the artist
                 $topTracksResult = $this->spotifyClient->getArtistTopTracks($artistId, ['market' => 'US']);
 
@@ -695,8 +711,19 @@ class SimilarArtistsController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
+
+                // Detect structure and extract artists array
+                // Official Spotify: data.artists.items[]
+                // RapidAPI: data.artists[]
+                $artistsData = null;
                 if (isset($data['artists']['items'])) {
-                    $artists = $this->formatUnlimitedAPIArtists($data['artists']['items']);
+                    $artistsData = $data['artists']['items'];
+                } elseif (isset($data['artists']) && is_array($data['artists'])) {
+                    $artistsData = $data['artists'];
+                }
+
+                if ($artistsData) {
+                    $artists = $this->formatUnlimitedAPIArtists($artistsData);
                     Log::info('🔍 [SIMILAR ARTISTS] UnlimitedAPI search successful', [
                         'query' => $query,
                         'count' => count($artists)
@@ -722,10 +749,41 @@ class SimilarArtistsController extends Controller
 
     /**
      * Format UnlimitedAPI artists to match expected format
+     * Handles both RapidAPI structure (with data.profile) and Official Spotify structure
      */
     private function formatUnlimitedAPIArtists(array $artists): array
     {
         return array_map(function ($artist) {
+            // Handle RapidAPI structure with nested data
+            if (isset($artist['data'])) {
+                $data = $artist['data'];
+                $profile = $data['profile'] ?? [];
+                $visuals = $data['visuals'] ?? [];
+
+                // Extract Spotify ID from URI
+                $spotifyId = null;
+                if (isset($data['uri']) && str_starts_with($data['uri'], 'spotify:artist:')) {
+                    $spotifyId = str_replace('spotify:artist:', '', $data['uri']);
+                }
+
+                // Extract images from visuals
+                $images = [];
+                if (isset($visuals['avatarImage']['sources'])) {
+                    $images = $visuals['avatarImage']['sources'];
+                }
+
+                return [
+                    'id' => $spotifyId,
+                    'name' => $profile['name'] ?? 'Unknown Artist',
+                    'followers' => $profile['followers'] ?? 0,
+                    'popularity' => $profile['popularity'] ?? 0,
+                    'genres' => $profile['genres'] ?? [],
+                    'external_url' => $profile['external_urls']['spotify'] ?? null,
+                    'images' => $images
+                ];
+            }
+
+            // Handle Official Spotify structure
             return [
                 'id' => $artist['id'] ?? null,
                 'name' => $artist['name'] ?? 'Unknown Artist',
@@ -760,9 +818,20 @@ class SimilarArtistsController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                if (isset($data['artists'])) {
+
+                // Detect structure and extract artists array
+                $artistsData = null;
+                if (isset($data['artists']['items'])) {
+                    // Official Spotify: artists.items[]
+                    $artistsData = $data['artists']['items'];
+                } elseif (isset($data['artists']) && is_array($data['artists'])) {
+                    // RapidAPI or direct array: artists[]
+                    $artistsData = $data['artists'];
+                }
+
+                if ($artistsData) {
                     // Don't limit the results - return all available artists for the queue system
-                    $artists = $this->formatUnlimitedAPIArtists($data['artists']);
+                    $artists = $this->formatUnlimitedAPIArtists($artistsData);
                     Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI similar artists successful', [
                         'artist_id' => $artistId,
                         'count' => count($artists),
@@ -810,33 +879,78 @@ class SimilarArtistsController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                if (isset($data['data']['artist']['discography']['popularReleases']['items'])) {
-                    $popularReleases = $data['data']['artist']['discography']['popularReleases']['items'];
-                    
-                    // Find first SINGLE type release
-                    foreach ($popularReleases as $item) {
-                        if (isset($item['releases']['items'][0])) {
-                            $release = $item['releases']['items'][0];
-                            if (isset($release['type']) && strtoupper($release['type']) === 'SINGLE') {
-                                $shareUrl = $release['sharingInfo']['shareUrl'] ?? null;
-                                $trackName = $release['name'] ?? 'Unknown Track';
-                                
-                                $tracks = [[
-                                    'id' => null,
-                                    'name' => $trackName,
-                                    'share_url' => $shareUrl,
-                                    'external_url' => $shareUrl,
-                                    'label' => $release['label'] ?? null
-                                ]];
-                                
-                                Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI preview successful', [
-                                    'artist_id' => $artistId,
-                                    'track_name' => $trackName
-                                ]);
-                                return $tracks;
-                            }
+
+                // First, try to get topTracks (preferred - has preview URLs)
+                if (isset($data['data']['artist']['discography']['topTracks']['items'])) {
+                    $topTracks = $data['data']['artist']['discography']['topTracks']['items'];
+
+                    Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI using topTracks', [
+                        'artist_id' => $artistId,
+                        'tracks_count' => count($topTracks)
+                    ]);
+
+                    // Sort by playcount (highest first) to get most popular tracks
+                    usort($topTracks, function($a, $b) {
+                        $aPlaycount = $a['track']['playcount'] ?? 0;
+                        $bPlaycount = $b['track']['playcount'] ?? 0;
+                        return $bPlaycount - $aPlaycount;
+                    });
+
+                    $tracks = [];
+                    foreach ($topTracks as $trackItem) {
+                        // Stop if we have enough non-remix tracks WITH preview URLs
+                        if (count($tracks) >= $limit) break;
+
+                        $topTrack = $trackItem['track'] ?? null;
+                        if (!$topTrack) continue;
+
+                        $trackId = $topTrack['id'] ?? null;
+                        $trackName = $topTrack['name'] ?? 'Unknown Track';
+
+                        // Skip remix tracks - only get non-remix tracks
+                        if ($this->isRemixTrack($trackName)) {
+                            continue;
+                        }
+
+                        $previewUrl = $topTrack['preview_url'] ?? null;
+
+                        // Skip tracks without preview URLs - we need playable tracks
+                        if (!$previewUrl) {
+                            Log::debug('🎵 [SIMILAR ARTISTS] Skipping track without preview', [
+                                'track_name' => $trackName
+                            ]);
+                            continue;
+                        }
+
+                        $artistName = $topTrack['artists']['items'][0]['profile']['name'] ?? 'Unknown';
+
+                        if ($trackId) {
+                            $tracks[] = [
+                                'id' => $trackId,
+                                'name' => $trackName,
+                                'artists' => [['name' => $artistName]],
+                                'preview_url' => $previewUrl,
+                                'external_url' => "https://open.spotify.com/track/{$trackId}",
+                                'duration_ms' => $topTrack['duration']['totalMilliseconds'] ?? null,
+                            ];
                         }
                     }
+
+                    if (!empty($tracks)) {
+                        Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI preview successful (topTracks)', [
+                            'artist_id' => $artistId,
+                            'track_name' => $tracks[0]['name'],
+                            'has_preview' => !empty($tracks[0]['preview_url']),
+                            'is_remix' => false
+                        ]);
+                        return $tracks;
+                    }
+
+                    // If no tracks with previews found, log and fall through to next provider
+                    Log::warning('🎵 [SIMILAR ARTISTS] UnlimitedAPI: No tracks with preview URLs found', [
+                        'artist_id' => $artistId,
+                        'tracks_checked' => count($topTracks)
+                    ]);
                 }
             }
 
@@ -915,8 +1029,19 @@ class SimilarArtistsController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
+
+                // Detect structure and extract artists array
+                // Official Spotify: data.artists.items[]
+                // RapidAPI: data.artists[]
+                $artistsData = null;
                 if (isset($data['artists']['items'])) {
-                    $artists = $this->formatSpotify23Artists($data['artists']['items']);
+                    $artistsData = $data['artists']['items'];
+                } elseif (isset($data['artists']) && is_array($data['artists'])) {
+                    $artistsData = $data['artists'];
+                }
+
+                if ($artistsData) {
+                    $artists = $this->formatSpotify23Artists($artistsData);
                     Log::info('🔍 [SIMILAR ARTISTS] Spotify23 search successful', [
                         'query' => $query,
                         'count' => count($artists)
@@ -962,9 +1087,20 @@ class SimilarArtistsController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                if (isset($data['artists'])) {
+
+                // Detect structure and extract artists array
+                $artistsData = null;
+                if (isset($data['artists']['items'])) {
+                    // Official Spotify: artists.items[]
+                    $artistsData = $data['artists']['items'];
+                } elseif (isset($data['artists']) && is_array($data['artists'])) {
+                    // RapidAPI or direct array: artists[]
+                    $artistsData = $data['artists'];
+                }
+
+                if ($artistsData) {
                     // Don't limit the results - return all available artists for the queue system
-                    $artists = $this->formatSpotify23Artists($data['artists']);
+                    $artists = $this->formatSpotify23Artists($artistsData);
                     Log::info('🎵 [SIMILAR ARTISTS] Spotify23 similar artists successful', [
                         'artist_id' => $artistId,
                         'count' => count($artists),
@@ -1124,33 +1260,78 @@ class SimilarArtistsController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                if (isset($data['data']['artist']['discography']['popularReleases']['items'])) {
-                    $popularReleases = $data['data']['artist']['discography']['popularReleases']['items'];
 
-                    // Find first SINGLE type release
-                    foreach ($popularReleases as $item) {
-                        if (isset($item['releases']['items'][0])) {
-                            $release = $item['releases']['items'][0];
-                            if (isset($release['type']) && strtoupper($release['type']) === 'SINGLE') {
-                                $shareUrl = $release['sharingInfo']['shareUrl'] ?? null;
-                                $trackName = $release['name'] ?? 'Unknown Track';
+                // First, try to get topTracks (preferred - has preview URLs)
+                if (isset($data['data']['artist']['discography']['topTracks']['items'])) {
+                    $topTracks = $data['data']['artist']['discography']['topTracks']['items'];
 
-                                $tracks = [[
-                                    'id' => null,
-                                    'name' => $trackName,
-                                    'share_url' => $shareUrl,
-                                    'external_url' => $shareUrl,
-                                    'label' => $release['label'] ?? null
-                                ]];
+                    Log::info('🎵 [SIMILAR ARTISTS] Spotify23 using topTracks', [
+                        'artist_id' => $artistId,
+                        'tracks_count' => count($topTracks)
+                    ]);
 
-                                Log::info('🎵 [SIMILAR ARTISTS] Spotify23 preview successful', [
-                                    'artist_id' => $artistId,
-                                    'track_name' => $trackName
-                                ]);
-                                return $tracks;
-                            }
+                    // Sort by playcount (highest first) to get most popular tracks
+                    usort($topTracks, function($a, $b) {
+                        $aPlaycount = $a['track']['playcount'] ?? 0;
+                        $bPlaycount = $b['track']['playcount'] ?? 0;
+                        return $bPlaycount - $aPlaycount;
+                    });
+
+                    $tracks = [];
+                    foreach ($topTracks as $trackItem) {
+                        // Stop if we have enough non-remix tracks WITH preview URLs
+                        if (count($tracks) >= $limit) break;
+
+                        $topTrack = $trackItem['track'] ?? null;
+                        if (!$topTrack) continue;
+
+                        $trackId = $topTrack['id'] ?? null;
+                        $trackName = $topTrack['name'] ?? 'Unknown Track';
+
+                        // Skip remix tracks - only get non-remix tracks
+                        if ($this->isRemixTrack($trackName)) {
+                            continue;
+                        }
+
+                        $previewUrl = $topTrack['preview_url'] ?? null;
+
+                        // Skip tracks without preview URLs - we need playable tracks
+                        if (!$previewUrl) {
+                            Log::debug('🎵 [SIMILAR ARTISTS] Skipping track without preview', [
+                                'track_name' => $trackName
+                            ]);
+                            continue;
+                        }
+
+                        $artistName = $topTrack['artists']['items'][0]['profile']['name'] ?? 'Unknown';
+
+                        if ($trackId) {
+                            $tracks[] = [
+                                'id' => $trackId,
+                                'name' => $trackName,
+                                'artists' => [['name' => $artistName]],
+                                'preview_url' => $previewUrl,
+                                'external_url' => "https://open.spotify.com/track/{$trackId}",
+                                'duration_ms' => $topTrack['duration']['totalMilliseconds'] ?? null,
+                            ];
                         }
                     }
+
+                    if (!empty($tracks)) {
+                        Log::info('🎵 [SIMILAR ARTISTS] Spotify23 preview successful (topTracks)', [
+                            'artist_id' => $artistId,
+                            'track_name' => $tracks[0]['name'],
+                            'has_preview' => !empty($tracks[0]['preview_url']),
+                            'is_remix' => false
+                        ]);
+                        return $tracks;
+                    }
+
+                    // If no tracks with previews found, log and fall through to next provider
+                    Log::warning('🎵 [SIMILAR ARTISTS] Spotify23: No tracks with preview URLs found', [
+                        'artist_id' => $artistId,
+                        'tracks_checked' => count($topTracks)
+                    ]);
                 }
             }
 
@@ -1170,10 +1351,41 @@ class SimilarArtistsController extends Controller
 
     /**
      * Format Spotify23 artists to match expected format
+     * Handles both RapidAPI structure (with data.profile) and Official Spotify structure
      */
     private function formatSpotify23Artists(array $artists): array
     {
         return array_map(function ($artist) {
+            // Handle RapidAPI structure with nested data
+            if (isset($artist['data'])) {
+                $data = $artist['data'];
+                $profile = $data['profile'] ?? [];
+                $visuals = $data['visuals'] ?? [];
+
+                // Extract Spotify ID from URI
+                $spotifyId = null;
+                if (isset($data['uri']) && str_starts_with($data['uri'], 'spotify:artist:')) {
+                    $spotifyId = str_replace('spotify:artist:', '', $data['uri']);
+                }
+
+                // Extract images from visuals
+                $images = [];
+                if (isset($visuals['avatarImage']['sources'])) {
+                    $images = $visuals['avatarImage']['sources'];
+                }
+
+                return [
+                    'id' => $spotifyId,
+                    'name' => $profile['name'] ?? 'Unknown Artist',
+                    'followers' => $profile['followers'] ?? 0,
+                    'popularity' => $profile['popularity'] ?? 0,
+                    'genres' => $profile['genres'] ?? [],
+                    'external_url' => $profile['external_urls']['spotify'] ?? null,
+                    'images' => $images
+                ];
+            }
+
+            // Handle Official Spotify structure
             return [
                 'id' => $artist['id'] ?? null,
                 'name' => $artist['name'] ?? 'Unknown Artist',

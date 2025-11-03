@@ -39,8 +39,8 @@
       <!-- Related Tracks Results Table -->
       <div id="related-tracks-section">
         <RecommendationsTable
-          ref="recommendationsTableRef"
           v-if="(allRecommendations.length > 0 || isDiscovering || errorMessage) && selectedSeedTrack"
+          ref="recommendationsTableRef"
           :key="`recommendations-${selectedSeedTrack.id}`"
           :recommendations="allRecommendations"
           :slot-map="slotMap"
@@ -264,10 +264,42 @@ const onClearRecommendations = () => {
 }
 
 const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
-  // If this is a refresh (user clicked "Search Again"), remove pending blacklisted items and refill from queue
+  console.log('📥 [DISCOVERY] onRelatedTracksRequested received', {
+    isRefresh,
+    trackId: track?.id,
+    artist: track?.artist,
+    title: track?.name,
+    queueLength: trackQueue.value.length,
+    emptySlotCount: emptySlotCount.value,
+    hasRecommendations: allRecommendations.value.length,
+  })
+  // If this is a refresh (user clicked "Search Again"), try refilling from queue.
+  // If the queue is empty (e.g., all tracks were blacklisted), fetch a fresh batch.
   if (isRefresh) {
-    console.log(`🔄 Search Again clicked - removing pending blacklisted items and refilling from queue`)
+    console.log(`🔄 [DISCOVERY] Search Again clicked - attempting to refill from queue or fetch new batch`)
+
+    const hadQueueBeforeRefill = trackQueue.value.length > 0
+    const emptySlotsBefore = emptySlotCount.value
+
     refillFromQueue()
+
+    const queueEmptyAfterRefill = trackQueue.value.length === 0
+    const stillHasEmptySlots = emptySlotCount.value > 0
+
+    console.log('🔄 [DISCOVERY] Post-refill state', {
+      hadQueueBeforeRefill,
+      emptySlotsBefore,
+      queueEmptyAfterRefill,
+      stillHasEmptySlots,
+      queueLengthAfter: trackQueue.value.length,
+      emptySlotCountAfter: emptySlotCount.value,
+    })
+
+    if (!hadQueueBeforeRefill || (queueEmptyAfterRefill && stillHasEmptySlots)) {
+      console.log(`🔄 [DISCOVERY] Queue empty or insufficient to fill slots - fetching new related tracks`)
+      await getRelatedTracks(track, false)
+    }
+
     return
   }
 
@@ -297,7 +329,10 @@ const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
 
 // Refill from queue: Fill only null/empty slots with queue tracks
 const refillFromQueue = () => {
-  console.log(`🔄 [SLOT SYSTEM] Starting refill from queue`)
+  console.log(`🔄 [SLOT SYSTEM] Starting refill from queue`, {
+    queueLength: trackQueue.value.length,
+    emptySlotCount: emptySlotCount.value,
+  })
 
   // Flush pending auto-banned tracks before refilling
   if (recommendationsTableRef.value) {
@@ -633,6 +668,24 @@ const getRelatedTracks = async (track: Track, isRefresh = false) => {
       const filteredCount = allTracks.length - filteredTracks.length
       console.log(`🔍 Filtered out ${filteredCount} OLD blacklisted tracks/artists`)
 
+      // If all tracks were filtered out, show error and clear empty slots
+      if (filteredTracks.length === 0) {
+        console.warn(`⚠️ [SLOT SYSTEM] All ${allTracks.length} tracks were blacklisted - no results available`)
+        errorMessage.value = `All ${allTracks.length} recommended tracks are blacklisted. Please unban some tracks or artists to see recommendations.`
+
+        // Clear existing empty slots since we can't fill them
+        slotMap.value = {}
+        displayedTracks.value = []
+        allRecommendations.value = []
+        trackQueue.value = []
+        totalTracks.value = 0
+        currentPage.value = 1
+
+        console.log(`✅ [SLOT SYSTEM] Cleared all slots - no tracks available after filtering`)
+        isDiscovering.value = false // Set to false so error message can be displayed
+        return
+      }
+
       // Determine how many to display and how many to queue
       const displayCount = Math.min(20, filteredTracks.length)
       const queueCount = Math.max(0, filteredTracks.length - 20)
@@ -711,6 +764,17 @@ const onPendingBlacklist = (identifier: string) => {
       // Set slot to null (creates empty slot)
       slotMap.value[slotNumber] = null
       console.log(`✅ [SLOT SYSTEM] Cleared slot ${slotNumber}: "${track.artist} - ${track.name}"`)
+      // Also add to session blacklist so subsequent fetches filter them out
+      if (matchesByID) {
+        try {
+          addTrackToBlacklist(track)
+        } catch {}
+      }
+      if (matchesByArtist) {
+        try {
+          addArtistToBlacklist(track.artist)
+        } catch {}
+      }
       removedCount++
     }
   })

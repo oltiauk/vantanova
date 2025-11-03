@@ -688,6 +688,15 @@ const saveTrack = async (track: Track) => {
     // Update UI immediately for instant feedback
     savedTracks.value.add(trackKey)
     clientUnsavedTracks.value.delete(trackKey)
+    
+    // IMMEDIATELY remove track from table for instant UX (before API calls)
+    // Emit pending-blacklist so parent removes it from slot
+    emit('pending-blacklist', track.id)
+    console.log(`💾 [RECS TABLE] Saved track - immediately removing from display: ${track.name}`)
+    
+    // Emit that user has done an action (for Search Again functionality)
+    emit('user-banned-item')
+    emit('current-batch-banned-item')
 
     try {
       // Generate a fallback ISRC if none exists
@@ -765,27 +774,29 @@ const saveTrack = async (track: Track) => {
       }
 
       // ALSO add to blacklist when saving (for fresh discovery results)
-      // BUT don't update the UI blacklist state - only the backend
       try {
         const blacklistResponse = await http.post('music-preferences/blacklist-track', {
+          spotify_id: spotifyId,
           isrc: isrcValue,
           track_name: track.name,
           artist_name: track.artist
         })
 
         if (blacklistResponse.success) {
-          // DON'T update blacklistedTracks.value - keep ban button gray
-          // The track is blacklisted in the backend, but we don't show it as "banned" in the UI
-          console.log('✅ Track added to blacklist on save (silent):', track.name)
+          // Update local blacklist state
+          blacklistedTracks.value.add(trackKey)
+          console.log('✅ [RECS TABLE] Track blacklisted in backend:', track.name)
 
           // Trigger BannedTracksScreen refresh
           window.dispatchEvent(new CustomEvent('track-blacklisted', {
             detail: { track: track, trackKey: trackKey }
           }))
           localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+        } else {
+          console.warn('⚠️ [RECS TABLE] Failed to blacklist in backend:', blacklistResponse.error)
         }
       } catch (error) {
-        console.warn('Failed to add track to blacklist on save:', error)
+        console.error('❌ [RECS TABLE] Error blacklisting track:', error)
         // Don't fail the save operation if blacklisting fails
       }
 
