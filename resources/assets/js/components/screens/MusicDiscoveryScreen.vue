@@ -30,6 +30,7 @@
         :queue-key="currentQueueKey"
         :current-batch-has-banned-items="userHasBannedItems"
         :empty-slot-count="emptySlotCount"
+        :queue-exhausted="queueExhausted"
         @track-selected="onTrackSelected"
         @related-tracks="(track, isRefresh) => onRelatedTracksRequested(track, isRefresh)"
         @search-results-changed="onSearchResultsChanged"
@@ -163,6 +164,7 @@ const slotMap = ref<Record<number, Track | null>>({})
 const hasMoreInQueue = ref(false) // Track if more results available
 const currentQueueKey = ref<string | null>(null) // Session key for queue
 const userHasBannedItems = ref(false) // Track if user has banned items since last search
+const queueExhausted = ref(false) // Track when all tracks from queue have been displayed
 
 // Pagination state
 const currentPage = ref(1)
@@ -261,6 +263,7 @@ const onClearRecommendations = () => {
   hasMoreInQueue.value = false
   currentQueueKey.value = null
   userHasBannedItems.value = false
+  queueExhausted.value = false
 }
 
 const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
@@ -272,10 +275,17 @@ const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
     queueLength: trackQueue.value.length,
     emptySlotCount: emptySlotCount.value,
     hasRecommendations: allRecommendations.value.length,
+    queueExhausted: queueExhausted.value,
   })
   // If this is a refresh (user clicked "Search Again"), try refilling from queue.
   // If the queue is empty (e.g., all tracks were blacklisted), fetch a fresh batch.
   if (isRefresh) {
+    // If queue is exhausted, don't make another API call
+    if (queueExhausted.value && trackQueue.value.length === 0) {
+      console.log(`⚠️ [DISCOVERY] Queue exhausted - no more tracks available, skipping API call`)
+      return
+    }
+
     console.log(`🔄 [DISCOVERY] Search Again clicked - attempting to refill from queue or fetch new batch`)
 
     const hadQueueBeforeRefill = trackQueue.value.length > 0
@@ -295,9 +305,24 @@ const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
       emptySlotCountAfter: emptySlotCount.value,
     })
 
-    if (!hadQueueBeforeRefill || (queueEmptyAfterRefill && stillHasEmptySlots)) {
-      console.log(`🔄 [DISCOVERY] Queue empty or insufficient to fill slots - fetching new related tracks`)
-      await getRelatedTracks(track, false)
+    // If queue is empty after refill, all tracks from the original fetch have been displayed
+    // refillFromQueue already marks queueExhausted when queue becomes empty
+    if (queueEmptyAfterRefill) {
+      // Queue is exhausted - all originally fetched tracks have been displayed
+      // Don't fetch more tracks, just show "No More Tracks" message
+      if (!queueExhausted.value) {
+        console.log(`⚠️ [DISCOVERY] Queue exhausted after refill - all tracks have been displayed`)
+        queueExhausted.value = true
+      }
+      console.log(`⚠️ [DISCOVERY] Queue exhausted - not making another API call`)
+      return
+    }
+
+    // If queue was empty before refill (shouldn't happen, but handle it)
+    if (!hadQueueBeforeRefill) {
+      console.log(`⚠️ [DISCOVERY] Queue was empty before refill - all tracks have been displayed`)
+      queueExhausted.value = true
+      return
     }
 
     return
@@ -311,6 +336,7 @@ const onRelatedTracksRequested = async (track: Track, isRefresh = false) => {
   hasMoreInQueue.value = false
   currentQueueKey.value = null
   userHasBannedItems.value = false // Reset banned items flag on new search
+  queueExhausted.value = false // Reset exhausted state for new search
 
   // Get related tracks from API
   await getRelatedTracks(track, false)
@@ -389,6 +415,12 @@ const refillFromQueue = () => {
   console.log(`🔄 [SLOT SYSTEM] Filled ${filledCount} slots, ${trackQueue.value.length} tracks remaining in queue`)
   console.log(`🔄 [SLOT SYSTEM] Refill complete: ${allRecommendations.value.length} filled slots, ${remainingEmptySlots} empty slots remaining`)
   console.log(`🔄 [SLOT SYSTEM] Search Again button should now be ${remainingEmptySlots > 0 ? 'VISIBLE' : 'HIDDEN'}`)
+  
+  // Mark queue as exhausted if queue is empty after refill (all originally fetched tracks have been displayed)
+  if (trackQueue.value.length === 0) {
+    queueExhausted.value = true
+    console.log(`⚠️ [SLOT SYSTEM] Queue exhausted - all tracks from queue have been displayed`)
+  }
 }
 
 const getSeedTrackKey = async (trackId: string) => {
@@ -705,6 +737,9 @@ const getRelatedTracks = async (track: Track, isRefresh = false) => {
       allRecommendations.value = displayedTracks.value
       totalTracks.value = displayedTracks.value.length
       currentPage.value = 1
+
+      // Reset exhausted state when new tracks are fetched
+      queueExhausted.value = false
 
       console.log(`✅ [SLOT SYSTEM] Initialized ${initialTracks.length} slots, ${queueCount} tracks queued (${allTracks.length} total fetched, ${filteredCount} OLD blacklisted filtered out)`)
 

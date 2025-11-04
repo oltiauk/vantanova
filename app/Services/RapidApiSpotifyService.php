@@ -586,7 +586,7 @@ class RapidApiSpotifyService
 
             // Other errors (4xx, 5xx)
             // Circuit Breaker: Record failure
-            $this->recordFailure($provider);-
+            $this->recordFailure($provider);
             return [
                 'success' => false,
                 'error' => $response->body(),

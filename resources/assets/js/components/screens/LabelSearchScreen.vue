@@ -89,11 +89,13 @@
 
           <!-- Search Again Button (shows when there are banned/listened tracks) -->
           <button
-            v-if="(emptySlotCount > 0 || userHasBannedItems) && hasSearched"
-            class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium hover:bg-gray-500 transition-colors"
+            v-if="(emptySlotCount > 0 || userHasBannedItems || queueExhausted) && hasSearched"
+            :disabled="queueExhausted"
+            class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             @click="refillFromQueue"
           >
-            <span v-if="emptySlotCount > 0">Search Again</span>
+            <span v-if="queueExhausted">No More Tracks</span>
+            <span v-else-if="emptySlotCount > 0">Search Again</span>
             <span v-else>Search Again</span>
           </button>
         </div>
@@ -359,6 +361,7 @@ const bannedArtists = ref(new Set<string>())
 const slotMap = ref<Record<number, any | null>>({})
 const trackQueue = ref<any[]>([]) // Queue for refilling
 const userHasBannedItems = ref(false)
+const queueExhausted = ref(false) // Track when all tracks from queue have been displayed
 
 // Ban listened tracks feature
 const banListenedTracks = ref(false)
@@ -527,6 +530,7 @@ const performSearch = async () => {
     slotMap.value = {}
     trackQueue.value = []
     userHasBannedItems.value = false
+    queueExhausted.value = false // Reset exhausted state for new search
 
     for (let i = 0; i < Math.min(20, allTracks.length); i++) {
       slotMap.value[i] = allTracks[i]
@@ -569,6 +573,12 @@ const performSearch = async () => {
 
 // Refill empty slots from queue
 const refillFromQueue = () => {
+  // If queue is exhausted, don't proceed
+  if (queueExhausted.value && trackQueue.value.length === 0) {
+    console.log(`⚠️ [LABEL SEARCH] Queue exhausted - no more tracks available, skipping refill`)
+    return
+  }
+
   console.log(`🔄 [LABEL SEARCH] Starting refill from queue`)
 
   // Flush pending auto-banned tracks first
@@ -609,6 +619,8 @@ const refillFromQueue = () => {
 
   if (availableInQueue === 0) {
     console.log(`⚠️ [LABEL SEARCH] Queue is empty - cannot refill`)
+    queueExhausted.value = true
+    console.log(`⚠️ [LABEL SEARCH] Queue exhausted - all tracks from queue have been displayed`)
     return
   }
 
@@ -626,7 +638,7 @@ const refillFromQueue = () => {
   // Add new tracks from queue to fill up to 20 slots
   let filledCount = 0
   const tracksNeeded = Math.min(emptyCount, trackQueue.value.length)
-  
+
   for (let i = 0; i < tracksNeeded; i++) {
     const nextTrack = trackQueue.value.shift()
     if (nextTrack) {
@@ -642,6 +654,12 @@ const refillFromQueue = () => {
   }
 
   console.log(`🔄 [LABEL SEARCH] Refilled with ${filledCount} new tracks at bottom, ${trackQueue.value.length} tracks remaining in queue`)
+
+  // Mark queue as exhausted if queue is empty after refill (all originally fetched tracks have been displayed)
+  if (trackQueue.value.length === 0) {
+    queueExhausted.value = true
+    console.log(`⚠️ [LABEL SEARCH] Queue exhausted - all tracks from queue have been displayed`)
+  }
 }
 
 // Mark track as listened and auto-ban if toggle is ON
@@ -739,7 +757,7 @@ const togglePreview = track => {
 const saveTrack = async track => {
   // Close any open preview dropdown before saving (prevents animation glitch)
   expandedTrackId.value = null
-  
+
   try {
     if (track.isSaved) {
       // Remove from saved tracks - update UI immediately for better UX
@@ -784,7 +802,7 @@ const saveTrack = async track => {
     } else {
       // Save track - Update UI immediately for instant feedback
       track.isSaved = true
-      
+
       // IMMEDIATELY remove track from table for instant UX (before API calls)
       const trackKey = getTrackKey(track)
       for (let i = 0; i < 20; i++) {
@@ -876,10 +894,10 @@ const saveTrack = async track => {
         if (response.success) {
           // Update localStorage timestamp to trigger cross-tab refresh
           localStorage.setItem('track-saved-timestamp', Date.now().toString())
-          
+
           // Blacklist the track in backend (UI already updated)
           console.log('🎵 [LABEL SEARCH] Track saved successfully, blacklisting in backend...')
-          
+
           try {
             const blacklistResponse = await http.post('music-preferences/blacklist-track', {
               spotify_id: track.spotify_id,
@@ -887,12 +905,12 @@ const saveTrack = async track => {
               track_name: track.track_name,
               artist_name: track.artist_name,
             })
-            
+
             if (blacklistResponse.success) {
               track.isBanned = true
               blacklistedTracks.value.add(trackKey)
               console.log('✅ [LABEL SEARCH] Track blacklisted in backend:', track.track_name)
-              
+
               // Trigger BannedTracksScreen refresh
               window.dispatchEvent(new CustomEvent('track-blacklisted', {
                 detail: { track, trackKey },
@@ -1258,6 +1276,7 @@ const clearSearchState = () => {
   errorMessage.value = ''
   expandedTrackId.value = null
   userHasBannedItems.value = false
+  queueExhausted.value = false
   console.log('🏷️ [LABEL SEARCH] Search state cleared')
 }
 

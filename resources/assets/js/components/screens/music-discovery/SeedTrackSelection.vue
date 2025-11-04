@@ -67,14 +67,15 @@
               </div>
             </div>
 
-            <!-- Search Button - Show when track is pending, no results yet, empty slots, or user has banned items -->
-            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim()) || emptySlotCount > 0 || currentBatchHasBannedItems" class="flex justify-center mt-6">
+            <!-- Search Button - Show when track is pending, no results yet, empty slots, user has banned items, or queue is exhausted -->
+            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim()) || emptySlotCount > 0 || currentBatchHasBannedItems || queueExhausted" class="flex justify-center mt-6">
               <button
-                :disabled="isSearching"
+                :disabled="isSearching || queueExhausted"
                 class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
                 @click="performSearch"
               >
-                <span v-if="emptySlotCount > 0">Search Again</span>
+                <span v-if="queueExhausted">No More Tracks</span>
+                <span v-else-if="emptySlotCount > 0">Search Again</span>
                 <span v-else-if="currentBatchHasBannedItems">Search Again</span>
                 <span v-else-if="pendingTrack">Search Related Tracks</span>
                 <span v-else>Search</span>
@@ -166,6 +167,7 @@ interface Props {
   queueKey?: string | null
   currentBatchHasBannedItems?: boolean
   emptySlotCount?: number
+  queueExhausted?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -175,6 +177,7 @@ const props = withDefaults(defineProps<Props>(), {
   queueKey: null,
   currentBatchHasBannedItems: false,
   emptySlotCount: 0,
+  queueExhausted: false,
 })
 
 // Emits
@@ -430,7 +433,15 @@ const handleSearchAgain = () => {
     hasRecommendations: !!props.hasRecommendations,
     emptySlotCount: props.emptySlotCount,
     currentBatchHasBannedItems: props.currentBatchHasBannedItems,
+    queueExhausted: props.queueExhausted,
   })
+  
+  // Don't proceed if queue is exhausted
+  if (props.queueExhausted) {
+    console.log('⚠️ [SEED] Queue exhausted - no more tracks available')
+    return
+  }
+  
   if (
     props.selectedTrack
     && (props.hasRecommendations || props.emptySlotCount > 0 || props.currentBatchHasBannedItems)
