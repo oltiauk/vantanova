@@ -43,6 +43,85 @@ class RapidApiSpotifyService
     }
 
     /**
+     * Circuit Breaker: Check if provider should be skipped
+     * Returns true if provider has failed too many times recently
+     */
+    private function shouldSkipProvider(string $provider): bool
+    {
+        $cacheKey = "rapidapi_circuit_breaker_{$provider}";
+        $circuitState = \Cache::get($cacheKey);
+
+        if ($circuitState && $circuitState['status'] === 'open') {
+            // Circuit is open (provider disabled), check if recovery time has passed
+            if (now()->timestamp >= $circuitState['retry_after']) {
+                // 1 hour passed, allow user to try again (but keep circuit open)
+                \Log::info("🔌 [CIRCUIT BREAKER] {$provider} available for user retry", [
+                    'disabled_at' => $circuitState['disabled_at'],
+                    'retry_after' => date('Y-m-d H:i:s', $circuitState['retry_after'])
+                ]);
+                return false; // Allow this attempt
+            }
+
+            \Log::warning("🔌 [CIRCUIT BREAKER] Skipping {$provider} - circuit open", [
+                'retry_after' => date('Y-m-d H:i:s', $circuitState['retry_after'])
+            ]);
+            return true; // Skip this provider
+        }
+
+        return false; // Circuit closed, provider is healthy
+    }
+
+    /**
+     * Circuit Breaker: Record failure
+     */
+    private function recordFailure(string $provider): void
+    {
+        $cacheKey = "rapidapi_circuit_breaker_{$provider}";
+        $failureKey = "rapidapi_failures_{$provider}";
+
+        // Get current failure count in last 5 minutes
+        $failures = \Cache::get($failureKey, []);
+        $failures[] = now()->timestamp;
+
+        // Keep only failures from last 5 minutes
+        $fiveMinutesAgo = now()->subMinutes(5)->timestamp;
+        $failures = array_filter($failures, fn($time) => $time >= $fiveMinutesAgo);
+
+        \Cache::put($failureKey, $failures, now()->addMinutes(5));
+
+        // If 3+ failures in last 5 minutes, open circuit (disable for 1 hour)
+        if (count($failures) >= 3) {
+            $retryAfter = now()->addHour()->timestamp;
+            \Cache::put($cacheKey, [
+                'status' => 'open',
+                'disabled_at' => now()->toISOString(),
+                'retry_after' => $retryAfter,
+                'failure_count' => count($failures)
+            ], now()->addHours(2)); // Keep state for 2 hours
+
+            \Log::error("🔌 [CIRCUIT BREAKER] Opening circuit for {$provider}", [
+                'failure_count' => count($failures),
+                'disabled_until' => date('Y-m-d H:i:s', $retryAfter)
+            ]);
+        }
+    }
+
+    /**
+     * Circuit Breaker: Record success (close circuit)
+     */
+    private function recordSuccess(string $provider): void
+    {
+        $cacheKey = "rapidapi_circuit_breaker_{$provider}";
+        $failureKey = "rapidapi_failures_{$provider}";
+
+        // Clear failures and close circuit
+        \Cache::forget($failureKey);
+        \Cache::forget($cacheKey);
+
+        \Log::info("🔌 [CIRCUIT BREAKER] Closing circuit for {$provider} - provider healthy");
+    }
+
+    /**
      * Search for tracks with primary/backup fallback
      *
      * @param string $query Search query (artist + track name)
@@ -440,9 +519,18 @@ class RapidApiSpotifyService
         string $apiKey,
         string $provider
     ): array {
+        // Circuit Breaker: Check if this provider should be skipped
+        if ($this->shouldSkipProvider($provider)) {
+            return [
+                'success' => false,
+                'error' => 'Provider temporarily disabled (circuit breaker)',
+                'circuit_open' => true
+            ];
+        }
+
         // Remove leading slash if present to avoid double slashes
         $endpoint = ltrim($endpoint, '/');
-        
+
         // Build query string manually for endpoints that need it in the URL path
         $queryString = '';
         if (!empty($params)) {
@@ -468,7 +556,7 @@ class RapidApiSpotifyService
             ]);
 
             $response = Http::withHeaders($headers)
-                ->timeout(30)
+                ->timeout(10) // Reduced from 30s to 10s for faster failover
                 ->get($url);
 
             // Rate limiting delay
@@ -481,6 +569,8 @@ class RapidApiSpotifyService
             ]);
 
             if ($response->successful()) {
+                // Circuit Breaker: Record success (close circuit if it was open)
+                $this->recordSuccess($provider);
                 return ['success' => true, 'data' => $response->json()];
             }
 
@@ -489,9 +579,14 @@ class RapidApiSpotifyService
                 Log::warning("Rate limit exceeded on {$provider}", [
                     'endpoint' => $endpoint
                 ]);
+                // Circuit Breaker: Record failure
+                $this->recordFailure($provider);
                 return ['success' => false, 'error' => 'Rate limit exceeded', 'status' => 429];
             }
 
+            // Other errors (4xx, 5xx)
+            // Circuit Breaker: Record failure
+            $this->recordFailure($provider);-
             return [
                 'success' => false,
                 'error' => $response->body(),
@@ -502,6 +597,8 @@ class RapidApiSpotifyService
             Log::error("RapidAPI request exception ({$provider})", [
                 'error' => $e->getMessage()
             ]);
+            // Circuit Breaker: Record failure (timeout, connection error, etc.)
+            $this->recordFailure($provider);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
