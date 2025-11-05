@@ -1,8 +1,7 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader layout="simple" class="text-center">
-        Label Search
+      <ScreenHeader layout="simple" class="text-center" header-image="/VantaNova-Logo.svg">
         <template #subtitle>
           Find music from specific record labels
         </template>
@@ -104,7 +103,7 @@
       <!-- Loading State -->
       <div v-if="isLoading" class="text-center p-12">
         <div class="inline-flex flex-col items-center">
-          <svg class="w-8 h-8 animate-spin text-[#9d0cc6] mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg class="w-8 h-8 animate-spin text-white mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
@@ -138,9 +137,9 @@
             <table class="w-full">
               <thead>
                 <tr class="border-b border-white/10">
-                  <th class="text-left py-7 px-3 font-medium">#</th>
+                  <th class="text-left py-7 px-3 font-medium" />
                   <th class="text-center px-3 font-medium w-20 whitespace-nowrap" />
-                  <th class="text-left px-3 font-medium w-auto min-w-48">Artist(s)</th>
+                  <th class="text-left px-3 py-7 font-medium w-auto min-w-48">Artist(s)</th>
                   <th class="text-left px-3 font-medium">Title</th>
                   <th class="text-center px-3 font-medium">Popularity</th>
                   <th class="text-center px-3 font-medium whitespace-nowrap">Followers</th>

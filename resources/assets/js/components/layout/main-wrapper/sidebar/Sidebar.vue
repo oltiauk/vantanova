@@ -26,15 +26,17 @@
 
         <ul class="menu">
           <SidebarItem :href="url('music-discovery')" screen="MusicDiscovery">
-            <!-- <template #icon>
-              <img src="/public/img/last-fm-icon.svg" alt="Last.fm" class="w-4 h-4 object-contain">
-            </template> -->
-           Related Tracks
+            <template #icon>
+              <img src="/public/icons/RelatedTracks-Icon.svg" alt="Related Tracks" class="w-4 h-4 object-contain sidebar-icon-svg">
+            </template>
+            Related Tracks
           </SidebarItem>
 
           <SidebarItem :href="url('similar-artists')" screen="SimilarArtists">
-          
-           Similar Artists
+            <template #icon>
+              <img src="/public/icons/SimilarArtists-Icon.svg" alt="Similar Artists" class="w-4 h-4 object-contain sidebar-icon-svg">
+            </template>
+            Similar Artists
           </SidebarItem>
 
           <!-- <SoundCloudSidebarItem>
@@ -49,8 +51,10 @@
           </SidebarItem> -->
 
           <SidebarItem :href="url('label-search')" screen="LabelSearch">
-        
-          Label Search
+            <template #icon>
+              <img src="/public/icons/LabelSearch-icon.svg" alt="Label Search" class="w-4 h-4 object-contain sidebar-icon-svg">
+            </template>
+            Label Search
           </SidebarItem>
         </ul>
       </SidebarSection>
@@ -175,5 +179,18 @@ nav {
       transform: translateX(0);
     }
   }
+}
+
+/* Style SVG icons to match FontAwesome icon colors */
+:deep(.sidebar-icon-svg) {
+  filter: brightness(0) saturate(100%) invert(76%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%)
+    contrast(100%);
+  opacity: 0.7;
+}
+
+li.current :deep(.sidebar-icon-svg) {
+  filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%)
+    contrast(100%);
+  opacity: 1;
 }
 </style>

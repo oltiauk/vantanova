@@ -14,7 +14,7 @@
           v-if="isOpen"
           ref="dropdownMenu"
           :style="{ top: dropdownTop, right: dropdownRight }"
-          class="fixed w-48 rounded-lg shadow-lg py-2 z-[9999] border border-white/10"
+          class="fixed w-48 rounded-lg shadow-lg py-2 z-[9999]"
           style="background-color: #303030;"
         >
           <button

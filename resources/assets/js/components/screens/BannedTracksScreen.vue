@@ -1,13 +1,7 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader>
-        <div class="rounded-lg px-4 ml-9">
-          <div class="max-w-4xl mx-auto text-center">
-            Banned Tracks
-          </div>
-        </div>
-      </ScreenHeader>
+      <ScreenHeader header-image="/VantaNova-Logo.svg" />
     </template>
 
     <div class="banned-tracks-screen">
@@ -52,9 +46,9 @@
           <table class="w-full table-fixed">
             <thead>
               <tr class="border-b border-white/10">
-                <th class="text-left py-4 pl-3 font-medium w-10">#</th>
+                <th class="text-left py-4 pl-3 font-medium w-10" />
                 <th class="text-center pr-3 font-medium w-20 whitespace-nowrap" />
-                <th class="text-left px-3 pl-10 font-medium w-64">Artist(s)</th>
+                <th class="text-left px-3 py-4 pl-10 font-medium w-64">Artist(s)</th>
                 <th class="text-left px-3 pl-24 font-medium">Title</th>
                 <th class="text-center px-3 font-medium w-24 whitespace-nowrap">Unban</th>
               </tr>
@@ -103,7 +97,7 @@
                   <div class="flex items-center justify-center">
                     <button
                       :disabled="isProcessing"
-                      class="p-2 rounded-full transition-colors text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                      class="p-2 rounded-full transition-colors text-gray-300 hover:text-gray-100 hover:bg-white/10"
                       title="Remove track from blacklist"
                       @click="unbanTrack(track)"
                     >

@@ -1,13 +1,7 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader>
-        <div class="rounded-lg px-4 ml-8">
-          <div class="max-w-4xl mx-auto text-center">
-            Saved Tracks
-          </div>
-        </div> 
-      </ScreenHeader>
+      <ScreenHeader header-image="/VantaNova-Logo.svg" />
     </template>
 
     <div class="saved-tracks-screen">
@@ -91,9 +85,9 @@
           <table class="w-full">
             <thead>
               <tr class="border-b border-white/10">
-                <th class="text-left py-7 px-2 font-medium">#</th>
+                <th class="text-left py-7 px-2 font-medium" />
                 <th class="text-center px-2 font-medium w-12" />
-                <th class="text-left px-2 font-medium w-auto min-w-48">Artist(s)</th>
+                <th class="text-left px-2 py-7 font-medium w-auto min-w-48">Artist(s)</th>
                 <th class="text-left px-2 font-medium">Title</th>
                 <th class="text-center px-2 font-medium">Record Label</th>
                 <th class="text-center px-2 font-medium">Popularity</th>
@@ -125,7 +119,7 @@
                     >
                       <Icon
                         :icon="copiedTrackId === track.id ? faCheck : faCopy"
-                        class="w-5 h-5"
+                        class="w-4 h-4"
                       />
                     </button>
                   </td>
@@ -262,7 +256,7 @@
                       <!-- Remove Track -->
                       <button
                         :disabled="isProcessing"
-                        class="p-2 rounded-full transition-colors text-red-400 hover:text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                        class="p-2 rounded-full transition-colors text-gray-300 hover:text-gray-100 hover:bg-white/10 disabled:opacity-50"
                         title="Remove from saved tracks"
                         @click="unsaveTrack(track)"
                       >

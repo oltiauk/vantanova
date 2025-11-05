@@ -1,12 +1,7 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader layout="simple" class="text-center">
-        <div class="rounded-lg px-4 mr-12">
-          <div class="max-w-4xl mx-auto text-center">
-            Similar Artists
-          </div>
-        </div>
+      <ScreenHeader layout="simple" class="text-center" header-image="/VantaNova-Logo.svg">
         <template #subtitle>
           <div class="rounded-lg px-4 mr-16">
             <div class="max-w-4xl mx-auto text-center">
@@ -21,7 +16,6 @@
     </template>
 
     <div class="similar-artists-screen">
-
       <!-- Search Container -->
       <div class="seed-selection mb-8">
         <div class="search-container mb-6">
@@ -33,7 +27,7 @@
                     v-model="searchQuery"
                     type="text"
                     class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
-                    placeholder="Search for a Seed Artist"
+                    placeholder="Search for a Seed Track"
                     @keydown.enter="performSearch"
                     @input="onSearchInput"
                   >
@@ -69,7 +63,7 @@
                   <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
                     <div v-for="(artist, index) in searchResults.slice(0, 10)" :key="`suggestion-${artist.mbid || artist.name}-${index}`">
                       <div
-                        class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
+                        class="flex items-center justify-between px-4 py-3 hover:bg-white/10 cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
                         :class="{
                           'bg-k-accent/10': selectedArtist && selectedArtist.name === artist.name,
                         }"
@@ -77,7 +71,7 @@
                       >
                         <!-- Artist Info -->
                         <div class="flex-1 min-w-0">
-                          <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
+                          <div class="font-medium text-k-text-primary group-hover:text-gray-200 transition-colors truncate">
                             {{ artist.name }}
                           </div>
                         </div>
@@ -121,7 +115,7 @@
       <!-- Similar Artists Results -->
       <div v-if="isLoading" class="text-center p-12">
         <div class="inline-flex flex-col items-center">
-          <svg class="w-8 h-8 animate-spin text-[#9d0cc6] mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg class="w-8 h-8 animate-spin text-white mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
@@ -152,9 +146,9 @@
             <table class="w-full relative z-10">
               <thead>
                 <tr class="border-b border-white/10">
-                  <th class="text-left p-3 py-7 font-medium">#</th>
+                  <th class="text-left p-3 py-7 font-medium" />
                   <th class="text-center p-3 font-medium w-20 whitespace-nowrap" />
-                  <th class="text-left p-3 font-medium w-1/3">Artist</th>
+                  <th class="text-left p-3 py-7 font-medium w-1/3">Artist</th>
                   <th class="text-right p-3 font-medium whitespace-nowrap">Followers</th>
                   <th class="text-left p-3 font-medium" />
                 </tr>

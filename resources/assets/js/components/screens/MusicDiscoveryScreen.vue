@@ -1,12 +1,7 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader layout="simple" class="text-center">
-        <div class="rounded-lg px-4 mr-12">
-          <div class="max-w-4xl mx-auto text-center">
-            Related Tracks
-          </div>
-        </div>
+      <ScreenHeader layout="simple" class="text-center" header-image="/VantaNova-Logo.svg">
         <template #subtitle>
           <div class="rounded-lg px-4 mr-16">
             <div class="max-w-4xl mx-auto text-center">
@@ -18,7 +13,6 @@
     </template>
 
     <div class="music-discovery-screen">
-
       <SeedTrackSelection
         v-model:selected-track="selectedSeedTrack"
         :has-recommendations="allRecommendations.length > 0 || isDiscovering"
@@ -152,6 +146,19 @@ const isDiscovering = ref(false)
 const errorMessage = ref('')
 const currentProvider = ref('')
 const hasSearchResults = ref(false)
+
+// Helper function to sanitize error messages - remove RapidAPI mentions
+const sanitizeErrorMessage = (message: string): string => {
+  if (!message) {
+    return message
+  }
+  // Replace RapidAPI with generic terms (case insensitive)
+  return message
+    .replace(/rapidapi/gi, 'Music Discovery API')
+    .replace(/RapidAPI/g, 'Music Discovery API')
+    .replace(/rapid-api/gi, 'Music Discovery API')
+    .replace(/rapid api/gi, 'Music Discovery API')
+}
 
 // Virtual Slot System: Maps slot position (0-19) to track object or null
 const slotMap = ref<Record<number, Track | null>>({})
@@ -411,7 +418,7 @@ const refillFromQueue = () => {
   console.log(`🔄 [SLOT SYSTEM] Filled ${filledCount} slots, ${trackQueue.value.length} tracks remaining in queue`)
   console.log(`🔄 [SLOT SYSTEM] Refill complete: ${allRecommendations.value.length} filled slots, ${remainingEmptySlots} empty slots remaining`)
   console.log(`🔄 [SLOT SYSTEM] Search Again button should now be ${remainingEmptySlots > 0 ? 'VISIBLE' : 'HIDDEN'}`)
-  
+
   // Mark queue as exhausted if queue is empty after refill (all originally fetched tracks have been displayed)
   if (trackQueue.value.length === 0) {
     queueExhausted.value = true
@@ -500,7 +507,8 @@ const discoverMusicSoundStats = async () => {
       }, 100)
     }
   } catch (error: any) {
-    errorMessage.value = error.response?.data?.message || error.message || 'Failed to discover music'
+    const rawMessage = error.response?.data?.message || error.message || 'Failed to discover music'
+    errorMessage.value = sanitizeErrorMessage(rawMessage)
   } finally {
     isDiscovering.value = false
   }
@@ -588,7 +596,8 @@ const discoverMusicReccoBeats = async () => {
       // await analyzeRecommendationKeys(tracks.slice(0, 12))
     }
   } catch (error: any) {
-    errorMessage.value = error.response?.data?.message || error.message || 'Failed to discover music'
+    const rawMessage = error.response?.data?.message || error.message || 'Failed to discover music'
+    errorMessage.value = sanitizeErrorMessage(rawMessage)
   } finally {
     isDiscovering.value = false
   }
@@ -601,7 +610,7 @@ const discoverMusicRapidApi = async () => {
 
   isDiscovering.value = true
   errorMessage.value = ''
-  currentProvider.value = 'RapidAPI'
+  currentProvider.value = 'Music Discovery API'
 
   try {
     const response: ApiResponse<Track[]> = await http.post('music-discovery/discover-rapidapi', {
@@ -627,7 +636,8 @@ const discoverMusicRapidApi = async () => {
       // Key analysis removed to avoid 404 errors
     }
   } catch (error: any) {
-    errorMessage.value = error.response?.data?.message || error.message || 'Failed to discover music'
+    const rawMessage = error.response?.data?.message || error.message || 'Failed to discover music'
+    errorMessage.value = sanitizeErrorMessage(rawMessage)
   } finally {
     isDiscovering.value = false
   }
@@ -753,7 +763,8 @@ const getRelatedTracks = async (track: Track, isRefresh = false) => {
     }
   } catch (error: any) {
     console.error('Failed to get related tracks:', error)
-    errorMessage.value = error.response?.data?.message || error.message || 'Failed to get related tracks'
+    const rawMessage = error.response?.data?.message || error.message || 'Failed to get related tracks'
+    errorMessage.value = sanitizeErrorMessage(rawMessage)
   } finally {
     isDiscovering.value = false
   }

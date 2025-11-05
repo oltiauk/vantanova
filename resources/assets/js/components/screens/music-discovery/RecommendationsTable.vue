@@ -24,7 +24,7 @@
     <!-- Loading State -->
     <div v-if="isDiscovering" class="text-center p-12">
       <div class="inline-flex flex-col items-center">
-        <svg class="w-8 h-8 animate-spin text-[#9d0cc6] mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="w-8 h-8 animate-spin text-white mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -55,9 +55,9 @@
           <table class="w-full">
             <thead>
               <tr class="border-b border-white/10">
-                <th class="text-left pl-3 py-7 font-medium w-10">#</th>
+                <th class="text-left pl-3 py-7 font-medium w-10"></th>
                 <th class="text-center pr-3 font-medium w-16 whitespace-nowrap"></th>
-                <th class="text-left p-3 font-medium w-auto min-w-64">Artist(s)</th>
+                <th class="text-left p-3 py-7 font-medium w-auto min-w-64">Artist(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Followers</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Release Date</th>
@@ -198,7 +198,7 @@
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="slot.track && (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(slot.track)}-${index}`">
                     <td colspan="8" class="p-0 bg-white/5 border-b border-white/5">
-                      <div class="p-4">
+                      <div class="spotify-player-container p-6 bg-white/3 relative">
                           <div class="max-w-4xl mx-auto">
                             <!-- Loading State -->
                             <div v-if="processingTrack === getTrackKey(slot.track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
@@ -209,7 +209,7 @@
                             </div>
 
                             <!-- Spotify Embed -->
-                            <div v-else-if="slot.track.id && slot.track.id !== 'NO_TRACK_FOUND'">
+                            <div v-else-if="slot.track.id && slot.track.id !== 'NO_TRACK_FOUND'" class="flex items-center justify-center">
                             <iframe
                               :key="slot.track.id"
                               :src="`https://open.spotify.com/embed/track/${slot.track.id}?utm_source=generator&theme=0`"
@@ -233,7 +233,7 @@
                           </div>
 
                           <!-- Spotify Login Link -->
-                          <div class="text-right mt-2">
+                          <div class="absolute bottom-0 right-6">
                             <span class="text-xs text-white/50 font-light">
                               <a
                                 href="https://accounts.spotify.com/login"
@@ -460,11 +460,10 @@ const formatReleaseDate = (releaseDate: string | undefined): string => {
   if (!releaseDate) {
     return 'N/A'
   }
-  // Handle different date formats (YYYY-MM-DD, YYYY-MM, YYYY)
+  // Return the full date string as-is (handles YYYY-MM-DD, YYYY-MM, YYYY formats)
   const dateStr = releaseDate.trim()
   if (dateStr.length >= 4) {
-    // Extract year (first 4 characters)
-    return dateStr.substring(0, 4)
+    return dateStr
   }
   return 'N/A'
 }

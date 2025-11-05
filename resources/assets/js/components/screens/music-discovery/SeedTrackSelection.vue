@@ -11,7 +11,7 @@
                 <input
                   v-model="searchQuery"
                   type="text"
-                  placeholder="Search for a track or artist"
+                  placeholder="Search for a Seed Track"
                   class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg border-0 focus:outline-none text-white text-lg search-input"
                   @input="onSearchInput"
                   @keydown.enter="performSearch"
@@ -48,7 +48,7 @@
                 <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
                   <div v-for="track in filteredSearchResults.slice(0, 10)" :key="`suggestion-${track.id}`">
                     <div
-                      class="flex items-center justify-between px-4 py-3 hover:bg-k-bg-tertiary cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
+                      class="flex items-center justify-between px-4 py-3 hover:bg-white/10 cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
                       :class="{
                         'bg-k-accent/10': pendingTrack && pendingTrack.id === track.id,
                       }"
@@ -56,7 +56,7 @@
                     >
                       <!-- Track Info -->
                       <div class="flex-1 min-w-0">
-                        <div class="font-medium text-k-text-primary group-hover:text-k-accent transition-colors truncate">
+                        <div class="font-medium text-k-text-primary group-hover:text-gray-200 transition-colors truncate">
                           {{ formatArtists(track) }} - {{ track.name }}
                         </div>
                       </div>
