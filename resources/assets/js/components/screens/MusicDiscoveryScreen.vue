@@ -18,10 +18,6 @@
     </template>
 
     <div class="music-discovery-screen">
-      <!-- Attribution -->
-      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light -mt-4 px-4 mr-16">
-        Music recommendation by VantaNova and music preview by Spotify
-      </div>
 
       <SeedTrackSelection
         v-model:selected-track="selectedSeedTrack"

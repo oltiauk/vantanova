@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\API\LabelSearchRequest;
 use App\Services\SpotifyService;
+use App\Services\RapidApiSpotifyService;
 use App\Models\SavedTrack;
 use App\Models\BlacklistedTrack;
 use Illuminate\Support\Facades\Log;
@@ -12,7 +13,10 @@ use Illuminate\Support\Arr;
 
 class LabelSearchController extends Controller
 {
-    public function __construct(private readonly SpotifyService $spotifyService)
+    public function __construct(
+        private readonly SpotifyService $spotifyService,
+        private ?RapidApiSpotifyService $rapidApiSpotifyService = null
+    )
     {
     }
 
@@ -116,6 +120,9 @@ class LabelSearchController extends Controller
             $tracks = $this->addUserPreferenceStatus($tracks);
 
             Log::info('After addUserPreferenceStatus', ['track_count' => count($tracks)]);
+
+            // Add followers data to tracks
+            $tracks = $this->addFollowersToTracks($tracks);
 
             Log::info('Final response being sent', [
                 'track_count' => count($tracks),
@@ -310,6 +317,54 @@ class LabelSearchController extends Controller
             return array_merge($track, [
                 'is_saved' => $isrc && in_array($isrc, $savedIsrcs),
                 'is_banned' => $isrc && in_array($isrc, $bannedIsrcs)
+            ]);
+        }, $tracks);
+    }
+
+    /**
+     * Add followers count to tracks by batch querying artist IDs
+     */
+    private function addFollowersToTracks(array $tracks): array
+    {
+        // Extract unique artist IDs from tracks
+        $artistIds = [];
+        foreach ($tracks as $track) {
+            if (!empty($track['artist_id'])) {
+                $artistIds[] = $track['artist_id'];
+            }
+        }
+
+        // Remove duplicates
+        $artistIds = array_unique($artistIds);
+
+        // Fetch followers data in batch if RapidAPI Spotify is enabled
+        $followersData = [];
+        if (!empty($artistIds) && $this->rapidApiSpotifyService && RapidApiSpotifyService::enabled()) {
+            try {
+                $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
+                Log::info('📊 [LABEL SEARCH] Fetched followers data', [
+                    'artist_count' => count($followersData),
+                    'unique_artist_ids' => count($artistIds),
+                    'timestamp' => now()->toISOString()
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('📊 [LABEL SEARCH] Failed to fetch followers data', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Add followers to each track
+        return array_map(function ($track) use ($followersData) {
+            $artistId = $track['artist_id'] ?? null;
+            $followers = 0;
+
+            if (!empty($artistId) && isset($followersData[$artistId])) {
+                $followers = $followersData[$artistId]['followers'] ?? 0;
+            }
+
+            return array_merge($track, [
+                'followers' => $followers
             ]);
         }, $tracks);
     }

@@ -7,14 +7,23 @@
           <div ref="searchContainer" class="relative">
             <!-- Search Input -->
             <div class="relative">
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Search for a track or artist"
-                class="w-full px-4 py-3 rounded-lg bg-white/10 border-0 focus:outline-none search-input"
-                @input="onSearchInput"
-                @keyup.enter="performSearch"
-              >
+              <div class="flex">
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  placeholder="Search for a track or artist"
+                  class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg border-0 focus:outline-none text-white text-lg search-input"
+                  @input="onSearchInput"
+                  @keydown.enter="performSearch"
+                >
+                <button
+                  class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
+                  :disabled="!searchQuery.trim() || isSearching"
+                  @click="performSearch"
+                >
+                  <Icon :icon="faSearch" class="w-5 h-5" />
+                </button>
+              </div>
 
               <!-- Loading Animation for Search Suggestions -->
               <div
@@ -67,17 +76,14 @@
               </div>
             </div>
 
-            <!-- Search Button - Show when track is pending, no results yet, empty slots, user has banned items, or queue is exhausted -->
-            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim()) || emptySlotCount > 0 || currentBatchHasBannedItems || queueExhausted" class="flex justify-center mt-6">
+            <!-- Search Button - Show when track is pending or no results yet (initial search) -->
+            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim() && !selectedTrack)" class="flex justify-center mt-6">
               <button
-                :disabled="isSearching || queueExhausted"
+                :disabled="isSearching"
                 class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
                 @click="performSearch"
               >
-                <span v-if="queueExhausted">No More Tracks</span>
-                <span v-else-if="emptySlotCount > 0">Search Again</span>
-                <span v-else-if="currentBatchHasBannedItems">Search Again</span>
-                <span v-else-if="pendingTrack">Search Related Tracks</span>
+                <span v-if="pendingTrack">Search Related Tracks</span>
                 <span v-else>Search</span>
               </button>
             </div>
@@ -87,21 +93,35 @@
     </div>
 
     <!-- Selected Seed Track Display - Compact -->
-  </div> <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
-    <div class="max-w-4xl mx-auto">
-      <div class="text-sm font-medium mb-2">Seed Track:</div>
-      <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2 flex-1 min-w-0">
-            <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
-            <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
+    <div v-if="selectedTrack" class="selected-seed mb-4 relative z-20">
+      <div class="max-w-4xl mx-auto">
+        <div class="text-sm font-medium mb-2">Seed Track:</div>
+        <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
+              <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
+            </div>
+            <button
+              class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
+              title="Clear seed track"
+              @click="clearSeedTrack"
+            >
+              <Icon :icon="faTimes" class="w-4 h-4" />
+            </button>
           </div>
+        </div>
+
+        <!-- Search Again Button - Show below seed track when conditions are met -->
+        <div v-if="emptySlotCount > 0 || currentBatchHasBannedItems || queueExhausted" class="flex justify-center mt-4">
           <button
-            class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
-            title="Clear seed track"
-            @click="clearSeedTrack"
+            :disabled="isSearching || queueExhausted"
+            class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
+            @click="performSearch"
           >
-            <Icon :icon="faTimes" class="w-4 h-4" />
+            <Icon :icon="faSearch" class="w-4 h-4" />
+            <span v-if="queueExhausted">No More Tracks</span>
+            <span v-else>Search Again</span>
           </button>
         </div>
       </div>
@@ -435,13 +455,13 @@ const handleSearchAgain = () => {
     currentBatchHasBannedItems: props.currentBatchHasBannedItems,
     queueExhausted: props.queueExhausted,
   })
-  
+
   // Don't proceed if queue is exhausted
   if (props.queueExhausted) {
     console.log('⚠️ [SEED] Queue exhausted - no more tracks available')
     return
   }
-  
+
   if (
     props.selectedTrack
     && (props.hasRecommendations || props.emptySlotCount > 0 || props.currentBatchHasBannedItems)

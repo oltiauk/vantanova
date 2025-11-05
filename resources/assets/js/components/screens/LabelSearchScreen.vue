@@ -119,7 +119,7 @@
       <!-- Results Table -->
       <div v-else-if="filteredTracks.length > 0" class="mt-8">
         <!-- Ban Listened Tracks Toggle -->
-        <div class="flex items-center gap-3 mb-4 justify-center">
+        <div class="flex items-center gap-3 mb-4 justify-end">
           <span class="text-sm text-white/80">Ban listened tracks</span>
           <button
             class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
@@ -143,6 +143,7 @@
                   <th class="text-left px-3 font-medium w-auto min-w-48">Artist(s)</th>
                   <th class="text-left px-3 font-medium">Title</th>
                   <th class="text-center px-3 font-medium">Popularity</th>
+                  <th class="text-center px-3 font-medium whitespace-nowrap">Followers</th>
                   <th class="text-center px-3 font-medium whitespace-nowrap">Release Date</th>
                   <th class="text-center px-3 font-medium" />
                   <th class="text-center px-3 font-medium" />
@@ -203,6 +204,11 @@
                     <!-- Popularity -->
                     <td class="p-3 align-middle text-center">
                       <span class="text-white/80 font-medium">{{ track.popularity }}%</span>
+                    </td>
+
+                    <!-- Followers -->
+                    <td class="p-3 align-middle text-center">
+                      <span class="text-white/80 text-sm">{{ formatFollowers(track.followers || 0) }}</span>
                     </td>
 
                     <!-- Release Date -->
@@ -268,7 +274,7 @@
 
                   <!-- Spotify Player Dropdown Row -->
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="8" class="p-0 overflow-hidden">
+                    <td colspan="9" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative pb-8">
                         <div class="max-w-4xl mx-auto">
                           <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
@@ -439,6 +445,16 @@ const formatDate = (dateString: string): string => {
   } catch (error) {
     return dateString.split('T')[0]
   }
+}
+
+// Format followers helper function
+const formatFollowers = (followers: number): string => {
+  if (followers >= 1000000) {
+    return `${(followers / 1000000).toFixed(1)}M`
+  } else if (followers >= 1000) {
+    return `${(followers / 1000).toFixed(1)}K`
+  }
+  return followers.toString()
 }
 
 const performSearch = async () => {

@@ -21,10 +21,6 @@
     </template>
 
     <div class="similar-artists-screen">
-      <!-- Attribution -->
-      <div class="text-xs text-k-text-secondary text-center mb-4 px-4 font-light -mt-4  px-4 mr-20">
-        Music recommendation by VantaNova and music preview by Spotify
-      </div>
 
       <!-- Search Container -->
       <div class="seed-selection mb-8">
@@ -210,7 +206,7 @@
                     <td class="p-3 align-middle">
                       <div class="flex gap-2 justify-end">
                         <button
-                          class="px-3 py-2 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center text-white"
                           title="Find Similar Artists"
                           @click="findSimilarArtists(slot.artist)"
                         >
@@ -231,15 +227,6 @@
                           <img v-if="currentlyPreviewingArtist !== slot.artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                           <Icon v-else :icon="faTimes" class="w-3 h-3" />
                           <span :class="loadingPreviewArtist === slot.artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === slot.artist.name ? 'Loading...' : (currentlyPreviewingArtist === slot.artist.name ? 'Close' : (hasListenedTracks(slot.artist) ? 'Listened' : 'Preview')) }}</span>
-                        </button>
-
-                        <!-- Hide Artist Button -->
-                        <button
-                          class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center bg-[#484948] hover:bg-gray-500 text-white"
-                          title="Hide this artist from results"
-                          @click="hideArtist(slot.artist)"
-                        >
-                          <Icon :icon="faTrash" class="text-xs" />
                         </button>
                       </div>
                     </td>
@@ -442,7 +429,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
-import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faHeart, faMusic, faPlay, faSearch, faSpinner, faTimes, faTrash, faUserSlash } from '@fortawesome/free-solid-svg-icons'
+import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faHeart, faMusic, faPlay, faSearch, faSpinner, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'

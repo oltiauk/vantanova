@@ -4,7 +4,7 @@
     <div v-if="recommendations.length > 0 || isDiscovering" class="mb-6">
       <div class="max-w-6xl mx-auto">
         <!-- Ban Listened Tracks Toggle -->
-        <div v-if="recommendations.length > 0" class="flex items-center gap-3 mb-4">
+        <div v-if="recommendations.length > 0" class="flex items-center justify-end gap-3 mb-4">
           <span class="text-sm text-white/80">Ban listened tracks</span>
           <button
             class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
@@ -57,9 +57,10 @@
               <tr class="border-b border-white/10">
                 <th class="text-left pl-3 py-7 font-medium w-10">#</th>
                 <th class="text-center pr-3 font-medium w-16 whitespace-nowrap"></th>
-                <th class="text-left p-3 font-medium w-auto min-w-64">Name(s)</th>
+                <th class="text-left p-3 font-medium w-auto min-w-64">Artist(s)</th>
                 <th class="text-left p-3 font-medium">Title</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Followers</th>
+                <th class="text-center p-3 font-medium whitespace-nowrap">Release Date</th>
                 <th class="text-center pl-3 font-medium whitespace-nowrap"></th>
                 <th class="text-center pr-3 font-medium whitespace-nowrap"></th>
               </tr>
@@ -115,6 +116,15 @@
                     <div class="flex items-center justify-center">
                       <span class="text-white/60 text-sm">
                         {{ formatFollowers(slot.track.followers) }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Release Date -->
+                  <td class="p-3 align-middle text-center">
+                    <div class="flex items-center justify-center">
+                      <span class="text-white/60 text-sm">
+                        {{ formatReleaseDate(slot.track.release_date) }}
                       </span>
                     </div>
                   </td>
@@ -187,20 +197,8 @@
                 <!-- Spotify Player Dropdown -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="slot.track && (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(slot.track)}-${index}`">
-                    <td colspan="7" class="p-0 bg-white/5 border-b border-white/5">
+                    <td colspan="8" class="p-0 bg-white/5 border-b border-white/5">
                       <div class="p-4">
-                        <!-- Spotify Login Link -->
-                        <div class="text-right mb-2">
-                          <span class="text-xs text-white/50 font-light">
-                            <a
-                              href="https://accounts.spotify.com/login"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="text-white/50 hover:text-white/70 transition-colors underline"
-                            >
-                              Connect</a> to Spotify to listen to the full track
-                            </span>
-                          </div>
                           <div class="max-w-4xl mx-auto">
                             <!-- Loading State -->
                             <div v-if="processingTrack === getTrackKey(slot.track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
@@ -232,6 +230,19 @@
                             <div class="text-center text-white/60">
                               <div class="text-sm font-medium">No Spotify preview available</div>
                             </div>
+                          </div>
+
+                          <!-- Spotify Login Link -->
+                          <div class="text-right mt-2">
+                            <span class="text-xs text-white/50 font-light">
+                              <a
+                                href="https://accounts.spotify.com/login"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-white/50 hover:text-white/70 transition-colors underline"
+                              >
+                                Connect</a> to Spotify to listen to the full track
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -445,6 +456,18 @@ const formatFollowers = (followers: number | undefined): string => {
   return formatNumber(followers)
 }
 
+const formatReleaseDate = (releaseDate: string | undefined): string => {
+  if (!releaseDate) {
+    return 'N/A'
+  }
+  // Handle different date formats (YYYY-MM-DD, YYYY-MM, YYYY)
+  const dateStr = releaseDate.trim()
+  if (dateStr.length >= 4) {
+    // Extract year (first 4 characters)
+    return dateStr.substring(0, 4)
+  }
+  return 'N/A'
+}
 
 const formatRatio = (playcount: number, listeners: number): string => {
   if (listeners === 0) return '0'
