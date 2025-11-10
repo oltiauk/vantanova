@@ -73,6 +73,7 @@ use App\Http\Controllers\API\UserInvitationController;
 use App\Http\Controllers\API\MusicDiscoveryController;
 use App\Http\Controllers\API\MusicPreferencesController;
 use App\Http\Controllers\API\LabelSearchController;
+use App\Http\Controllers\API\GenreByYearController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Pusher\Pusher;
@@ -320,6 +321,9 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
 
     // Label search route
     Route::get('label-search', LabelSearchController::class)->name('label-search');
+
+    // Genre by Year search route
+    Route::get('genre-by-year', GenreByYearController::class)->name('genre-by-year');
 
     Route::get('debug-reccobeats/{trackId}', function($trackId) {
         try {

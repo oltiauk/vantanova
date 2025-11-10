@@ -127,22 +127,30 @@ class RapidApiSpotifyService
      * @param string $query Search query (artist + track name)
      * @param int $limit Number of results (default: 10)
      * @param string $type Type of search (default: 'tracks')
+     * @param int $offset Offset for pagination (default: 0)
      * @return array
      */
-    public function searchTracks(string $query, int $limit = 20, string $type = 'tracks'): array
+    public function searchTracks(string $query, int $limit = 20, string $type = 'tracks', int $offset = 0): array
     {
         try {
             \Log::info('🔍 [RAPIDAPI SPOTIFY] Starting track search with 3-tier backup', [
                 'query' => $query,
                 'type' => $type,
                 'limit' => $limit,
+                'offset' => $offset,
                 'timestamp' => now()->toISOString()
             ]);
+
+            // Build request parameters
+            $params = ['q' => $query, 'type' => $type, 'limit' => $limit];
+            if ($offset > 0) {
+                $params['offset'] = $offset;
+            }
 
             // Try primary API first (spotify81)
             $result = $this->makeRequest(
                 '/search',
-                ['q' => $query, 'type' => $type, 'limit' => $limit],
+                $params,
                 $this->primaryHost,
                 $this->apiKey,
                 'Spotify81'
@@ -151,7 +159,8 @@ class RapidApiSpotifyService
             if ($result['success']) {
                 \Log::info('🔍 [RAPIDAPI SPOTIFY] Primary search successful', [
                     'provider' => 'Spotify81',
-                    'query' => $query
+                    'query' => $query,
+                    'offset' => $offset
                 ]);
                 return $result;
             }
@@ -164,7 +173,7 @@ class RapidApiSpotifyService
 
             $backupResult = $this->makeRequest(
                 '/search',
-                ['q' => $query, 'type' => $type, 'limit' => $limit],
+                $params,
                 $this->backupHost,
                 $this->backupApiKey,
                 'SpotifyWeb2'
@@ -173,7 +182,8 @@ class RapidApiSpotifyService
             if ($backupResult['success']) {
                 \Log::info('🔍 [RAPIDAPI SPOTIFY] Backup search successful', [
                     'provider' => 'SpotifyWeb2',
-                    'query' => $query
+                    'query' => $query,
+                    'offset' => $offset
                 ]);
                 return $backupResult;
             }
@@ -186,7 +196,7 @@ class RapidApiSpotifyService
 
             $tertiaryResult = $this->makeRequest(
                 '/search',
-                ['q' => $query, 'type' => $type, 'limit' => $limit],
+                $params,
                 $this->tertiaryHost,
                 $this->tertiaryApiKey,
                 'Spotify23'
@@ -195,7 +205,8 @@ class RapidApiSpotifyService
             if ($tertiaryResult['success']) {
                 \Log::info('🔍 [RAPIDAPI SPOTIFY] Tertiary search successful', [
                     'provider' => 'Spotify23',
-                    'query' => $query
+                    'query' => $query,
+                    'offset' => $offset
                 ]);
                 return $tertiaryResult;
             }
@@ -203,6 +214,7 @@ class RapidApiSpotifyService
             // All APIs failed
             \Log::error('🔍 [RAPIDAPI SPOTIFY] All search APIs failed', [
                 'query' => $query,
+                'offset' => $offset,
                 'primary_error' => $result['error'] ?? 'Unknown',
                 'backup_error' => $backupResult['error'] ?? 'Unknown',
                 'tertiary_error' => $tertiaryResult['error'] ?? 'Unknown'
@@ -213,6 +225,7 @@ class RapidApiSpotifyService
         } catch (\Exception $e) {
             \Log::error('🔍 [RAPIDAPI SPOTIFY] Search failed with exception', [
                 'query' => $query,
+                'offset' => $offset,
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -498,6 +511,57 @@ class RapidApiSpotifyService
 
         } catch (\Exception $e) {
             Log::error('Failed to get artist by ID', ['error' => $e->getMessage()]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get album details by ID (for release date)
+     *
+     * @param string $albumId Spotify album ID
+     * @return array
+     */
+    public function getAlbumById(string $albumId): array
+    {
+        try {
+            // Try primary API
+            $result = $this->makeRequest(
+                '/albums',
+                ['ids' => $albumId],
+                $this->primaryHost,
+                $this->apiKey,
+                'spotify81'
+            );
+
+            if ($result['success']) {
+                $albums = $result['data']['albums'] ?? [];
+                if (!empty($albums)) {
+                    return ['success' => true, 'data' => $albums[0]];
+                }
+            }
+
+            // Fallback to backup
+            Log::warning('Primary album fetch failed, trying backup');
+
+            $result = $this->makeRequest(
+                '/albums',
+                ['ids' => $albumId],
+                $this->backupHost,
+                $this->backupApiKey,
+                'spotify-web2'
+            );
+
+            if ($result['success']) {
+                $albums = $result['data']['albums'] ?? [];
+                if (!empty($albums)) {
+                    return ['success' => true, 'data' => $albums[0]];
+                }
+            }
+
+            return ['success' => false, 'error' => 'Album not found'];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get album by ID', ['error' => $e->getMessage()]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -1070,6 +1134,242 @@ class RapidApiSpotifyService
         }
 
         \Log::info('📊 [RAPIDAPI SPOTIFY] Batch artist followers completed', [
+            'requested' => count($ids),
+            'returned' => count($allResults)
+        ]);
+
+        return $allResults;
+    }
+
+    /**
+     * Batch get track details (including popularity) using RapidAPI Spotify
+     * Similar to getBatchArtistFollowers but for tracks
+     *
+     * @param array $trackIds Array of Spotify track IDs
+     * @return array Map of track_id => ['id', 'name', 'popularity', 'preview_url', ...]
+     */
+    public function getBatchTracks(array $trackIds): array
+    {
+        \Log::info('🎵 [RAPIDAPI SPOTIFY] Starting batch track details', [
+            'track_count' => count($trackIds),
+            'timestamp' => now()->toISOString()
+        ]);
+
+        $ids = array_values(array_filter(array_map('trim', $trackIds)));
+        if (empty($ids)) {
+            return [];
+        }
+
+        $allResults = [];
+
+        // Make a single batch request with all track IDs comma-separated
+        $idsString = implode(',', $ids);
+
+        // Primary: spotify81
+        $primary = $this->makeRequest(
+            "/tracks",
+            ['ids' => $idsString],
+            $this->primaryHost,
+            $this->apiKey,
+            'Spotify81'
+        );
+
+        if ($primary['success'] && isset($primary['data']['tracks']) && is_array($primary['data']['tracks'])) {
+            // Log first track structure for debugging
+            if (!empty($primary['data']['tracks'][0])) {
+                $firstTrack = $primary['data']['tracks'][0];
+                \Log::info('🎵 [BATCH TRACKS] First track structure', [
+                    'has_popularity' => isset($firstTrack['popularity']),
+                    'popularity_value' => $firstTrack['popularity'] ?? 'NOT_SET',
+                    'popularity_type' => isset($firstTrack['popularity']) ? gettype($firstTrack['popularity']) : 'NOT_SET',
+                    'track_keys' => array_keys($firstTrack),
+                    'track_id' => $firstTrack['id'] ?? 'NOT_SET',
+                ]);
+            }
+            
+            foreach ($primary['data']['tracks'] as $track) {
+                if ($track !== null && isset($track['id'])) {
+                    $allResults[$track['id']] = [
+                        'id' => $track['id'],
+                        'name' => $track['name'] ?? null,
+                        'popularity' => $track['popularity'] ?? 0,
+                        'preview_url' => $track['preview_url'] ?? null,
+                        'external_urls' => $track['external_urls'] ?? [],
+                        'external_ids' => $track['external_ids'] ?? [],
+                    ];
+                }
+            }
+        } else {
+            // Backup: spotify-web2
+            \Log::info('🎵 [RAPIDAPI SPOTIFY] Primary failed, trying backup', [
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $backup = $this->makeRequest(
+                "/tracks",
+                ['ids' => $idsString],
+                $this->backupHost,
+                $this->backupApiKey,
+                'SpotifyWeb2'
+            );
+
+            if ($backup['success'] && isset($backup['data']['tracks']) && is_array($backup['data']['tracks'])) {
+                foreach ($backup['data']['tracks'] as $track) {
+                    if ($track !== null && isset($track['id'])) {
+                        $allResults[$track['id']] = [
+                            'id' => $track['id'],
+                            'name' => $track['name'] ?? null,
+                            'popularity' => $track['popularity'] ?? 0,
+                            'preview_url' => $track['preview_url'] ?? null,
+                            'external_urls' => $track['external_urls'] ?? [],
+                            'external_ids' => $track['external_ids'] ?? [],
+                        ];
+                    }
+                }
+            } else {
+                // Tertiary: spotify23
+                \Log::info('🎵 [RAPIDAPI SPOTIFY] Backup failed, trying tertiary', [
+                    'timestamp' => now()->toISOString()
+                ]);
+
+                $tertiary = $this->makeRequest(
+                    "/tracks",
+                    ['ids' => $idsString],
+                    $this->tertiaryHost,
+                    $this->tertiaryApiKey,
+                    'Spotify23'
+                );
+
+                if ($tertiary['success'] && isset($tertiary['data']['tracks']) && is_array($tertiary['data']['tracks'])) {
+                    foreach ($tertiary['data']['tracks'] as $track) {
+                        if ($track !== null && isset($track['id'])) {
+                            $allResults[$track['id']] = [
+                                'id' => $track['id'],
+                                'name' => $track['name'] ?? null,
+                                'popularity' => $track['popularity'] ?? 0,
+                                'preview_url' => $track['preview_url'] ?? null,
+                                'external_urls' => $track['external_urls'] ?? [],
+                                'external_ids' => $track['external_ids'] ?? [],
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        \Log::info('🎵 [RAPIDAPI SPOTIFY] Batch track details completed', [
+            'requested' => count($ids),
+            'returned' => count($allResults)
+        ]);
+
+        return $allResults;
+    }
+
+    /**
+     * Batch get album details (including release_date and popularity) using RapidAPI Spotify
+     * Similar to getBatchTracks but for albums
+     *
+     * @param array $albumIds Array of Spotify album IDs
+     * @return array Map of album_id => ['id', 'name', 'release_date', 'popularity', ...]
+     */
+    public function getBatchAlbums(array $albumIds): array
+    {
+        \Log::info('💿 [RAPIDAPI SPOTIFY] Starting batch album details', [
+            'album_count' => count($albumIds),
+            'timestamp' => now()->toISOString()
+        ]);
+
+        $ids = array_values(array_filter(array_map('trim', $albumIds)));
+        if (empty($ids)) {
+            return [];
+        }
+
+        $allResults = [];
+
+        // Make a single batch request with all album IDs comma-separated
+        $idsString = implode(',', $ids);
+
+        // Primary: spotify81
+        $primary = $this->makeRequest(
+            "/albums",
+            ['ids' => $idsString],
+            $this->primaryHost,
+            $this->apiKey,
+            'Spotify81'
+        );
+
+        if ($primary['success'] && isset($primary['data']['albums']) && is_array($primary['data']['albums'])) {
+            foreach ($primary['data']['albums'] as $album) {
+                if ($album !== null && isset($album['id'])) {
+                    $allResults[$album['id']] = [
+                        'id' => $album['id'],
+                        'name' => $album['name'] ?? null,
+                        'release_date' => $album['release_date'] ?? null,
+                        'popularity' => $album['popularity'] ?? null,
+                        'images' => $album['images'] ?? [],
+                        'external_urls' => $album['external_urls'] ?? [],
+                    ];
+                }
+            }
+        } else {
+            // Backup: spotify-web2
+            \Log::info('💿 [RAPIDAPI SPOTIFY] Primary failed, trying backup', [
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $backup = $this->makeRequest(
+                "/albums",
+                ['ids' => $idsString],
+                $this->backupHost,
+                $this->backupApiKey,
+                'SpotifyWeb2'
+            );
+
+            if ($backup['success'] && isset($backup['data']['albums']) && is_array($backup['data']['albums'])) {
+                foreach ($backup['data']['albums'] as $album) {
+                    if ($album !== null && isset($album['id'])) {
+                        $allResults[$album['id']] = [
+                            'id' => $album['id'],
+                            'name' => $album['name'] ?? null,
+                            'release_date' => $album['release_date'] ?? null,
+                            'popularity' => $album['popularity'] ?? null,
+                            'images' => $album['images'] ?? [],
+                            'external_urls' => $album['external_urls'] ?? [],
+                        ];
+                    }
+                }
+            } else {
+                // Tertiary: spotify23
+                \Log::info('💿 [RAPIDAPI SPOTIFY] Backup failed, trying tertiary', [
+                    'timestamp' => now()->toISOString()
+                ]);
+
+                $tertiary = $this->makeRequest(
+                    "/albums",
+                    ['ids' => $idsString],
+                    $this->tertiaryHost,
+                    $this->tertiaryApiKey,
+                    'Spotify23'
+                );
+
+                if ($tertiary['success'] && isset($tertiary['data']['albums']) && is_array($tertiary['data']['albums'])) {
+                    foreach ($tertiary['data']['albums'] as $album) {
+                        if ($album !== null && isset($album['id'])) {
+                            $allResults[$album['id']] = [
+                                'id' => $album['id'],
+                                'name' => $album['name'] ?? null,
+                                'release_date' => $album['release_date'] ?? null,
+                                'popularity' => $album['popularity'] ?? null,
+                                'images' => $album['images'] ?? [],
+                                'external_urls' => $album['external_urls'] ?? [],
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        \Log::info('💿 [RAPIDAPI SPOTIFY] Batch album details completed', [
             'requested' => count($ids),
             'returned' => count($allResults)
         ]);

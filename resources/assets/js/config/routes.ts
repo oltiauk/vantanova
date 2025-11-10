@@ -245,4 +245,9 @@ export const routes: Route[] = [
     path: '/label-search',
     screen: 'LabelSearch'
   },
+  {
+    name: 'genre-by-year',
+    path: '/genre-by-year',
+    screen: 'GenreByYear'
+  },
 ]
