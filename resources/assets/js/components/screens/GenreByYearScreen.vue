@@ -155,13 +155,14 @@
             <table class="w-full max-w-full">
               <thead>
                 <tr class="border-b border-white/10">
-                  <th class="text-left p-3 font-medium">#</th>
+                  <th class="text-left p-3 font-medium" />
                   <th class="text-left p-3 font-medium w-12">Ban Artist</th>
                   <th class="text-left p-3 font-medium min-w-[200px] pl-10">Artist(s)</th>
                   <th class="text-left p-3 font-medium">Title</th>
-                  <th class="text-left p-3 font-medium">Followers</th>
-                  <th class="text-left p-3 font-medium">Release Date</th>
-                  <th class="text-left p-3 font-medium">Actions</th>
+                  <th class="text-center p-3 font-medium whitespace-nowrap">Followers</th>
+                  <th class="text-center p-3 font-medium whitespace-nowrap">Release Date</th>
+                  <th class="text-center pl-3 font-medium whitespace-nowrap" />
+                  <th class="text-center pr-3 font-medium whitespace-nowrap" />
                 </tr>
               </thead>
               <tbody>
@@ -216,64 +217,89 @@
                       </button>
                     </td>
 
-                    <!-- Followers -->
-                    <td class="p-3 align-middle">
-                      <span class="text-white/80">{{ formatFollowers(track.followers || 0) }}</span>
+                    <!-- Followers Count -->
+                    <td class="p-3 align-middle text-center">
+                      <div class="flex items-center justify-center">
+                        <span class="text-white/60 text-sm">
+                          {{ formatFollowers(track.followers || 0) }}
+                        </span>
+                      </div>
                     </td>
 
                     <!-- Release Date -->
-                    <td class="p-3 whitespace-nowrap align-middle">
-                      <span class="text-white/80 whitespace-nowrap inline-block">{{ formatDate(track.release_date) }}</span>
+                    <td class="p-3 align-middle text-center">
+                      <div class="flex items-center justify-center">
+                        <span class="text-white/60 text-sm">
+                          {{ formatDate(track.release_date) }}
+                        </span>
+                      </div>
                     </td>
 
-                    <!-- Actions -->
-                    <td class="p-3 align-middle">
-                      <div class="flex gap-2 relative z-0">
-                        <!-- Save Button -->
+                    <!-- Save/Ban Actions -->
+                    <td class="pl-3 align-middle">
+                      <div class="flex gap-2 justify-center">
+                        <!-- Save Button (24h) -->
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
                           :class="track.is_saved
                             ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                          class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                           :title="track.is_saved ? 'Click to unsave track' : 'Save the Track (24h)'"
                           @click="saveTrack(track)"
                         >
                           <Icon :icon="faHeart" class="text-sm" />
                         </button>
 
-                        <!-- Ban Button -->
+                        <!-- Blacklist Button -->
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
                           :class="track.is_banned
                             ? 'bg-orange-600 hover:bg-orange-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                          class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                           :title="track.is_banned ? 'Click to unblock track' : 'Ban the Track'"
                           @click="banTrack(track)"
                         >
                           <Icon :icon="faBan" class="text-sm" />
                         </button>
+                      </div>
+                    </td>
 
-                        <!-- Related Search Button -->
+                    <!-- Related/Preview Actions -->
+                    <td class="pr-3 align-middle">
+                      <div class="flex gap-2 justify-center -ml-4">
+                        <!-- Related Track Button -->
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition relative z-0 flex items-center gap-1"
+                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                           title="Find Related Tracks"
                           @click="getRelatedTracks(track)"
                         >
-                          <Icon :icon="faSearch" class="w-3 h-3" />
+                          <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
                           <span>Related</span>
                         </button>
 
                         <!-- Preview Button -->
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 justify-center"
+                          class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center" :class="[
+                            (expandedTrackId === getTrackKey(track) || listenedTracks.has(getTrackKey(track)))
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-[#484948] hover:bg-gray-500 text-white',
+                          ]"
+                          :title="expandedTrackId === getTrackKey(track) ? 'Close preview' : 'Preview track'"
                           @click="toggleSpotifyPlayer(track)"
                         >
-                          <Icon :icon="expandedTrackId === getTrackKey(track) ? faTimes : faPlay" class="w-3 h-3" />
-                          <span>{{ expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview' }}</span>
+                          <!-- Loading spinner when processing -->
+                          <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <!-- Regular icon when not processing -->
+                          <img v-else-if="expandedTrackId !== getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                          <Icon v-else-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
+                          <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Preview')) }}</span>
                         </button>
                       </div>
                     </td>
@@ -288,7 +314,7 @@
                     @after-leave="onAfterLeave"
                   >
                     <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                      <td colspan="8" class="p-0 overflow-hidden">
+                      <td colspan="9" class="p-0 overflow-hidden">
                         <div class="p-4 bg-white/5 relative pb-8">
                           <div class="max-w-4xl mx-auto">
                             <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
@@ -753,6 +779,7 @@ const markTrackAsListened = async (track: any) => {
     } catch {}
   }
 
+  // If auto-ban is enabled, ban the track
   if (banListenedTracks.value) {
     try {
       // Generate a fallback ISRC if none exists (required by API)
@@ -766,18 +793,17 @@ const markTrackAsListened = async (track: any) => {
       })
 
       if (response.success) {
-        track.isBanned = true
+        // Update track's is_banned property so UI shows orange button
+        track.is_banned = true
+        track.isBanned = true // Also set camelCase for consistency
         blacklistedTracks.value.add(trackKey)
-        pendingAutoBannedTracks.value.add(track.spotify_id)
-        userHasBannedItems.value = true
 
-        // Remove from slot immediately (same as manual ban)
-        for (let i = 0; i < 20; i++) {
-          if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
-            slotMap.value[i] = null
-            break
-          }
-        }
+        // Store track ID for deferred removal (will be removed on "Search Again")
+        pendingAutoBannedTracks.value.add(track.spotify_id)
+
+        // Emit that user has banned an item (enables "Search Again" button)
+        // But DON'T remove from slot yet - track stays visible until Search Again
+        userHasBannedItems.value = true
       }
     } catch (error) {
       console.warn('Failed to auto-ban listened track:', error)
@@ -1025,18 +1051,21 @@ const banTrack = async (track: any) => {
 // Get related tracks - navigate to Music Discovery
 const getRelatedTracks = (track: any) => {
   console.log('Getting related tracks for:', track.track_name)
-  // Navigate to Music Discovery screen
-  Router.go('music-discovery')
-  // Store track info for Music Discovery to use as seed
-  setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('genre-by-year-related-track', {
-      detail: {
-        track_id: track.spotify_id,
-        artist_name: track.artist_name,
-        track_title: track.track_name,
-      },
-    }))
-  }, 100)
+
+  // Store track info in localStorage for Music Discovery to use as seed
+  // This matches the format expected by MusicDiscoveryScreen
+  const seedTrackData = {
+    id: track.spotify_id,
+    name: track.track_name,
+    artist: track.artist_name,
+    timestamp: Date.now(),
+  }
+
+  localStorage.setItem('koel-music-discovery-seed-track', JSON.stringify(seedTrackData))
+  console.log('Stored seed track data for Music Discovery:', seedTrackData)
+
+  // Navigate to Music Discovery screen using hash navigation (same as SavedTracksScreen)
+  window.location.hash = '#/discover'
 }
 
 // Spotify player functionality
@@ -1184,8 +1213,12 @@ watch([searchQuery, yearFilter, followersMin, followersMax, popularityMin, popul
   }
 })
 
+// Watch for "Ban listened tracks" toggle being turned ON
 watch(banListenedTracks, async (newValue, oldValue) => {
   if (newValue === true && oldValue === false) {
+    console.log('🎵 [GENRE BY YEAR] Ban listened tracks toggle turned ON - auto-banning all listened tracks')
+
+    // Get all currently displayed tracks from slots
     const tracksToAutoBan: any[] = []
     for (let i = 0; i < 20; i++) {
       const track = slotMap.value[i]
@@ -1194,14 +1227,20 @@ watch(banListenedTracks, async (newValue, oldValue) => {
       }
     }
 
+    console.log(`🎵 [GENRE BY YEAR] Found ${tracksToAutoBan.length} listened tracks to auto-ban`)
+
+    // Ban each listened track
     for (const track of tracksToAutoBan) {
       const trackKey = getTrackKey(track)
+
+      // Skip if already blacklisted
       if (blacklistedTracks.value.has(trackKey)) {
         continue
       }
 
       try {
         const isrcValue = track.isrc || track.spotify_id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
         const response = await http.post('music-preferences/blacklist-track', {
           isrc: isrcValue,
           track_name: track.track_name,
@@ -1209,15 +1248,19 @@ watch(banListenedTracks, async (newValue, oldValue) => {
         })
 
         if (response.success) {
-          track.isBanned = true
+          // Update track's is_banned property so UI shows orange button
+          track.is_banned = true
+          track.isBanned = true // Also set camelCase for consistency
           blacklistedTracks.value.add(trackKey)
           pendingAutoBannedTracks.value.add(track.spotify_id)
+          console.log(`🎵 [GENRE BY YEAR] Auto-banned listened track: ${track.track_name}`)
         }
       } catch (error) {
         console.warn(`Failed to auto-ban listened track: ${track.track_name}`, error)
       }
     }
 
+    // If any tracks were banned, show Search Again button
     if (tracksToAutoBan.length > 0) {
       userHasBannedItems.value = true
     }
