@@ -27,7 +27,7 @@
                     v-model="searchQuery"
                     type="text"
                     class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
-                    placeholder="Search for a Seed Track"
+                    placeholder="Search for a Seed Artist"
                     @keydown.enter="performSearch"
                     @input="onSearchInput"
                   >

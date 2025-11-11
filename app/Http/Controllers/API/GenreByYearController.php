@@ -29,6 +29,8 @@ class GenreByYearController extends Controller
 
         $genre = $request->validated('genre');
         $year = $request->validated('year');
+        $yearMin = $request->validated('year_min');
+        $yearMax = $request->validated('year_max');
         $popularityMin = $request->validated('popularity_min');
         $popularityMax = $request->validated('popularity_max');
         $followersMin = $request->validated('followers_min');
@@ -39,7 +41,12 @@ class GenreByYearController extends Controller
             // Build Spotify search query: genre:"{genre}" year:{year} type:tracks limit:100
             $query = 'genre:"' . $genre . '"';
             
-            if ($year) {
+            // Support both single year (legacy) and year range (decade)
+            if ($yearMin && $yearMax) {
+                // Use year range: year:1990-2000
+                $query .= " year:$yearMin-$yearMax";
+            } elseif ($year) {
+                // Legacy: single year
                 $query .= " year:$year";
             }
 
@@ -47,6 +54,7 @@ class GenreByYearController extends Controller
                 'query' => $query,
                 'genre' => $genre,
                 'year' => $year,
+                'year_range' => $yearMin && $yearMax ? [$yearMin, $yearMax] : null,
                 'offset' => $offset,
                 'popularity_range' => $popularityMin !== null || $popularityMax !== null ? [$popularityMin, $popularityMax] : null,
                 'followers_range' => $followersMin !== null || $followersMax !== null ? [$followersMin, $followersMax] : null,

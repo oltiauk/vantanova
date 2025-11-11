@@ -20,7 +20,7 @@
         :queue-key="currentQueueKey"
         :current-batch-has-banned-items="userHasBannedItems"
         :empty-slot-count="emptySlotCount"
-        :queue-exhausted="queueExhausted"
+        :queue-exhausted="queueExhausted"  
         @track-selected="onTrackSelected"
         @related-tracks="(track, isRefresh) => onRelatedTracksRequested(track, isRefresh)"
         @search-results-changed="onSearchResultsChanged"

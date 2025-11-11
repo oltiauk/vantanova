@@ -3,7 +3,7 @@
     <template #header>
       <ScreenHeader layout="simple" class="text-center" header-image="/VantaNova-Logo.svg">
         <template #subtitle>
-          Search tracks by genre and year
+          Search tracks by genre and decade
         </template>
       </ScreenHeader>
     </template>
@@ -12,8 +12,8 @@
       <!-- Search Controls - Matching Image Layout (constrained width) -->
       <div class="max-w-4xl mx-auto w-full">
         <div class="space-y-4">
-          <!-- Top Row: Genre (left) and Year (right) -->
-          <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-10">
+          <!-- Top Row: Genre, Decade, and Year -->
+          <div class="relative grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Genre Field -->
             <div>
               <label class="block text-sm font-medium mb-2 text-white/80">Genre</label>
@@ -26,20 +26,37 @@
               >
             </div>
 
-            <!-- Year Field - Smaller width -->
-            <div class="w-32">
+            <!-- Decade Dropdown -->
+            <div>
+              <label class="block text-sm font-medium mb-2 text-white/80">Decade</label>
+              <select
+                v-model="selectedDecade"
+                class="decade-select w-full p-3 rounded focus:outline-none text-white appearance-none cursor-pointer transition"
+                style="background-color: #303030;"
+                @change="onDecadeChange"
+              >
+                <option value="" style="background-color: #303030;">Select a decade</option>
+                <option v-for="decade in decadeOptions" :key="decade.value" :value="decade.value" style="background-color: #303030;">
+                  {{ decade.label }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Specific Year Input -->
+            <div>
               <label class="block text-sm font-medium mb-2 text-white/80">Year</label>
               <input
                 v-model="yearFilter"
                 type="text"
-                placeholder="Type a year"
+                placeholder="Type a specific year"
                 class="w-full p-3 bg-white/10 rounded focus:outline-none text-white"
                 @keyup.enter="performSearch"
+                @input="onYearInput"
               >
             </div>
           </div>
 
-          <!-- Second Row: Min/Max Followers (below Genre) and Popularity (below Year) -->
+          <!-- Second Row: Min/Max Followers and Popularity -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Left Column: Min/Max Followers -->
             <div class="grid grid-cols-2 gap-4">
@@ -388,7 +405,10 @@ const { onRouteChanged } = useRouter()
 
 // Reactive state
 const searchQuery = ref('')
+const selectedDecade = ref('')
 const yearFilter = ref('')
+const yearMin = ref<number | null>(null)
+const yearMax = ref<number | null>(null)
 const followersMin = ref<number | null>(null)
 const followersMax = ref<number | null>(null)
 const popularityMin = ref(0)
@@ -399,6 +419,8 @@ const tracks = ref([])
 const hasSearched = ref(false)
 const lastSearchQuery = ref('')
 const lastYearFilter = ref('')
+const lastYearMin = ref<number | null>(null)
+const lastYearMax = ref<number | null>(null)
 const expandedTrackId = ref<string | null>(null)
 const processingTrack = ref<string | null>(null)
 const isPreviewProcessing = ref(false)
@@ -483,6 +505,52 @@ const formatFollowers = (followers: number): string => {
   return followers.toString()
 }
 
+// Generate decade options (1960-1970, 1970-1980, etc. up to current decade)
+const decadeOptions = computed(() => {
+  const decades = []
+  const currentYear = new Date().getFullYear()
+  const currentDecade = Math.floor(currentYear / 10) * 10
+  const startDecade = 1960
+
+  for (let decade = startDecade; decade <= currentDecade; decade += 10) {
+    const endDecade = decade + 10
+    decades.push({
+      label: `${decade}-${endDecade}`,
+      value: `${decade}-${endDecade}`,
+      min: decade,
+      max: endDecade,
+    })
+  }
+
+  return decades
+})
+
+// Handle decade selection change
+const onDecadeChange = () => {
+  if (selectedDecade.value) {
+    const decade = decadeOptions.value.find(d => d.value === selectedDecade.value)
+    if (decade) {
+      yearMin.value = decade.min
+      yearMax.value = decade.max
+      // Clear year input when decade is selected
+      yearFilter.value = ''
+    }
+  } else {
+    yearMin.value = null
+    yearMax.value = null
+  }
+}
+
+// Handle year input change
+const onYearInput = () => {
+  if (yearFilter.value.trim()) {
+    // Clear decade selection when year is entered
+    selectedDecade.value = ''
+    yearMin.value = null
+    yearMax.value = null
+  }
+}
+
 const performSearch = async (isSearchAgain = false) => {
   if (!searchQuery.value.trim()) {
     return
@@ -503,6 +571,8 @@ const performSearch = async (isSearchAgain = false) => {
     currentOffset.value = 0
     lastSearchQuery.value = searchQuery.value.trim()
     lastYearFilter.value = yearFilter.value
+    lastYearMin.value = yearMin.value
+    lastYearMax.value = yearMax.value
     searchAgainNoResults.value = false
   }
 
@@ -511,8 +581,14 @@ const performSearch = async (isSearchAgain = false) => {
       genre: searchQuery.value.trim(),
     }
 
-    if (yearFilter.value) {
-      params.year = yearFilter.value
+    // Priority: Decade range > Specific year
+    if (yearMin.value !== null && yearMax.value !== null) {
+      // Decade range selected
+      params.year_min = yearMin.value
+      params.year_max = yearMax.value
+    } else if (yearFilter.value.trim()) {
+      // Specific year entered
+      params.year = yearFilter.value.trim()
     }
 
     if (popularityMin.value > 0 || popularityMax.value < 100) {
@@ -1202,10 +1278,27 @@ const banArtist = async (track: any) => {
   }
 }
 
-// Watch for "Ban listened tracks" toggle
-// Watch for changes in search fields - reset state if user modifies criteria after no results
-watch([searchQuery, yearFilter, followersMin, followersMax, popularityMin, popularityMax], () => {
-  // If we had no results and user changes search criteria, reset state to allow new search
+// Watch for changes in search fields - reset previous search when user modifies genre, year, or decade
+watch([searchQuery, selectedDecade, yearFilter], () => {
+  // Reset search state when user modifies genre, year, or decade
+  if (hasSearched.value) {
+    // Clear all tracks and reset state
+    tracks.value = []
+    slotMap.value = {}
+    trackQueue.value = []
+    currentOffset.value = 0
+    queueExhausted.value = false
+    userHasBannedItems.value = false
+    searchAgainNoResults.value = false
+    errorMessage.value = ''
+    expandedTrackId.value = null
+    hasSearched.value = false
+  }
+})
+
+// Watch for filter changes (followers, popularity) - only reset if no results
+watch([followersMin, followersMax, popularityMin, popularityMax], () => {
+  // If we had no results and user changes filter criteria, reset state to allow new search
   if (hasSearched.value && tracks.value.length === 0) {
     queueExhausted.value = false
     userHasBannedItems.value = false
@@ -1423,5 +1516,59 @@ tr {
   background: white;
   border: 2px solid rgba(255, 255, 255, 0.8);
   margin-top: 0px;
+}
+
+/* Match ProfileDropdown.vue colors */
+.decade-select:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.decade-select:focus {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  outline: none !important;
+}
+
+/* Aggressively override browser default select option styling */
+.decade-select option {
+  background-color: #303030 !important;
+  color: white !important;
+}
+
+.decade-select option:checked {
+  background-color: #303030 !important;
+  color: white !important;
+}
+
+.decade-select option:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+.decade-select option:focus {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+.decade-select option:active {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+/* Global select option overrides to prevent blue */
+select option {
+  background-color: #303030 !important;
+  color: white !important;
+}
+
+select option:checked {
+  background-color: #303030 !important;
+  color: white !important;
+}
+
+select option:hover,
+select option:focus,
+select option:active {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
 }
 </style>
