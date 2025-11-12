@@ -112,18 +112,7 @@
           </div>
         </div>
 
-        <!-- Search Again Button - Show below seed track when conditions are met -->
-        <div v-if="emptySlotCount > 0 || currentBatchHasBannedItems || queueExhausted" class="flex justify-center mt-4">
-          <button
-            :disabled="isSearching || queueExhausted"
-            class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
-            @click="performSearch"
-          >
-            <Icon :icon="faSearch" class="w-4 h-4" />
-            <span v-if="queueExhausted">No More Tracks</span>
-            <span v-else>Search Again</span>
-          </button>
-        </div>
+        
       </div>
     </div>
 
@@ -345,17 +334,7 @@ const performSearch = () => {
 
   // If there's already a selected seed track and recommendations, this is a refresh search
   // This only triggers when search query is empty
-  if (props.selectedTrack && props.hasRecommendations) {
-    console.log('🔎 [SEED] Refresh search path (Search Again) with selected track and recommendations present')
-    handleSearchAgain()
-    return
-  }
-
-  // If there are empty slots, this is a search again to refill
-  if (props.emptySlotCount > 0) {
-    console.log('🔎 [SEED] Empty slots present, triggering Search Again')
-    handleSearchAgain()
-  }
+  // No Search Again behavior
 }
 
 // Search functionality
@@ -444,45 +423,7 @@ const getRelatedTracks = (track: Track, isRefresh = false) => {
   emit('related-tracks', track, isRefresh)
 }
 
-// Note: currentBatchHasBannedItems is now managed by parent via props
-
-// Handle search button click when there's already a selected seed track
-const handleSearchAgain = () => {
-  console.log('🔁 [SEED] handleSearchAgain invoked', {
-    hasSelectedTrack: !!props.selectedTrack,
-    hasRecommendations: !!props.hasRecommendations,
-    emptySlotCount: props.emptySlotCount,
-    currentBatchHasBannedItems: props.currentBatchHasBannedItems,
-    queueExhausted: props.queueExhausted,
-  })
-
-  // Don't proceed if queue is exhausted
-  if (props.queueExhausted) {
-    console.log('⚠️ [SEED] Queue exhausted - no more tracks available')
-    return
-  }
-
-  if (
-    props.selectedTrack
-    && (props.hasRecommendations || props.emptySlotCount > 0 || props.currentBatchHasBannedItems)
-  ) {
-    // This is a refresh - user wants to see more tracks from the queue
-    console.log('🔁 [SEED] Emitting refresh for selected track', {
-      trackId: props.selectedTrack.id,
-      artist: props.selectedTrack.artist,
-      title: props.selectedTrack.name,
-    })
-    getRelatedTracks(props.selectedTrack, true) // true = refresh search
-    // The parent will reset currentBatchHasBannedItems flag after refill
-  } else {
-    console.log('🔁 [SEED] Refresh conditions not met, not emitting', {
-      hasSelectedTrack: !!props.selectedTrack,
-      hasRecommendations: !!props.hasRecommendations,
-      emptySlotCount: props.emptySlotCount,
-      currentBatchHasBannedItems: props.currentBatchHasBannedItems,
-    })
-  }
-}
+// Note: currentBatchHasBannedItems is now managed by parent via props (Search Again removed)
 
 // Music preferences
 const saveTrack = async (track: Track) => {

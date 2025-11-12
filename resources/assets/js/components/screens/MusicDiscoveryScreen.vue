@@ -821,29 +821,38 @@ const onPendingBlacklist = (identifier: string) => {
     }
   })
 
-  // DON'T remove from queue - we need those tracks to refill the empty slots!
-  // The queue should remain intact so we can pull from it when "Search Again" is clicked
   console.log(`✅ [SLOT SYSTEM] Removed ${removedCount} tracks from slots`)
-  console.log(`✅ [SLOT SYSTEM] Queue unchanged: ${trackQueue.value.length} tracks available for refill`)
 
-  // Update allRecommendations to reflect current slot map (non-null tracks only)
+  // Auto-refill: fill ALL empty slots immediately from queue, starting from bottom
+  const emptyIndices = Object.keys(slotMap.value)
+    .map(Number)
+    .filter(idx => slotMap.value[idx] === null)
+    .sort((a, b) => a - b)
+
+  console.log(`🔄 [SLOT SYSTEM] Empty slots to fill: ${emptyIndices.length}, Queue length: ${trackQueue.value.length}`)
+
+  while (emptyIndices.length > 0 && trackQueue.value.length > 0) {
+    const bottomMost = emptyIndices.pop() as number // highest index
+    const nextTrack = trackQueue.value.shift()
+    if (nextTrack) {
+      slotMap.value[bottomMost] = nextTrack
+      console.log(`🔄 [SLOT SYSTEM] Filled slot ${bottomMost} from queue`)
+    }
+  }
+
+  // Update recommendations list
   allRecommendations.value = Object.values(slotMap.value).filter(track => track !== null) as Track[]
   totalTracks.value = allRecommendations.value.length
 
-  console.log(`✅ [SLOT SYSTEM] Current state: ${allRecommendations.value.length} visible tracks, ${emptySlotCount.value} empty slots`)
+  // No Search Again state
+  userHasBannedItems.value = false
 }
 
 // Handle when user bans an item (track or artist) - sets flag for current batch
-const onUserBannedItem = () => {
-  userHasBannedItems.value = true
-  console.log('🚫 User banned an item from current batch - Search Again button will be enabled')
-}
+const onUserBannedItem = () => {}
 
 // Handle when user bans an item from current batch (same as onUserBannedItem)
-const onCurrentBatchBannedItem = () => {
-  userHasBannedItems.value = true
-  console.log('🚫 User banned an item from current batch - Search Again button will be enabled')
-}
+const onCurrentBatchBannedItem = () => {}
 
 // Handle when all pending auto-bans have been cleared (user unbanned all listened tracks)
 const onPendingAutoBansCleared = () => {

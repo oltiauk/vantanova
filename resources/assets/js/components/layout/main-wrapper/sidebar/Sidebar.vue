@@ -57,12 +57,12 @@
             Label Search
           </SidebarItem>
 
-          <!-- <SidebarItem :href="url('genre-by-year')" screen="GenreByYear">
+          <SidebarItem :href="url('genre-by-year')" screen="GenreByYear">
             <template #icon>
               <img src="/public/icons/TimeExplorer-icon.svg" alt="Time Explorer" class="w-4 h-4 object-contain sidebar-icon-svg">
             </template>
             Time Explorer
-          </SidebarItem> -->
+          </SidebarItem>
         </ul>
       </SidebarSection>
 

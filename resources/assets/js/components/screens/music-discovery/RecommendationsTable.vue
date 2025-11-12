@@ -1,25 +1,7 @@
 <template>
   <div class="recommendations-table">
     <!-- Header -->
-    <div v-if="recommendations.length > 0 || isDiscovering" class="mb-6">
-      <div class="max-w-8xl mx-auto">
-        <!-- Ban Listened Tracks Toggle -->
-        <div v-if="recommendations.length > 0" class="flex items-center justify-end gap-3 mb-4">
-          <span class="text-sm text-white/80">Ban listened tracks</span>
-          <button
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-            :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
-            @click="banListenedTracks = !banListenedTracks"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
-        </div>
-      </div>
-      
-    </div>
+    <div v-if="recommendations.length > 0 || isDiscovering" class="mb-6" />
 
     <!-- Loading State -->
     <div v-if="isDiscovering" class="text-center p-12">
@@ -56,7 +38,6 @@
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left pl-3 py-7 font-medium w-10"></th>
-                <th class="text-center pr-3 font-medium w-16 whitespace-nowrap"></th>
                 <th class="text-left p-3 py-7 font-medium w-auto min-w-64">Artist(s)</th>
                 <th class="text-left p-3 font-medium min-w-80">Title</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Popularity</th>
@@ -72,7 +53,8 @@
                 <tr
                   :class="[
                     'transition h-16 border-b border-white/5',
-                    (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5'
+                    (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5',
+                    (slot.track as any).__leaving ? 'row-slide-out' : ''
                   ]"
                 >
                   <!-- Index -->
@@ -80,23 +62,7 @@
                     <span class="text-white/60">{{ index + 1 }}</span>
                   </td>
 
-                  <!-- Ban Button -->
-                  <td class="p-3 align-middle">
-                    <div class="flex items-center justify-center">
-                      <button
-                        @click="banArtist(slot.track)"
-                        :class="[
-                          'w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center',
-                          isArtistBanned(slot.track)
-                            ? 'bg-red-600 hover:bg-red-700 text-white'
-                            : 'bg-[#484948] hover:bg-gray-500 text-white'
-                        ]"
-                        :title="isArtistBanned(slot.track) ? 'Click to unban this artist' : 'Ban this artist'"
-                      >
-                        <Icon :icon="faUserSlash" class="text-xs" />
-                      </button>
-                    </div>
-                  </td>
+                  
 
                   <!-- Artist -->
                   <td class="p-3 align-middle">
@@ -207,7 +173,7 @@
                 <!-- Spotify Player Dropdown -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="slot.track && (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(slot.track)}-${index}`">
-                    <td colspan="9" class="p-0 bg-white/5 border-b border-white/5">
+                    <td colspan="8" class="p-0 bg-white/5 border-b border-white/5">
                       <div class="spotify-player-container p-6 bg-white/3 relative">
                           <div class="max-w-6xl mx-auto">
                             <!-- Loading State -->
@@ -303,7 +269,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick, withDefaults } from 'vue'
-import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch, faChevronDown, faFilter, faArrowUp, faClock, faUserSlash } from '@fortawesome/free-solid-svg-icons'
+import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch, faChevronDown, faFilter, faArrowUp, faClock } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
@@ -391,10 +357,6 @@ const allowAnimations = ref(true)
 
 // Track which tracks have been listened to (previewed)
 const listenedTracks = ref(new Set<string>())
-const banListenedTracks = ref(false)
-
-// Store track IDs that were auto-banned but should remain visible until "Search Again"
-const pendingAutoBannedTracks = ref(new Set<string>())
 
 // Stats fetching tracking - to avoid duplicate API calls
 const tracksWithStatsFetched = ref(new Set<string>()) // Track keys that have had stats fetched
@@ -776,9 +738,11 @@ const saveTrack = async (track: Track) => {
     savedTracks.value.add(trackKey)
     clientUnsavedTracks.value.delete(trackKey)
     
-    // IMMEDIATELY remove track from table for instant UX (before API calls)
-    // Emit pending-blacklist so parent removes it from slot
-    emit('pending-blacklist', track.id)
+    // Animate removal: mark row as leaving, then remove after a short delay
+    ;(track as any).__leaving = true
+    setTimeout(() => {
+      emit('pending-blacklist', track.id)
+    }, 220)
     console.log(`💾 [RECS TABLE] Saved track - immediately removing from display: ${track.name}`)
     
     // Emit that user has done an action (for Search Again functionality)
@@ -926,15 +890,7 @@ const blacklistTrack = async (track: Track) => {
     // UNBAN TRACK - Update UI immediately for better UX
     blacklistedTracks.value.delete(trackKey)
 
-    // Remove from pending auto-bans if it was auto-banned (prevents removal on "Search Again")
-    if (pendingAutoBannedTracks.value.has(track.id)) {
-      pendingAutoBannedTracks.value.delete(track.id)
-
-      // If all pending auto-bans have been removed, notify parent to hide button
-      if (pendingAutoBannedTracks.value.size === 0) {
-        emit('pending-auto-bans-cleared')
-      }
-    }
+    // Auto-ban pending removal no longer applicable
 
     // Clear the pending blacklist flag if it was set
     if (track.isPendingBlacklist) {
@@ -987,9 +943,11 @@ const blacklistTrack = async (track: Track) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
-        // Emit pending-blacklist event (row stays visible, marked)
-        // Pass track ID for unique identification
-        emit('pending-blacklist', track.id)
+        // Animate removal: mark row as leaving, then remove after a short delay
+        ;(track as any).__leaving = true
+        setTimeout(() => {
+          emit('pending-blacklist', track.id)
+        }, 220)
         // Emit that user has banned an item (for Search Again functionality)
         emit('user-banned-item')
         emit('current-batch-banned-item')
@@ -1154,49 +1112,11 @@ const markTrackAsListened = async (track: Track) => {
     } catch {}
   }
 
-  // If auto-ban is enabled, ban the track
-  if (banListenedTracks.value) {
-    try {
-      // Generate a fallback ISRC if none exists (same logic as blacklistTrack function)
-      const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-      const response = await http.post('music-preferences/blacklist-track', {
-        isrc: isrcValue,
-        track_name: track.name,
-        artist_name: track.artist
-      })
-
-      if (response.success) {
-        blacklistedTracks.value.add(trackKey)
-
-        // Store track ID for deferred removal (will be removed on "Search Again")
-        pendingAutoBannedTracks.value.add(track.id)
-
-        // Emit that user has banned an item (enables "Search Again" button)
-        // But DON'T emit 'pending-blacklist' yet - track stays visible until Search Again
-        emit('user-banned-item')
-        emit('current-batch-banned-item')
-      }
-    } catch (error) {
-      console.warn('Failed to auto-ban listened track:', error)
-    }
-  }
+  // Auto-ban listened tracks feature removed
 }
 
-// Flush pending auto-banned tracks (called before "Search Again" refill)
-const flushPendingAutoBans = () => {
-  if (pendingAutoBannedTracks.value.size === 0) {
-    return
-  }
-
-  // Emit 'pending-blacklist' for each track that was auto-banned
-  pendingAutoBannedTracks.value.forEach(trackId => {
-    emit('pending-blacklist', trackId)
-  })
-
-  // Clear the pending set
-  pendingAutoBannedTracks.value.clear()
-}
+// Kept for compatibility with parent, now a no-op
+const flushPendingAutoBans = () => {}
 
 const getRelatedTracks = (track: Track) => {
   // Close any open preview dropdown when getting related tracks
@@ -2025,59 +1945,7 @@ watch([currentPage, currentTracksPerPage], async () => {
   await fetchStatsForCurrentPage()
 }, { immediate: false })
 
-// Watch for "Ban listened tracks" toggle being turned ON
-// Auto-ban all tracks that are already in "Listened" state
-watch(banListenedTracks, async (newValue, oldValue) => {
-  // Only act when toggle changes from OFF to ON
-  if (newValue === true && oldValue === false) {
-    console.log('🎵 Ban listened tracks toggle turned ON - auto-banning all listened tracks')
-
-    // Get all currently displayed tracks from slot map
-    const tracksToAutoBan: Track[] = []
-    for (let i = 0; i < 20; i++) {
-      const track = props.slotMap[i]
-      if (track && listenedTracks.value.has(getTrackKey(track))) {
-        tracksToAutoBan.push(track)
-      }
-    }
-
-    console.log(`🎵 Found ${tracksToAutoBan.length} listened tracks to auto-ban`)
-
-    // Ban each listened track
-    for (const track of tracksToAutoBan) {
-      const trackKey = getTrackKey(track)
-
-      // Skip if already blacklisted
-      if (blacklistedTracks.value.has(trackKey)) {
-        continue
-      }
-
-      try {
-        const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-        const response = await http.post('music-preferences/blacklist-track', {
-          isrc: isrcValue,
-          track_name: track.name,
-          artist_name: track.artist
-        })
-
-        if (response.success) {
-          blacklistedTracks.value.add(trackKey)
-          pendingAutoBannedTracks.value.add(track.id)
-          console.log(`🎵 Auto-banned listened track: ${track.name}`)
-        }
-      } catch (error) {
-        console.warn(`Failed to auto-ban listened track: ${track.name}`, error)
-      }
-    }
-
-    // If any tracks were banned, emit events to show "Search Again" button
-    if (tracksToAutoBan.length > 0) {
-      emit('user-banned-item')
-      emit('current-batch-banned-item')
-    }
-  }
-})
+// Removed auto-ban listened tracks watcher
 
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {
@@ -2132,6 +2000,13 @@ defineExpose({
 </script>
 
 <style scoped>
+/* Quick slide-out animation for removed rows */
+.row-slide-out {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: translateX(100%);
+  opacity: 0;
+  will-change: transform, opacity;
+}
 /* Spotify Dropdown Animations */
 .spotify-dropdown-enter-active {
   transition:

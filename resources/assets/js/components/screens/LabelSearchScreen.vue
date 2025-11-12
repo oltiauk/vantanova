@@ -75,27 +75,14 @@
           </div>
         </div>
 
-        <!-- Search Button / Search Again (mutually exclusive) -->
+        <!-- Search Button -->
         <div class="flex justify-center gap-4">
           <button
-            v-if="!((emptySlotCount > 0 || userHasBannedItems) && hasSearched)"
             :disabled="!searchQuery.trim() || isLoading"
             class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors"
             @click="performSearch"
           >
             Search
-          </button>
-
-          <!-- Search Again Button (shows when there are banned/listened tracks) -->
-          <button
-            v-if="(emptySlotCount > 0 || userHasBannedItems || queueExhausted) && hasSearched"
-            :disabled="queueExhausted"
-            class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            @click="refillFromQueue"
-          >
-            <span v-if="queueExhausted">No More Tracks</span>
-            <span v-else-if="emptySlotCount > 0">Search Again</span>
-            <span v-else>Search Again</span>
           </button>
         </div>
       </div>
@@ -117,20 +104,7 @@
 
       <!-- Results Table -->
       <div v-else-if="filteredTracks.length > 0" class="mt-8">
-        <!-- Ban Listened Tracks Toggle -->
-        <div class="flex items-center gap-3 mb-4 justify-end">
-          <span class="text-sm text-white/80">Ban listened tracks</span>
-          <button
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-            :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
-            @click="banListenedTracks = !banListenedTracks"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
-        </div>
+        
 
         <div class="bg-white/5 rounded-lg overflow-hidden">
           <div class="overflow-x-auto scrollbar-hide">
@@ -138,7 +112,6 @@
               <thead>
                 <tr class="border-b border-white/10">
                   <th class="text-left py-7 px-3 font-medium" />
-                  <th class="text-center px-3 font-medium w-20 whitespace-nowrap" />
                   <th class="text-left px-3 py-7 font-medium w-auto min-w-48">Artist(s)</th>
                   <th class="text-left px-3 font-medium">Title</th>
                   <th class="text-center px-3 font-medium">Popularity</th>
@@ -153,6 +126,7 @@
                   <tr
                     class="transition h-16 border-b border-white/5" :class="[
                       expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
+                      (track as any).__leaving ? 'row-slide-out' : ''
                     ]"
                   >
                     <!-- Index -->
@@ -160,22 +134,7 @@
                       <span class="text-white/60">{{ index + 1 }}</span>
                     </td>
 
-                    <!-- Ban Artist Button -->
-                    <td class="p-3 align-middle">
-                      <div class="flex items-center justify-center">
-                        <button
-                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
-                            isArtistBanned(track)
-                              ? 'bg-red-600 hover:bg-red-700 text-white'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white',
-                          ]"
-                          :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
-                          @click="banArtist(track)"
-                        >
-                          <Icon :icon="faUserSlash" class="text-xs" />
-                        </button>
-                      </div>
-                    </td>
+                    
 
                     <!-- Artist -->
                     <td class="p-3 align-middle">
@@ -273,7 +232,7 @@
 
                   <!-- Spotify Player Dropdown Row -->
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="9" class="p-0 overflow-hidden">
+                    <td colspan="8" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative pb-8">
                         <div class="max-w-6xl mx-auto">
                           <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
@@ -335,7 +294,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faBan, faCheck, faChevronDown, faHeart, faPause, faPlay, faSpinner, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
+import { faBan, faCheck, faChevronDown, faHeart, faPause, faPlay, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { http } from '@/services/http'
 import { logger } from '@/utils/logger'
@@ -360,7 +319,6 @@ const lastSearchQuery = ref('')
 const expandedTrackId = ref<string | null>(null)
 const processingTrack = ref<string | null>(null)
 const isPreviewProcessing = ref(false)
-const bannedArtists = ref(new Set<string>())
 
 // Slot-based virtual table system (like MusicDiscoveryScreen)
 const slotMap = ref<Record<number, any | null>>({})
@@ -368,10 +326,8 @@ const trackQueue = ref<any[]>([]) // Queue for refilling
 const userHasBannedItems = ref(false)
 const queueExhausted = ref(false) // Track when all tracks from queue have been displayed
 
-// Ban listened tracks feature
-const banListenedTracks = ref(false)
+// Listened tracks tracking (UI only)
 const listenedTracks = ref(new Set<string>())
-const pendingAutoBannedTracks = ref(new Set<string>())
 const blacklistedTracks = ref(new Set<string>())
 
 // Audio for previews
@@ -423,26 +379,67 @@ const getTrackKey = (track: any): string => {
 }
 
 // Format date helper function
-const formatDate = (dateString: string): string => {
-  if (!dateString) {
-    return 'Unknown'
-  }
+// Rules:
+// - Within current day/week/month => "X day(s)/week(s)/month(s) ago" (singular for 1)
+// - If release year is not the current year => show just the year (e.g., 2018)
+// - If within the current year but older than a month => "X months ago"
+const formatDate = (releaseDate?: string): string => {
+  if (!releaseDate) return 'Unknown'
+
   try {
-    const date = new Date(dateString)
+    const dateStr = releaseDate.trim()
+
+    // Parse the date - handle YYYY-MM-DD, YYYY-MM, or YYYY formats
+    let date: Date
+    if (dateStr.includes('-')) {
+      // Full date or date with month
+      date = new Date(dateStr)
+    } else if (dateStr.length === 4) {
+      // Just year - use Jan 1st of that year
+      date = new Date(parseInt(dateStr, 10), 0, 1)
+    } else {
+      return 'Unknown'
+    }
+
+    if (isNaN(date.getTime())) {
+      // Fallback: just show year if present
+      const yearMatch = dateStr.match(/\d{4}/)
+      return yearMatch ? yearMatch[0] : 'Unknown'
+    }
+
     const now = new Date()
     const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    const diffWeeks = Math.floor(diffDays / 7)
+    const diffMonths = Math.floor(diffDays / 30)
+    const currentYear = now.getFullYear()
+    const releaseYear = date.getFullYear()
 
-    if (diffDays < 30) {
-      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
-    } else if (diffDays < 365) {
-      const months = Math.floor(diffDays / 30)
-      return `${months} month${months === 1 ? '' : 's'} ago`
-    } else {
-      return dateString.split('T')[0]
+    // Same-day handling
+    if (diffDays === 0) {
+      return 'Today'
     }
+
+    // Days within the last week
+    if (diffDays < 7) {
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+    }
+
+    // Weeks within the last month
+    if (diffWeeks < 4) {
+      return `${diffWeeks} week${diffWeeks === 1 ? '' : 's'} ago`
+    }
+
+    // Months within the current year
+    if (releaseYear === currentYear && diffMonths < 12) {
+      return `${diffMonths} month${diffMonths === 1 ? '' : 's'} ago`
+    }
+
+    // Older than current year: show year only
+    return releaseYear.toString()
   } catch (error) {
-    return dateString.split('T')[0]
+    const yearMatch = releaseDate.match(/\d{4}/)
+    return yearMatch ? yearMatch[0] : 'Unknown'
   }
 }
 
@@ -517,14 +514,11 @@ const performSearch = async () => {
       console.log('Track keys:', Object.keys(responseTracks[0]))
     }
 
-    // Filter out backend-banned tracks AND locally banned artists (from bannedArtists Set)
+    // Filter out backend-banned tracks only
     const filteredTracks = responseTracks.filter(track =>
-      !track.is_banned
-      && !track.is_artist_banned
-      && !bannedArtists.value.has(track.artist_name),
+      !track.is_banned && !track.is_artist_banned,
     )
-    console.log('After filtering banned tracks and artists:', filteredTracks.length)
-    console.log('Locally banned artists:', Array.from(bannedArtists.value))
+    console.log('After filtering banned tracks (backend):', filteredTracks.length)
 
     const allTracks = filteredTracks
       .map(track => ({
@@ -596,8 +590,7 @@ const refillFromQueue = () => {
 
   console.log(`🔄 [LABEL SEARCH] Starting refill from queue`)
 
-  // Flush pending auto-banned tracks first
-  flushPendingAutoBans()
+  // No pending auto-bans to flush
 
   // Count how many empty slots we have
   let emptyCount = 0
@@ -617,20 +610,8 @@ const refillFromQueue = () => {
 
   userHasBannedItems.value = false
 
-  // Filter queue to remove tracks by banned artists
-  const filteredQueue = trackQueue.value.filter(track => {
-    const isBanned = bannedArtists.value.has(track.artist_name)
-    if (isBanned) {
-      console.log(`🔄 [LABEL SEARCH] Skipping track by banned artist: ${track.artist_name} - ${track.track_name}`)
-    }
-    return !isBanned
-  })
-
-  // Update queue to only contain non-banned tracks
-  trackQueue.value = filteredQueue
-
   const availableInQueue = trackQueue.value.length
-  console.log(`🔄 [LABEL SEARCH] Queue has ${availableInQueue} tracks available (after filtering banned artists)`)
+  console.log(`🔄 [LABEL SEARCH] Queue has ${availableInQueue} tracks available`)
 
   if (availableInQueue === 0) {
     console.log(`⚠️ [LABEL SEARCH] Queue is empty - cannot refill`)
@@ -677,7 +658,7 @@ const refillFromQueue = () => {
   }
 }
 
-// Mark track as listened and auto-ban if toggle is ON
+// Mark track as listened
 const markTrackAsListened = async (track: any) => {
   const trackKey = getTrackKey(track)
   listenedTracks.value.add(trackKey)
@@ -699,51 +680,11 @@ const markTrackAsListened = async (track: any) => {
     } catch {}
   }
 
-  // Auto-ban if toggle is ON
-  if (banListenedTracks.value) {
-    try {
-      const isrcValue = track.isrc || track.spotify_id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-      const response = await http.post('music-preferences/blacklist-track', {
-        isrc: isrcValue,
-        track_name: track.track_name,
-        artist_name: track.artist_name,
-      })
-
-      if (response.success) {
-        // Update track's isBanned property so UI shows orange button
-        track.isBanned = true
-        blacklistedTracks.value.add(trackKey)
-        pendingAutoBannedTracks.value.add(track.spotify_id)
-        userHasBannedItems.value = true
-      }
-    } catch (error) {
-      console.warn('Failed to auto-ban listened track:', error)
-    }
-  }
+  // Auto-ban removed
 }
 
-// Flush pending auto-banned tracks (emit removal)
-const flushPendingAutoBans = () => {
-  if (pendingAutoBannedTracks.value.size === 0) {
-    return
-  }
-
-  console.log(`🔄 [LABEL SEARCH] Flushing ${pendingAutoBannedTracks.value.size} pending auto-bans`)
-
-  // Remove pending auto-banned tracks from slots
-  pendingAutoBannedTracks.value.forEach(trackId => {
-    for (let i = 0; i < 20; i++) {
-      const track = slotMap.value[i]
-      if (track && track.spotify_id === trackId) {
-        slotMap.value[i] = null
-        console.log(`🔄 [LABEL SEARCH] Removed track from slot ${i}`)
-      }
-    }
-  })
-
-  pendingAutoBannedTracks.value.clear()
-}
+// No-op (auto-ban removed)
+const flushPendingAutoBans = () => {}
 
 const togglePreview = track => {
   // Stop any currently playing preview
@@ -818,12 +759,19 @@ const saveTrack = async track => {
       // Save track - Update UI immediately for instant feedback
       track.isSaved = true
 
-      // IMMEDIATELY remove track from table for instant UX (before API calls)
+      // Animate removal for instant UX (before API calls)
       const trackKey = getTrackKey(track)
       for (let i = 0; i < 20; i++) {
         if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
-          slotMap.value[i] = null
-          console.log(`💾 [LABEL SEARCH] Saved track - immediately removed from slot ${i}`)
+          ;(slotMap.value[i] as any).__leaving = true
+          setTimeout(() => {
+            if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
+              slotMap.value[i] = null
+              console.log(`💾 [LABEL SEARCH] Saved track - removed from slot ${i}`)
+              // Auto-refill from queue after removal
+              refillFromQueue()
+            }
+          }, 220)
           userHasBannedItems.value = true
           break
         }
@@ -966,15 +914,7 @@ const banTrack = async track => {
       track.isBanned = false
       blacklistedTracks.value.delete(trackKey)
 
-      // Remove from pending auto-bans if it was auto-banned (prevents removal on "Search Again")
-      if (pendingAutoBannedTracks.value.has(track.spotify_id)) {
-        pendingAutoBannedTracks.value.delete(track.spotify_id)
-
-        // If all pending auto-bans cleared, hide Search Again button
-        if (pendingAutoBannedTracks.value.size === 0) {
-          userHasBannedItems.value = false
-        }
-      }
+      // Pending auto-ban logic removed
 
       // Backend API call to remove
       const deleteData = {
@@ -1004,11 +944,19 @@ const banTrack = async track => {
         track.isBanned = true
         blacklistedTracks.value.add(trackKey)
 
-        // Remove track from slot immediately (manual ban)
+        // Animate removal (manual ban)
         for (let i = 0; i < 20; i++) {
           if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
-            slotMap.value[i] = null
-            console.log(`🚫 [LABEL SEARCH] Manually banned track - removed from slot ${i}`)
+            ;(slotMap.value[i] as any).__leaving = true
+            const idx = i
+            setTimeout(() => {
+              if (slotMap.value[idx] && getTrackKey(slotMap.value[idx]) === trackKey) {
+                slotMap.value[idx] = null
+                console.log(`🚫 [LABEL SEARCH] Manually banned track - removed from slot ${idx}`)
+                // Auto-refill from queue after removal
+                refillFromQueue()
+              }
+            }, 220)
             userHasBannedItems.value = true
             break
           }
@@ -1185,101 +1133,7 @@ const showPreviewErrorNotification = (track, errorMessage: string) => {
   }, 8000)
 }
 
-// Check if artist is banned
-const isArtistBanned = (track: any): boolean => {
-  return bannedArtists.value.has(track.artist_name)
-}
-
-// Load banned artists from localStorage
-const loadBannedArtists = () => {
-  try {
-    const stored = localStorage.getItem('koel-banned-artists')
-    if (stored) {
-      const bannedList = JSON.parse(stored)
-      bannedArtists.value = new Set(bannedList)
-      console.log('🔴 Loaded banned artists from localStorage:', Array.from(bannedArtists.value))
-    } else {
-      console.log('🔴 No banned artists in localStorage')
-    }
-  } catch (error) {
-    console.warn('Failed to load banned artists from localStorage:', error)
-  }
-}
-
-// Save banned artists to localStorage
-const saveBannedArtists = () => {
-  try {
-    const bannedList = Array.from(bannedArtists.value)
-    localStorage.setItem('koel-banned-artists', JSON.stringify(bannedList))
-  } catch (error) {
-    console.warn('Failed to save banned artists to localStorage:', error)
-  }
-}
-
-// Ban/Unban an artist
-const banArtist = async (track: any) => {
-  // Close dropdown before banning (prevents animation glitch)
-  expandedTrackId.value = null
-
-  const artistName = track.artist_name
-  const isCurrentlyBanned = isArtistBanned(track)
-
-  if (isCurrentlyBanned) {
-    console.log(`🔓 UNBANNING artist: ${artistName}`)
-    bannedArtists.value.delete(artistName)
-    // Force reactive update by creating a new Set
-    bannedArtists.value = new Set(bannedArtists.value)
-    saveBannedArtists()
-    console.log(`🔴 Banned artists after unban:`, Array.from(bannedArtists.value))
-
-    try {
-      const spotifyArtistId = track.spotify_artist_id || track.artist_id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-      const deleteData = {
-        artist_name: artistName,
-        spotify_artist_id: spotifyArtistId,
-      }
-      const params = new URLSearchParams(deleteData)
-      await http.delete(`music-preferences/blacklist-artist?${params}`)
-    } catch (apiError: any) {
-      console.error('Failed to remove artist from blacklist:', apiError)
-    }
-  } else {
-    console.log(`🚫 BANNING artist: ${artistName}`)
-    bannedArtists.value.add(artistName)
-    // Force reactive update by creating a new Set
-    bannedArtists.value = new Set(bannedArtists.value)
-    saveBannedArtists()
-    console.log(`🔴 Banned artists after ban:`, Array.from(bannedArtists.value))
-
-    try {
-      const spotifyArtistId = track.spotify_artist_id || track.artist_id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-      await http.post('music-preferences/blacklist-artist', {
-        artist_name: artistName,
-        spotify_artist_id: spotifyArtistId,
-      })
-    } catch (apiError: any) {
-      console.error('Failed to add artist to blacklist:', apiError)
-    }
-
-    // Remove all tracks by this artist from the slot system
-    let removedCount = 0
-    for (let i = 0; i < 20; i++) {
-      const slotTrack = slotMap.value[i]
-      if (slotTrack && slotTrack.artist_name === artistName) {
-        slotMap.value[i] = null
-        removedCount++
-        console.log(`🚫 [LABEL SEARCH] Removed track from slot ${i} (banned artist: ${artistName})`)
-      }
-    }
-
-    if (removedCount > 0) {
-      userHasBannedItems.value = true
-      console.log(`🚫 [LABEL SEARCH] Removed ${removedCount} tracks by banned artist "${artistName}"`)
-    }
-  }
-}
+// Removed ban artist logic for Label Search screen
 
 // Clear search state function
 const clearSearchState = () => {
@@ -1332,56 +1186,7 @@ const checkForStoredLabelQuery = () => {
   }
 }
 
-// Watch for "Ban listened tracks" toggle being turned ON
-watch(banListenedTracks, async (newValue, oldValue) => {
-  if (newValue === true && oldValue === false) {
-    console.log('🎵 [LABEL SEARCH] Ban listened tracks toggle turned ON - auto-banning all listened tracks')
-
-    // Get all currently displayed tracks from slots
-    const tracksToAutoBan: any[] = []
-    for (let i = 0; i < 20; i++) {
-      const track = slotMap.value[i]
-      if (track && listenedTracks.value.has(getTrackKey(track))) {
-        tracksToAutoBan.push(track)
-      }
-    }
-
-    console.log(`🎵 [LABEL SEARCH] Found ${tracksToAutoBan.length} listened tracks to auto-ban`)
-
-    // Ban each listened track
-    for (const track of tracksToAutoBan) {
-      const trackKey = getTrackKey(track)
-      if (blacklistedTracks.value.has(trackKey)) {
-        continue
-      }
-
-      try {
-        const isrcValue = track.isrc || track.spotify_id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-        const response = await http.post('music-preferences/blacklist-track', {
-          isrc: isrcValue,
-          track_name: track.track_name,
-          artist_name: track.artist_name,
-        })
-
-        if (response.success) {
-          // Update track's isBanned property so UI shows orange button
-          track.isBanned = true
-          blacklistedTracks.value.add(trackKey)
-          pendingAutoBannedTracks.value.add(track.spotify_id)
-          console.log(`🎵 [LABEL SEARCH] Auto-banned listened track: ${track.track_name}`)
-        }
-      } catch (error) {
-        console.warn(`Failed to auto-ban listened track: ${track.track_name}`, error)
-      }
-    }
-
-    // If any tracks were banned, show Search Again button
-    if (tracksToAutoBan.length > 0) {
-      userHasBannedItems.value = true
-    }
-  }
-})
+// Removed auto-ban listened tracks watcher
 
 // Watch search query - clear results when user modifies it
 watch(searchQuery, (newValue, oldValue) => {
@@ -1421,9 +1226,6 @@ watch(popularityFilter, (newValue, oldValue) => {
 
 // Check on mount
 onMounted(async () => {
-  loadBannedArtists()
-  // Set initial banned count after loading
-  previousBannedCount.value = bannedArtists.value.size
   checkForStoredLabelQuery()
 
   // Load listened tracks from server (fall back to localStorage if unauthenticated)
@@ -1446,8 +1248,6 @@ onMounted(async () => {
   }
 })
 
-// Track the banned artists count to detect changes
-const previousBannedCount = ref(0)
 
 // Reset filters to default state
 const resetFilters = () => {
@@ -1470,25 +1270,6 @@ onRouteChanged(route => {
 
     // Reset filters first to ensure clean state
     resetFilters()
-
-    // Reload banned artists from localStorage to get latest changes
-    loadBannedArtists()
-
-    // Check if banned artists changed while we were away
-    const currentBannedCount = bannedArtists.value.size
-    const bannedCountChanged = previousBannedCount.value !== currentBannedCount
-
-    console.log('🏷️ [LABEL SEARCH] Previous banned count:', previousBannedCount.value, 'Current:', currentBannedCount)
-
-    // If we have search results AND the banned list changed, re-run the search
-    if (tracks.value.length > 0 && bannedCountChanged && lastSearchQuery.value) {
-      console.log('🏷️ [LABEL SEARCH] Banned artists changed, re-running search to update results')
-      searchQuery.value = lastSearchQuery.value
-      performSearch()
-    }
-
-    // Update the count for next comparison
-    previousBannedCount.value = currentBannedCount
 
     // Check for stored query AFTER resetting filters
     checkForStoredLabelQuery()
@@ -1568,5 +1349,13 @@ input:focus::placeholder {
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+/* Quick slide-out animation for removed rows */
+.row-slide-out {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: translateX(100%);
+  opacity: 0;
+  will-change: transform, opacity;
 }
 </style>

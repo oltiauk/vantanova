@@ -160,6 +160,7 @@
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
                       currentlyPreviewingArtist === slot.artist.name ? 'bg-white/5' : '',
+                      slot.artist && (slot.artist as any).__leaving ? 'row-slide-out' : ''
                     ]"
                   >
                     <!-- Index -->
@@ -167,22 +168,7 @@
                       <span class="text-white/60">{{ index + 1 }}</span>
                     </td>
 
-                    <!-- Ban Button -->
-                    <td class="p-3 align-middle">
-                      <div class="flex items-center justify-center">
-                        <button
-                          class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
-                            isArtistBanned(slot.artist)
-                              ? 'bg-red-600 hover:bg-red-700 text-white'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white',
-                          ]"
-                          :title="isArtistBanned(slot.artist) ? 'Click to unban this artist' : 'Ban this artist'"
-                          @click="banArtist(slot.artist)"
-                        >
-                          <Icon :icon="faUserSlash" class="text-xs" />
-                        </button>
-                      </div>
-                    </td>
+                    
 
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
@@ -199,6 +185,17 @@
                     <!-- Actions -->
                     <td class="p-3 align-middle">
                       <div class="flex gap-2 justify-end">
+                        <!-- Ban Artist (local-only, icon button) -->
+                        <button
+                          @click="banArtist(slot.artist)"
+                          :class="isArtistBanned(slot.artist)
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
+                            : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                          class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                          :title="isArtistBanned(slot.artist) ? 'Click to unban artist' : 'Ban the Artist (Similar Artists only)'"
+                        >
+                          <Icon :icon="faBan" class="text-sm" />
+                        </button>
                         <button
                           class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center text-white"
                           title="Find Similar Artists"
@@ -421,18 +418,13 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { http } from '@/services/http'
-import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
 import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faHeart, faMusic, faPlay, faSearch, faSpinner, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
 
-// Initialize blacklist filtering (but Similar Artists section remains UNFILTERED by design)
-const {
-  addArtistToBlacklist,
-  loadBlacklistedItems,
-} = useBlacklistFiltering()
+// No global blacklist integration here; Similar Artists bans are local-only
 
 const { onRouteChanged } = useRouter()
 
@@ -564,8 +556,6 @@ const hasListenedTracks = (artist: LastfmArtist): boolean => {
 }
 
 const hideArtist = (artist: LastfmArtist) => {
-  console.log(`🗑️ [SLOT SYSTEM] Hiding artist: ${artist.name}`)
-
   locallyHiddenArtists.value.add(artist.name)
 
   // Close any open preview for this artist
@@ -573,19 +563,23 @@ const hideArtist = (artist: LastfmArtist) => {
     closePreview(artist)
   }
 
-  // Find and clear the slot for this artist
-  Object.keys(slotMap.value).forEach(slotIdx => {
+  // Find the slot for this artist, mark as leaving for slide-out, then remove after a short delay
+  for (const slotIdx of Object.keys(slotMap.value)) {
     const slotNumber = Number(slotIdx)
     const slotArtist = slotMap.value[slotNumber]
 
     if (slotArtist && slotArtist.name === artist.name) {
-      slotMap.value[slotNumber] = null
-      console.log(`✅ [SLOT SYSTEM] Cleared slot ${slotNumber}: "${artist.name}"`)
+      ;(slotArtist as any).__leaving = true
+      // Delay removal to allow CSS transition
+      setTimeout(() => {
+        slotMap.value[slotNumber] = null
+        updateDisplayedArtistsFromSlots()
+        // Refill after removal
+        refillSlotsFromQueue()
+      }, 220)
+      break
     }
-  })
-
-  // Update displayed artists to reflect the slot map
-  updateDisplayedArtistsFromSlots()
+  }
 }
 
 const refillSlotsFromQueue = () => {
@@ -639,7 +633,7 @@ const blacklistedTracks = ref<Set<string>>(new Set())
 const clientUnsavedTracks = ref<Set<string>>(new Set()) // Tracks unsaved by client
 const processingTrack = ref<string | null>(null)
 
-// Helper function to check if an artist is banned
+// Helper function to check if an artist is banned (local to Similar Artists)
 const isArtistBanned = (artist: LastfmArtist): boolean => {
   // Use Spotify ID as primary identifier, fallback to mbid, then name
   const uniqueId = artist.id || artist.mbid || artist.name
@@ -849,70 +843,30 @@ const clearSeedArtist = () => {
   errorMessage.value = ''
 }
 
-// Ban/Unban an artist (toggle banned state)
+// Ban/Unban an artist (local-only). On ban: hide immediately and refill from queue
 const banArtist = async (artist: LastfmArtist) => {
   const artistName = artist.name
   const uniqueId = artist.id || artist.mbid || artist.name
   const isCurrentlyBanned = bannedArtists.value.has(uniqueId)
 
   try {
-    console.log(`${isCurrentlyBanned ? '✅ Unbanning' : '🚫 Banning'} artist:`, artistName)
+    console.log(`${isCurrentlyBanned ? '✅ Unbanning' : '🚫 Banning'} (local) artist:`, artistName)
 
     if (isCurrentlyBanned) {
-      // UNBAN ARTIST - immediate UI update, background API removal
+      // UNBAN artist locally
       bannedArtists.value.delete(uniqueId)
-
-      // Save to localStorage immediately
-      localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
-
-      // Background API call to remove from blacklist
-      try {
-        const deleteData = {
-          artist_name: artistName,
-          spotify_artist_id: artist.id || artist.mbid || `lastfm:${artistName}`,
-        }
-        const params = new URLSearchParams(deleteData)
-        const response = await http.delete(`music-preferences/blacklist-artist?${params}`)
-        console.log('✅ Artist removed from global blacklist API:', response)
-      } catch (apiError: any) {
-        console.error('❌ Failed to remove from API:', apiError)
-        // Revert local state if API call fails
-        bannedArtists.value.add(uniqueId)
-        localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
-        errorMessage.value = `Failed to unban artist: ${apiError.response?.data?.message || apiError.message}`
-      }
+      localStorage.setItem('koel-similar-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+      // Do not auto-restore into current list; will affect next result build
     } else {
-      // BAN ARTIST - immediate UI update, background API save
-      console.log(`🔍 [DEBUG] Banning artist "${artistName}" with uniqueId: "${uniqueId}"`)
+      // BAN artist locally and hide immediately
       bannedArtists.value.add(uniqueId)
-      console.log(`🔍 [DEBUG] Banned artists set now contains:`, Array.from(bannedArtists.value))
+      localStorage.setItem('koel-similar-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
 
-      // Save to localStorage immediately
-      localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
-
-      // Add to global blacklist (affects other sections)
-      addArtistToBlacklist(artistName)
-
-      // Background API call to save to blacklist
-      try {
-        const response = await http.post('music-preferences/blacklist-artist', {
-          artist_name: artistName,
-          spotify_artist_id: artist.id || artist.mbid || `lastfm:${artistName}`,
-        })
-        console.log('✅ Artist saved to global blacklist API:', response)
-      } catch (apiError: any) {
-        console.error('❌ Failed to save to API:', apiError)
-        // Revert local state if API call fails
-        bannedArtists.value.delete(uniqueId)
-        localStorage.setItem('koel-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
-        errorMessage.value = `Failed to ban artist: ${apiError.response?.data?.message || apiError.message}`
-      }
+      // Hide from slots and refill from queue
+      hideArtist(artist)
+      // Try to fill any empty slots right away
+      refillSlotsFromQueue()
     }
-
-    // NOTE: We do NOT remove from current results - artists stay visible until next search
-    // The filtering happens in findSimilarArtists() for new searches
-
-    console.log(`${isCurrentlyBanned ? '✅ Unbanned' : '🚫 Banned'} artist "${artistName}" - stays visible in current results`)
   } catch (error: any) {
     console.error(`Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} artist:`, error)
     errorMessage.value = `Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} artist: ${error.message || 'Unknown error'}`
@@ -1166,12 +1120,14 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
     })
 
     if (response.success && response.data) {
-      // Filter out artists without IDs, banned artists, and locally hidden artists
-      const artistsWithId = response.data.filter(artist =>
-        (artist.id && artist.id.trim()) || (artist.mbid && artist.mbid.trim())
-        && !bannedArtists.value.has(artist.mbid || artist.id)
-        && !locallyHiddenArtists.value.has(artist.name),
-      )
+      // Filter out artists without IDs, banned artists (local), and locally hidden artists
+      const artistsWithId = response.data.filter(artist => {
+        const hasAnyId = (artist.id && artist.id.trim()) || (artist.mbid && artist.mbid.trim())
+        if (!hasAnyId) return false
+        // Use the same unique ID logic as isArtistBanned()
+        const uniqueId = artist.id || artist.mbid || artist.name
+        return !bannedArtists.value.has(uniqueId) && !locallyHiddenArtists.value.has(artist.name)
+      })
 
       console.log('🎵 [FRONTEND] Similar artists filtered', {
         originalCount: response.data.length,
@@ -1801,10 +1757,10 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 }
 
-// Load banned artists from localStorage
+// Load banned artists from localStorage (Similar Artists only)
 const loadBannedArtists = () => {
   try {
-    const savedBanned = localStorage.getItem('koel-banned-artists')
+    const savedBanned = localStorage.getItem('koel-similar-banned-artists')
     if (savedBanned) {
       const bannedArray = JSON.parse(savedBanned)
       bannedArtists.value = new Set(bannedArray)
@@ -1857,8 +1813,6 @@ onMounted(async () => {
   loadBannedArtists()
   loadClientUnsavedTracks()
   await loadUserPreferences()
-  // Load global blacklisted items (but don't filter Similar Artists results)
-  loadBlacklistedItems()
   // Load listened tracks from server (fall back to localStorage if unauthenticated)
   try {
     const resp: any = await http.get('music-preferences/listened-tracks')
@@ -2196,5 +2150,13 @@ iframe {
 
 .scrollbar-hide::-webkit-scrollbar-thumb {
   display: none !important;
+}
+
+/* Quick slide-out animation for removed rows */
+.row-slide-out {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: translateX(100%);
+  opacity: 0;
+  will-change: transform, opacity;
 }
 </style>
