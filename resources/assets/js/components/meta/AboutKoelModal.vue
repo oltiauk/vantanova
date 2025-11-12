@@ -1,4 +1,4 @@
-<template>
+<!-- <template>
   <div
     v-koel-focus
     class="about text-k-text-secondary text-center max-w-[480px] overflow-hidden relative"
@@ -24,7 +24,7 @@
 
         <template v-else>
           <p v-if="isAdmin" class="py-3">
-            <!-- close the modal first to prevent it from overlapping Lemonsqueezy's overlay -->
+      
             <BtnUpgradeToPlus class="!w-auto inline-block !px-6" @click.prevent="showPlusModal" />
           </p>
         </template>
@@ -60,9 +60,9 @@
       <Btn danger data-testid="close-modal-btn" rounded @click.prevent="close">Close</Btn>
     </footer>
   </div>
-</template>
+</template> -->
 
-<script lang="ts" setup>
+<!-- <script lang="ts" setup>
 import { useAuthorization } from '@/composables/useAuthorization'
 import { useKoelPlus } from '@/composables/useKoelPlus'
 import { useNewVersionNotification } from '@/composables/useNewVersionNotification'
@@ -93,9 +93,9 @@ const showPlusModal = () => {
 }
 
 const isDemo = window.IS_DEMO
-</script>
+</script> -->
 
-<style lang="postcss" scoped>
+<!-- <style lang="postcss" scoped>
 p {
   @apply mx-0 my-3;
 }
@@ -111,4 +111,4 @@ a {
     background-image: linear-gradient(97.78deg, #c62be8 17.5%, #671ce4 113.39%);
   }
 }
-</style>
+</style> -->

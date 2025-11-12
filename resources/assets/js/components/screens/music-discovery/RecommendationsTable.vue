@@ -2,7 +2,7 @@
   <div class="recommendations-table">
     <!-- Header -->
     <div v-if="recommendations.length > 0 || isDiscovering" class="mb-6">
-      <div class="max-w-6xl mx-auto">
+      <div class="max-w-8xl mx-auto">
         <!-- Ban Listened Tracks Toggle -->
         <div v-if="recommendations.length > 0" class="flex items-center justify-end gap-3 mb-4">
           <span class="text-sm text-white/80">Ban listened tracks</span>
@@ -50,7 +50,7 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
-      <div class="bg-white/5 rounded-lg overflow-hidden max-w-6xl mx-auto">
+      <div class="bg-white/5 rounded-lg overflow-hidden max-w-8xl mx-auto">
         <div class="overflow-x-auto scrollbar-hide">
           <table class="w-full">
             <thead>
@@ -58,7 +58,8 @@
                 <th class="text-left pl-3 py-7 font-medium w-10"></th>
                 <th class="text-center pr-3 font-medium w-16 whitespace-nowrap"></th>
                 <th class="text-left p-3 py-7 font-medium w-auto min-w-64">Artist(s)</th>
-                <th class="text-left p-3 font-medium">Title</th>
+                <th class="text-left p-3 font-medium min-w-80">Title</th>
+                <th class="text-center p-3 font-medium whitespace-nowrap">Popularity</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Followers</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Release Date</th>
                 <th class="text-center pl-3 font-medium whitespace-nowrap"></th>
@@ -111,6 +112,15 @@
                     </div>
                   </td>
 
+                  <!-- Popularity -->
+                  <td class="p-3 align-middle text-center">
+                    <div class="flex items-center justify-center">
+                      <span class="text-white/80 text-sm font-medium">
+                        {{ slot.track.popularity !== undefined && slot.track.popularity !== null ? `${slot.track.popularity}%` : 'N/A' }}
+                      </span>
+                    </div>
+                  </td>
+
                   <!-- Followers Count -->
                   <td class="p-3 align-middle text-center">
                     <div class="flex items-center justify-center">
@@ -150,7 +160,7 @@
                         @click="blacklistTrack(slot.track)"
                         :disabled="processingTrack === getTrackKey(slot.track)"
                         :class="isTrackBlacklisted(slot.track)
-                          ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                         :title="isTrackBlacklisted(slot.track) ? 'Click to unblock track' : 'Ban the Track'"
@@ -197,9 +207,9 @@
                 <!-- Spotify Player Dropdown -->
                 <Transition name="spotify-dropdown" mode="out-in">
                   <tr v-if="slot.track && (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(slot.track)}-${index}`">
-                    <td colspan="8" class="p-0 bg-white/5 border-b border-white/5">
+                    <td colspan="9" class="p-0 bg-white/5 border-b border-white/5">
                       <div class="spotify-player-container p-6 bg-white/3 relative">
-                          <div class="max-w-4xl mx-auto">
+                          <div class="max-w-6xl mx-auto">
                             <!-- Loading State -->
                             <div v-if="processingTrack === getTrackKey(slot.track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
                               <div class="flex items-center gap-3">
@@ -460,12 +470,67 @@ const formatReleaseDate = (releaseDate: string | undefined): string => {
   if (!releaseDate) {
     return 'N/A'
   }
-  // Return the full date string as-is (handles YYYY-MM-DD, YYYY-MM, YYYY formats)
-  const dateStr = releaseDate.trim()
-  if (dateStr.length >= 4) {
-    return dateStr
+  
+  try {
+    const dateStr = releaseDate.trim()
+    
+    // Parse the date - handle YYYY-MM-DD, YYYY-MM, or YYYY formats
+    let date: Date
+    if (dateStr.includes('-')) {
+      // Full date or date with month
+      date = new Date(dateStr)
+    } else if (dateStr.length === 4) {
+      // Just year - use January 1st of that year
+      date = new Date(parseInt(dateStr), 0, 1)
+    } else {
+      return 'N/A'
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'N/A'
+    }
+    
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    const diffWeeks = Math.floor(diffDays / 7)
+    const diffMonths = Math.floor(diffDays / 30)
+    const currentYear = now.getFullYear()
+    const releaseYear = date.getFullYear()
+    
+    // If within last day
+    if (diffDays === 0) {
+      return 'Today'
+    } else if (diffDays === 1) {
+      return '1 day ago'
+    } else if (diffDays < 7) {
+      return `${diffDays} days ago`
+    }
+    // If within last week
+    else if (diffWeeks === 1) {
+      return '1 week ago'
+    } else if (diffWeeks < 4) {
+      return `${diffWeeks} weeks ago`
+    }
+    // If within last month
+    else if (diffMonths === 1) {
+      return '1 month ago'
+    } else if (diffMonths < 12 && releaseYear === currentYear) {
+      return `${diffMonths} months ago`
+    }
+    // Older than a month or not current year - show year only
+    else {
+      return releaseYear.toString()
+    }
+  } catch (error) {
+    // Fallback: try to extract year from string
+    const yearMatch = releaseDate.match(/\d{4}/)
+    if (yearMatch) {
+      return yearMatch[0]
+    }
+    return 'N/A'
   }
-  return 'N/A'
 }
 
 const formatRatio = (playcount: number, listeners: number): string => {

@@ -1,7 +1,7 @@
 <template>
   <header
     :class="[layout, disabled ? 'disabled' : '']"
-    class="screen-header min-h-0 md:min-h-full flex items-center flex-shrink-0 relative content-stretch leading-normal pl-10 pr-6 py-6
+    class="screen-header min-h-0 md:min-h-full flex items-center flex-shrink-0 relative content-stretch leading-normal pl-10 pr-6 py-5
     border-b border-b-k-bg-secondary"
   >
     <aside v-if="$slots.thumbnail" class="thumbnail-wrapper hidden md:block overflow-hidden w-0 rounded-md">
@@ -19,13 +19,13 @@
 
       <div class="flex-1 min-w-0">
         <!-- Header Image Display -->
-        <div v-if="headerImage" class="flex justify-center items-center py-4">
+        <div v-if="headerImage" class="flex justify-center items-center py-3">
           <img
             :src="headerImage"
             :alt="`${$slots.default?.[0]?.children || 'Screen'} Header`"
             :class="getImageSizeClass()"
             class="w-auto object-contain"
-          />
+          >
         </div>
 
         <!-- Fallback for non-image headers -->
@@ -76,20 +76,22 @@ const goBack = () => {
 }
 
 const getImageSizeClass = () => {
-  if (!props.headerImage) return 'max-h-12'
+  if (!props.headerImage) {
+    return 'max-h-10'
+  }
 
   // Smaller size for LastFM images
   if (props.headerImage.includes('LastFM')) {
-    return 'max-h-8' // 2rem = 32px (smaller)
+    return 'max-h-6' // 1.5rem = 24px (20% less than 32px)
   }
 
   // Slightly larger size for SoundCloud images
   if (props.headerImage.includes('SoundCloud') || props.headerImage.includes('Soundcloud')) {
-    return 'max-h-14' // 3.5rem = 56px (slightly larger than the previous 48px)
+    return 'max-h-11' // 2.75rem = 44px (20% less than 56px)
   }
 
   // Default size
-  return 'max-h-12'
+  return 'max-h-10' // 2.5rem = 40px (20% less than 48px)
 }
 </script>
 

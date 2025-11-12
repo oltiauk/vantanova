@@ -235,7 +235,7 @@
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
                           :class="track.isBanned
-                            ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
                           :title="track.isBanned ? 'Click to unblock track' : 'Ban the Track'"
@@ -275,7 +275,7 @@
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
                     <td colspan="9" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative pb-8">
-                        <div class="max-w-4xl mx-auto">
+                        <div class="max-w-6xl mx-auto">
                           <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
                             <iframe
                               :key="track.is_single_track ? track.spotify_id : track.album_id"
