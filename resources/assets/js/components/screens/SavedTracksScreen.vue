@@ -70,7 +70,6 @@
 
       <!-- Empty State -->
       <div v-else-if="sortedTracks.length === 0 && !isLoading" class="text-center py-12">
-        <Icon :icon="faHeart" class="w-16 h-16 text-k-text-tertiary mx-auto mb-4" />
         <h4 class="text-lg font-medium text-k-text-primary mb-2">
           {{ searchQuery ? 'No tracks found' : 'No Saved Tracks' }}
         </h4>

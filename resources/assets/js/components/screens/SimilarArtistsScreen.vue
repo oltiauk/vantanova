@@ -146,8 +146,7 @@
             <table class="w-full relative z-10">
               <thead>
                 <tr class="border-b border-white/10">
-                  <th class="text-left p-3 py-7 font-medium" />
-                  <th class="text-center p-3 font-medium w-20 whitespace-nowrap" />
+                  <th class="text-left p-3 font-medium" />
                   <th class="text-left p-3 py-7 font-medium w-1/3">Artist</th>
                   <th class="text-right p-3 font-medium whitespace-nowrap">Followers</th>
                   <th class="text-left p-3 font-medium" />
@@ -160,7 +159,7 @@
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
                       currentlyPreviewingArtist === slot.artist.name ? 'bg-white/5' : '',
-                      slot.artist && (slot.artist as any).__leaving ? 'row-slide-out' : ''
+                      slot.artist && (slot.artist as any).__leaving ? 'row-slide-out' : '',
                     ]"
                   >
                     <!-- Index -->
@@ -168,36 +167,34 @@
                       <span class="text-white/60">{{ index + 1 }}</span>
                     </td>
 
-                    
-
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
-                      <span class="font-medium text-white">
+                      <span class="font-medium text-white whitespace-nowrap">
                         {{ slot.artist.name }}
                       </span>
                     </td>
 
                     <!-- Followers -->
-                    <td class="p-3 align-middle text-right">
+                    <td class="p-3 px-6 align-middle text-right">
                       <span class="text-white/80">{{ formatFollowers(slot.artist.followers || 0) }}</span>
                     </td>
 
                     <!-- Actions -->
-                    <td class="p-3 align-middle">
+                    <td class="px-4 align-middle">
                       <div class="flex gap-2 justify-end">
                         <!-- Ban Artist (local-only, icon button) -->
                         <button
-                          @click="banArtist(slot.artist)"
                           :class="isArtistBanned(slot.artist)
                             ? 'bg-red-600 hover:bg-red-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
                           :title="isArtistBanned(slot.artist) ? 'Click to unban artist' : 'Ban the Artist (Similar Artists only)'"
+                          @click="banArtist(slot.artist)"
                         >
                           <Icon :icon="faBan" class="text-sm" />
                         </button>
                         <button
-                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center text-white"
+                          class="px-3 ml-2 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center text-white"
                           title="Find Similar Artists"
                           @click="findSimilarArtists(slot.artist)"
                         >
@@ -208,7 +205,7 @@
                           :disabled="loadingPreviewArtist === slot.artist.name"
                           class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center" :class="[
                             (currentlyPreviewingArtist === slot.artist.name || hasListenedTracks(slot.artist))
-                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
                               : 'bg-[#484948] hover:bg-gray-500 text-white',
                           ]"
                           :title="loadingPreviewArtist === slot.artist.name ? 'Loading...' : (currentlyPreviewingArtist === slot.artist.name ? 'Close preview' : (hasListenedTracks(slot.artist) ? 'Tracks have been listened to' : 'Preview artist tracks'))"
@@ -354,58 +351,6 @@
             </table>
           </div>
         </div>
-
-        <!-- Load More Button (appears when there are empty slots and artists in queue) -->
-        <div v-if="canRefillFromQueue" class="flex justify-center mt-6">
-          <button
-            class="px-6 py-3 bg-k-accent text-white rounded-lg font-medium hover:bg-k-accent/80 transition-colors flex items-center gap-2"
-            @click="refillSlotsFromQueue"
-          >
-            <Icon :icon="faSearch" class="w-4 h-4" />
-            <span>Load More ({{ emptySlotCount }} empty slot{{ emptySlotCount !== 1 ? 's' : '' }})</span>
-          </button>
-        </div>
-
-        <!-- Empty Slots Message (when there are empty slots but no queue) -->
-        <div v-else-if="emptySlotCount > 0 && artistQueue.length === 0" class="flex justify-center mt-6">
-          <div class="px-6 py-3 bg-white/5 text-white/60 rounded-lg flex items-center gap-2 border border-dashed border-white/10">
-            <Icon :icon="faUserSlash" class="w-4 h-4" />
-            <span>{{ emptySlotCount }} artist{{ emptySlotCount !== 1 ? 's' : '' }} hidden - No more available to load</span>
-          </div>
-        </div>
-
-        <!-- Pagination Controls at Bottom -->
-        <div v-if="totalPages > 1" class="pagination-section flex items-center justify-center gap-2 mt-8">
-          <button
-            :disabled="currentPage === 1"
-            class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
-            @click="previousPage"
-          >
-            Previous
-          </button>
-
-          <div class="flex items-center gap-1">
-            <button
-              v-for="page in getVisiblePages()"
-              :key="page"
-              :class="page === currentPage ? 'bg-k-accent text-white' : 'bg-k-bg-primary text-gray-300 hover:bg-white/10'"
-              class="w-10 h-10 flex items-center justify-center rounded transition-colors"
-              @click="goToPage(page)"
-            >
-              {{ page }}
-            </button>
-          </div>
-
-          <button
-            :disabled="currentPage === totalPages"
-            class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="{ 'opacity-50 cursor-not-allowed': currentPage === totalPages }"
-            @click="nextPage"
-          >
-            Next
-          </button>
-        </div>
       </div>
 
       <div v-else-if="selectedArtist && !isLoading" class="no-results text-center py-12">
@@ -485,7 +430,6 @@ const selectedArtist = ref<LastfmArtist | null>(null)
 const similarArtists = ref<LastfmArtist[]>([])
 const filteredArtists = ref<LastfmArtist[]>([])
 const displayedArtists = ref<LastfmArtist[]>([])
-const currentPageArtists = ref<LastfmArtist[]>([])
 
 // Virtual Slot System: Maps slot position (0-19) to artist object or null
 const slotMap = ref<Record<number, LastfmArtist | null>>({})
@@ -493,19 +437,9 @@ const slotMap = ref<Record<number, LastfmArtist | null>>({})
 // Artist queue for refilling empty slots
 const artistQueue = ref<LastfmArtist[]>([])
 
-// Pagination
-const currentPage = ref(1)
-const itemsPerPage = 20
-const totalPages = computed(() => Math.ceil(filteredArtists.value.length / itemsPerPage))
-
 // Count empty slots in the slot map
 const emptySlotCount = computed(() => {
   return Object.values(slotMap.value).filter(artist => artist === null).length
-})
-
-// Check if we can refill from queue
-const canRefillFromQueue = computed(() => {
-  return emptySlotCount.value > 0 && artistQueue.value.length > 0
 })
 
 // Computed property for displayed slots (filters out null slots for continuous display)
@@ -584,39 +518,63 @@ const hideArtist = (artist: LastfmArtist) => {
 
 const refillSlotsFromQueue = () => {
   console.log(`🔄 [SLOT SYSTEM] Starting refill from queue`)
-  const emptySlots = Object.keys(slotMap.value)
-    .map(Number)
-    .filter(slotIdx => slotMap.value[slotIdx] === null)
-    .sort((a, b) => a - b) // Fill in order
 
-  console.log(`🔄 [SLOT SYSTEM] Found ${emptySlots.length} empty slots to fill`)
+  // Count how many empty slots we have
+  let emptyCount = 0
+  for (let i = 0; i < 20; i++) {
+    if (slotMap.value[i] === null || slotMap.value[i] === undefined) {
+      emptyCount++
+    }
+  }
 
-  if (emptySlots.length === 0) {
+  console.log(`🔄 [SLOT SYSTEM] Found ${emptyCount} empty slots to fill`)
+
+  if (emptyCount === 0) {
     console.log(`🔄 [SLOT SYSTEM] No empty slots to refill`)
     return
   }
 
   const availableInQueue = artistQueue.value.length
-  const toPull = Math.min(emptySlots.length, availableInQueue)
-  console.log(`🔄 [SLOT SYSTEM] Can pull ${toPull} artists from queue (${availableInQueue} available, need ${emptySlots.length})`)
+  console.log(`🔄 [SLOT SYSTEM] Queue has ${availableInQueue} artists available`)
 
-  if (toPull > 0) {
-    const pulledArtists = artistQueue.value.splice(0, toPull)
-
-    emptySlots.slice(0, toPull).forEach((slotNumber, index) => {
-      slotMap.value[slotNumber] = pulledArtists[index]
-      console.log(`🔄 [SLOT SYSTEM] Filled slot ${slotNumber} with "${pulledArtists[index].name}"`)
-    })
-
-    // Update displayed artists
-    updateDisplayedArtistsFromSlots()
-
-    console.log(`🔄 [SLOT SYSTEM] Filled ${toPull} slots, ${artistQueue.value.length} artists remaining in queue`)
-  } else {
-    console.log(`⚠️ [SLOT SYSTEM] No queue artists available to fill ${emptySlots.length} empty slots`)
+  if (availableInQueue === 0) {
+    console.log(`⚠️ [SLOT SYSTEM] Queue is empty - cannot refill`)
+    return
   }
 
-  console.log(`🔄 [SLOT SYSTEM] Refill complete: ${Object.values(slotMap.value).filter(a => a !== null).length} filled slots, ${emptySlotCount.value} empty slots remaining`)
+  // Compact existing artists to the front, then add new artists at the end
+  const existingArtists: LastfmArtist[] = []
+  for (let i = 0; i < 20; i++) {
+    const artist = slotMap.value[i]
+    if (artist !== null && artist !== undefined) {
+      existingArtists.push(artist)
+    }
+  }
+
+  console.log(`🔄 [SLOT SYSTEM] Compacted ${existingArtists.length} existing artists`)
+
+  // Add new artists from queue to fill up to 20 slots
+  let filledCount = 0
+  const artistsNeeded = Math.min(emptyCount, artistQueue.value.length)
+
+  for (let i = 0; i < artistsNeeded; i++) {
+    const nextArtist = artistQueue.value.shift()
+    if (nextArtist) {
+      existingArtists.push(nextArtist)
+      filledCount++
+    }
+  }
+
+  // Rebuild slot map with compacted artists (existing first, new at end)
+  slotMap.value = {}
+  for (let i = 0; i < existingArtists.length; i++) {
+    slotMap.value[i] = existingArtists[i]
+  }
+
+  // Update displayed artists
+  updateDisplayedArtistsFromSlots()
+
+  console.log(`🔄 [SLOT SYSTEM] Refilled with ${filledCount} new artists at bottom, ${artistQueue.value.length} artists remaining in queue`)
 }
 
 // Sorting
@@ -643,8 +601,8 @@ const isArtistBanned = (artist: LastfmArtist): boolean => {
 // Sort options
 const sortOptions = [
   { value: 'match', label: 'Best Matches' },
-  { value: 'listeners-desc', label: 'Most Listeners' },
-  { value: 'listeners-asc', label: 'Least Listeners' },
+  { value: 'listeners-desc', label: 'Most Followers' },
+  { value: 'listeners-asc', label: 'Least Followers' },
   { value: 'ratio-desc', label: 'Best Ratio' },
 ]
 
@@ -815,7 +773,6 @@ const selectArtist = (artist: LastfmArtist) => {
   displayedArtists.value = []
   slotMap.value = {} // Clear the slot map
   artistQueue.value = [] // Clear the artist queue
-  currentPage.value = 1
   currentlyPreviewingArtist.value = null
   errorMessage.value = ''
 
@@ -838,7 +795,6 @@ const clearSeedArtist = () => {
   displayedArtists.value = []
   slotMap.value = {} // Clear the slot map
   artistQueue.value = [] // Clear the artist queue
-  currentPage.value = 1
   currentlyPreviewingArtist.value = null
   errorMessage.value = ''
 }
@@ -1123,7 +1079,9 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
       // Filter out artists without IDs, banned artists (local), and locally hidden artists
       const artistsWithId = response.data.filter(artist => {
         const hasAnyId = (artist.id && artist.id.trim()) || (artist.mbid && artist.mbid.trim())
-        if (!hasAnyId) return false
+        if (!hasAnyId) {
+          return false
+        }
         // Use the same unique ID logic as isArtistBanned()
         const uniqueId = artist.id || artist.mbid || artist.name
         return !bannedArtists.value.has(uniqueId) && !locallyHiddenArtists.value.has(artist.name)
@@ -1140,7 +1098,6 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
 
       similarArtists.value = artistsWithId
       filteredArtists.value = artistsWithId
-      currentPage.value = 1
 
       // Initialize slot map with first 20 artists (slots 0-19)
       const initialArtists = artistsWithId.slice(0, 20)
@@ -1154,13 +1111,13 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
 
       console.log(`✅ [SLOT SYSTEM] Initialized ${initialArtists.length} slots, ${artistQueue.value.length} artists in queue`)
 
-      // Update current page artists and apply per-page sorting
-      updateCurrentPageArtists()
+      // Update displayed artists from slots
+      updateDisplayedArtistsFromSlots()
 
       // Apply initial sorting first (without listeners data)
       sortArtists()
 
-      // Load followers/listeners count for the first page only
+      // Load followers/listeners count for displayed artists
       await loadPageListenersCounts()
 
       // Set initial load complete
@@ -1168,7 +1125,7 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
 
       console.log('🎵 [FRONTEND] Similar artists setup complete', {
         totalArtists: similarArtists.value.length,
-        currentPageArtists: currentPageArtists.value.length,
+        displayedArtists: displayedArtists.value.length,
       })
 
       // Auto-disable animations after 2 seconds
@@ -1189,7 +1146,7 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
   }
 }
 
-// Load followers/listeners counts for current page artists only
+// Load followers/listeners counts for displayed artists only
 const loadPageListenersCounts = async () => {
   if (loadingPageListeners.value) {
     return
@@ -1198,16 +1155,16 @@ const loadPageListenersCounts = async () => {
   loadingPageListeners.value = true
 
   try {
-    // Get artist IDs for current page
-    const artistIds = currentPageArtists.value
+    // Get artist IDs for displayed artists (from slots)
+    const artistIds = displayedArtists.value
       .filter(artist => artist.id && artist.id.trim())
       .map(artist => artist.id)
 
-    const mbids = currentPageArtists.value
+    const mbids = displayedArtists.value
       .filter(artist => artist.mbid && artist.mbid.trim())
       .map(artist => artist.mbid)
 
-    console.log('📊 [FRONTEND] Loading followers/listeners for current page', {
+    console.log('📊 [FRONTEND] Loading followers/listeners for displayed artists', {
       artistIdsCount: artistIds.length,
       mbidsCount: mbids.length,
       artistIds: artistIds.slice(0, 3), // Log first 3 for debugging
@@ -1227,36 +1184,42 @@ const loadPageListenersCounts = async () => {
       })
 
       if (response.success && response.data) {
-        // Update artists with followers/listeners data
-        currentPageArtists.value.forEach(artist => {
-          const artistId = artist.id || artist.mbid
-          if (artistId && response.data[artistId]) {
-            const data = response.data[artistId]
+        // Update artists in slot map with followers/listeners data
+        for (let i = 0; i < 20; i++) {
+          const artist = slotMap.value[i]
+          if (artist) {
+            const artistId = artist.id || artist.mbid
+            if (artistId && response.data[artistId]) {
+              const data = response.data[artistId]
 
-            // Update with Spotify followers data
-            if (data.followers !== undefined) {
-              artist.followers = data.followers
-            }
-            if (data.popularity !== undefined) {
-              artist.popularity = data.popularity
-            }
+              // Update with Spotify followers data
+              if (data.followers !== undefined) {
+                artist.followers = data.followers
+              }
+              if (data.popularity !== undefined) {
+                artist.popularity = data.popularity
+              }
 
-            // Update with Last.fm listeners data
-            if (data.listeners !== undefined) {
-              artist.listeners = data.listeners.toString()
-            }
-            if (data.playcount !== undefined) {
-              artist.playcount = data.playcount?.toString()
+              // Update with Last.fm listeners data
+              if (data.listeners !== undefined) {
+                artist.listeners = data.listeners.toString()
+              }
+              if (data.playcount !== undefined) {
+                artist.playcount = data.playcount?.toString()
+              }
             }
           }
-        })
+        }
 
-        // Update displayed artists
-        updateDisplayedArtists()
+        // Update displayed artists from slots
+        updateDisplayedArtistsFromSlots()
+
+        // Re-apply sorting if needed
+        sortArtists()
 
         console.log('📊 [FRONTEND] Followers/listeners data updated', {
-          updatedArtists: currentPageArtists.value.filter(a => a.followers || a.listeners).length,
-          sampleData: currentPageArtists.value.slice(0, 2).map(a => ({
+          updatedArtists: displayedArtists.value.filter(a => a.followers || a.listeners).length,
+          sampleData: displayedArtists.value.slice(0, 2).map(a => ({
             name: a.name,
             followers: a.followers,
             listeners: a.listeners,
@@ -1520,65 +1483,6 @@ const isTrackBanned = (track: SpotifyTrack): boolean => {
   return blacklistedTracks.value.has(getTrackKey(track))
 }
 
-// Pagination functionality
-const goToPage = async (page: number) => {
-  if (page < 1 || page > totalPages.value) {
-    return
-  }
-
-  // Close any open previews when changing pages
-  if (currentlyPreviewingArtist.value) {
-    const currentArtist = displayedArtists.value.find(a => a.name === currentlyPreviewingArtist.value)
-    if (currentArtist) {
-      closePreview(currentArtist)
-    }
-  }
-  currentlyPreviewingArtist.value = null
-
-  // Scroll to the table
-  const tableElement = document.querySelector('.results-section')
-  if (tableElement) {
-    tableElement.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    })
-  }
-
-  // Enable animations BEFORE updating data to prevent flash
-  allowAnimations.value = true
-
-  currentPage.value = page
-  updateCurrentPageArtists()
-  updateDisplayedArtists()
-
-  // Auto-disable animations after 2 seconds
-  setTimeout(() => {
-    allowAnimations.value = false
-  }, 2000)
-
-  // Load listener data for the new page
-  await loadPageListenersCounts()
-}
-
-const nextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    goToPage(currentPage.value + 1)
-  }
-}
-
-const previousPage = () => {
-  if (currentPage.value > 1) {
-    goToPage(currentPage.value - 1)
-  }
-}
-
-const updateCurrentPageArtists = () => {
-  const startIndex = (currentPage.value - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  currentPageArtists.value = filteredArtists.value.slice(startIndex, endIndex)
-  console.log(`[PAGE ARTISTS] Updated current page artists: ${currentPageArtists.value.length} artists for page ${currentPage.value}`)
-}
-
 const updateDisplayedArtistsFromSlots = () => {
   // Update displayed artists from slot map (filters out null slots)
   displayedArtists.value = Object.values(slotMap.value).filter(artist => artist !== null) as LastfmArtist[]
@@ -1586,14 +1490,17 @@ const updateDisplayedArtistsFromSlots = () => {
 }
 
 const updateDisplayedArtists = () => {
-  // Use currentPageArtists for display, applying per-page sorting if needed
+  // Get artists from slots first
+  const artistsFromSlots = Object.values(slotMap.value).filter(artist => artist !== null) as LastfmArtist[]
+
+  // Apply sorting if needed
   if (sortBy.value === 'match') {
-    // Default sort - use current page artists in their original order
-    displayedArtists.value = [...currentPageArtists.value]
-    console.log(`[DISPLAY] Page ${currentPage.value}: showing ${displayedArtists.value.length} artists (match order)`)
+    // Default sort - use artists in their original order from slots
+    displayedArtists.value = [...artistsFromSlots]
+    console.log(`[DISPLAY] Showing ${displayedArtists.value.length} artists (match order)`)
   } else {
-    // Sort only the current page's artists
-    const sortedPageArtists = [...currentPageArtists.value].sort((a, b) => {
+    // Sort the displayed artists
+    const sortedArtists = [...artistsFromSlots].sort((a, b) => {
       switch (sortBy.value) {
         case 'listeners-desc':
           // Prioritize Spotify followers, then Last.fm listeners
@@ -1627,8 +1534,15 @@ const updateDisplayedArtists = () => {
           return 0
       }
     })
-    displayedArtists.value = sortedPageArtists
-    console.log(`[DISPLAY] Page ${currentPage.value}: showing ${displayedArtists.value.length} artists (sorted by ${sortBy.value})`)
+
+    // Update slot map with sorted order (maintain slot positions but reorder)
+    slotMap.value = {}
+    sortedArtists.forEach((artist, index) => {
+      slotMap.value[index] = artist
+    })
+
+    displayedArtists.value = sortedArtists
+    console.log(`[DISPLAY] Showing ${displayedArtists.value.length} artists (sorted by ${sortBy.value})`)
   }
 
   // Set initial load complete when artists are first displayed
@@ -1639,48 +1553,15 @@ const updateDisplayedArtists = () => {
   }
 }
 
-const getVisiblePages = () => {
-  const pages = []
-  const maxVisible = 5
-  const total = totalPages.value
-
-  if (total <= maxVisible) {
-    // Show all pages if total is small
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
-  } else {
-    // Show pages around current page
-    const current = currentPage.value
-    let start = Math.max(1, current - 2)
-    let end = Math.min(total, current + 2)
-
-    // Adjust if we're near the beginning or end
-    if (current <= 3) {
-      end = Math.min(total, 5)
-    } else if (current >= total - 2) {
-      start = Math.max(1, total - 4)
-    }
-
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-  }
-
-  return pages
-}
-
-// Sorting and filtering (now handled per-page)
+// Sorting and filtering
 const sortArtists = () => {
-  // Sorting is now handled per-page in updateDisplayedArtists()
-  // This function is kept for compatibility but no longer modifies global state
-  console.log(`[SORTING] Sort changed to: ${sortBy.value} (will apply to current page only)`)
+  console.log(`[SORTING] Sort changed to: ${sortBy.value}`)
   updateDisplayedArtists()
 }
 
 const onSortChange = async () => {
   sortArtists()
-  // Load listeners data for the new first page
+  // Load listeners data for displayed artists
   await loadPageListenersCounts()
 }
 
@@ -1726,8 +1607,8 @@ const getSortIcon = () => {
 
 const getSortText = () => {
   switch (sortBy.value) {
-    case 'listeners-desc': return 'Most Listeners'
-    case 'listeners-asc': return 'Least Listeners'
+    case 'listeners-desc': return 'Most Followers'
+    case 'listeners-asc': return 'Least Followers'
     case 'ratio-desc': return 'Best Ratio'
     default: return 'Best Matches'
   }
@@ -1881,7 +1762,6 @@ onRouteChanged(async route => {
               similarArtists.value = []
               filteredArtists.value = []
               displayedArtists.value = []
-              currentPage.value = 1
               currentlyPreviewingArtist.value = null
               errorMessage.value = ''
 
@@ -1903,7 +1783,6 @@ onRouteChanged(async route => {
               similarArtists.value = []
               filteredArtists.value = []
               displayedArtists.value = []
-              currentPage.value = 1
               currentlyPreviewingArtist.value = null
               errorMessage.value = ''
 
@@ -2154,7 +2033,9 @@ iframe {
 
 /* Quick slide-out animation for removed rows */
 .row-slide-out {
-  transition: transform 0.22s ease, opacity 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
   transform: translateX(100%);
   opacity: 0;
   will-change: transform, opacity;

@@ -104,8 +104,6 @@
 
       <!-- Results Table -->
       <div v-else-if="filteredTracks.length > 0" class="mt-8">
-        
-
         <div class="bg-white/5 rounded-lg overflow-hidden">
           <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full">
@@ -126,15 +124,13 @@
                   <tr
                     class="transition h-16 border-b border-white/5" :class="[
                       expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
-                      (track as any).__leaving ? 'row-slide-out' : ''
+                      (track as any).__leaving ? 'row-slide-out' : '',
                     ]"
                   >
                     <!-- Index -->
                     <td class="p-3 align-middle">
                       <span class="text-white/60">{{ index + 1 }}</span>
                     </td>
-
-                    
 
                     <!-- Artist -->
                     <td class="p-3 align-middle">
@@ -211,7 +207,7 @@
                         :disabled="processingTrack === getTrackKey(track)"
                         class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 w-[100px] h-[34px] justify-center mx-auto" :class="[
                           (expandedTrackId === getTrackKey(track) || listenedTracks.has(getTrackKey(track)))
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white',
                         ]"
                         :title="expandedTrackId === getTrackKey(track) ? 'Close preview' : 'Preview track'"
@@ -384,7 +380,9 @@ const getTrackKey = (track: any): string => {
 // - If release year is not the current year => show just the year (e.g., 2018)
 // - If within the current year but older than a month => "X months ago"
 const formatDate = (releaseDate?: string): string => {
-  if (!releaseDate) return 'Unknown'
+  if (!releaseDate) {
+    return 'Unknown'
+  }
 
   try {
     const dateStr = releaseDate.trim()
@@ -396,7 +394,7 @@ const formatDate = (releaseDate?: string): string => {
       date = new Date(dateStr)
     } else if (dateStr.length === 4) {
       // Just year - use Jan 1st of that year
-      date = new Date(parseInt(dateStr, 10), 0, 1)
+      date = new Date(Number.parseInt(dateStr, 10), 0, 1)
     } else {
       return 'Unknown'
     }
@@ -1248,7 +1246,6 @@ onMounted(async () => {
   }
 })
 
-
 // Reset filters to default state
 const resetFilters = () => {
   freshDropsFilter.value = false
@@ -1353,7 +1350,9 @@ input:focus::placeholder {
 
 /* Quick slide-out animation for removed rows */
 .row-slide-out {
-  transition: transform 0.22s ease, opacity 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
   transform: translateX(100%);
   opacity: 0;
   will-change: transform, opacity;

@@ -899,22 +899,78 @@ class RapidApiSpotifyService
                 'Spotify81'
             );
 
-            if ($result['success'] && isset($result['data']['artists'])) {
+            if ($result['success']) {
                 // Detect structure and extract artists array
-                $isOfficialStructure = isset($result['data']['artists']['items']);
-                $artistsData = $isOfficialStructure
-                    ? ($result['data']['artists']['items'] ?? [])
-                    : ($result['data']['artists'] ?? []);
+                // RapidAPI Spotify81 structure: data.artist.relatedContent.relatedArtists.items
+                $artistsData = null;
+                $structure = 'unknown';
+                
+                // Debug: Log the top-level keys to understand the structure
+                if (isset($result['data'])) {
+                    \Log::debug('🎵 [RAPIDAPI SPOTIFY] Spotify81 response structure check', [
+                        'top_level_keys' => array_keys($result['data']),
+                        'has_artist' => isset($result['data']['artist']),
+                        'has_artists' => isset($result['data']['artists']),
+                    ]);
+                    
+                    // Check for RapidAPI Spotify81 nested structure (data.artist.relatedContent.relatedArtists.items)
+                    if (isset($result['data']['artist']['relatedContent']['relatedArtists']['items'])) {
+                        $artistsData = $result['data']['artist']['relatedContent']['relatedArtists']['items'];
+                        $structure = 'rapidapi_spotify81';
+                        \Log::debug('🎵 [RAPIDAPI SPOTIFY] Found rapidapi_spotify81 structure', [
+                            'items_count' => is_array($artistsData) ? count($artistsData) : 0
+                        ]);
+                    } 
+                    // Check if response is already the nested structure (double data wrapping)
+                    elseif (isset($result['data']['data']['artist']['relatedContent']['relatedArtists']['items'])) {
+                        $artistsData = $result['data']['data']['artist']['relatedContent']['relatedArtists']['items'];
+                        $structure = 'rapidapi_spotify81_double_wrapped';
+                        \Log::debug('🎵 [RAPIDAPI SPOTIFY] Found rapidapi_spotify81 structure (double wrapped)', [
+                            'items_count' => is_array($artistsData) ? count($artistsData) : 0
+                        ]);
+                    }
+                    // Official Spotify structure
+                    elseif (isset($result['data']['artists']['items'])) {
+                        $artistsData = $result['data']['artists']['items'];
+                        $structure = 'official_spotify';
+                        \Log::debug('🎵 [RAPIDAPI SPOTIFY] Found official_spotify structure', [
+                            'items_count' => is_array($artistsData) ? count($artistsData) : 0
+                        ]);
+                    } 
+                    // Direct array structure
+                    elseif (isset($result['data']['artists']) && is_array($result['data']['artists'])) {
+                        $artistsData = $result['data']['artists'];
+                        $structure = 'direct_array';
+                        \Log::debug('🎵 [RAPIDAPI SPOTIFY] Found direct_array structure', [
+                            'items_count' => is_array($artistsData) ? count($artistsData) : 0
+                        ]);
+                    } else {
+                        // Log what we actually have for debugging
+                        \Log::warning('🎵 [RAPIDAPI SPOTIFY] Spotify81 structure not recognized', [
+                            'data_keys' => array_keys($result['data'] ?? []),
+                            'has_artist_key' => isset($result['data']['artist']),
+                            'artist_keys' => isset($result['data']['artist']) ? array_keys($result['data']['artist']) : [],
+                            'has_data_data' => isset($result['data']['data']),
+                            'data_data_keys' => isset($result['data']['data']) ? array_keys($result['data']['data']) : [],
+                        ]);
+                    }
+                }
 
-                if (!empty($artistsData)) {
+                if (!empty($artistsData) && is_array($artistsData)) {
                     $artists = $this->formatArtistsArray($artistsData);
                     \Log::info('🎵 [RAPIDAPI SPOTIFY] Primary similar artists successful', [
                         'provider' => 'Spotify81',
                         'artist_id' => $artistId,
                         'found_count' => count($artists),
-                        'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
+                        'structure' => $structure
                     ]);
                     return $artists;
+                } else {
+                    \Log::warning('🎵 [RAPIDAPI SPOTIFY] Spotify81 returned success but no artists found', [
+                        'artistsData_empty' => empty($artistsData),
+                        'artistsData_type' => gettype($artistsData),
+                        'artistsData_count' => is_array($artistsData) ? count($artistsData) : 'not_array',
+                    ]);
                 }
             }
 
@@ -932,12 +988,24 @@ class RapidApiSpotifyService
                 'SpotifyWeb2'
             );
 
-            if ($backupResult['success'] && isset($backupResult['data']['artists'])) {
+            if ($backupResult['success']) {
                 // Detect structure and extract artists array
-                $isOfficialStructure = isset($backupResult['data']['artists']['items']);
-                $artistsData = $isOfficialStructure
-                    ? ($backupResult['data']['artists']['items'] ?? [])
-                    : ($backupResult['data']['artists'] ?? []);
+                $artistsData = null;
+                $structure = 'unknown';
+                
+                if (isset($backupResult['data']['artist']['relatedContent']['relatedArtists']['items'])) {
+                    // RapidAPI Spotify81 structure
+                    $artistsData = $backupResult['data']['artist']['relatedContent']['relatedArtists']['items'];
+                    $structure = 'rapidapi_spotify81';
+                } elseif (isset($backupResult['data']['artists']['items'])) {
+                    // Official Spotify structure
+                    $artistsData = $backupResult['data']['artists']['items'];
+                    $structure = 'official_spotify';
+                } elseif (isset($backupResult['data']['artists']) && is_array($backupResult['data']['artists'])) {
+                    // Direct array structure
+                    $artistsData = $backupResult['data']['artists'];
+                    $structure = 'direct_array';
+                }
 
                 if (!empty($artistsData)) {
                     $artists = $this->formatArtistsArray($artistsData);
@@ -945,7 +1013,7 @@ class RapidApiSpotifyService
                         'provider' => 'SpotifyWeb2',
                         'artist_id' => $artistId,
                         'found_count' => count($artists),
-                        'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
+                        'structure' => $structure
                     ]);
                     return $artists;
                 }
@@ -965,12 +1033,24 @@ class RapidApiSpotifyService
                 'Spotify23'
             );
 
-            if ($tertiaryResult['success'] && isset($tertiaryResult['data']['artists'])) {
+            if ($tertiaryResult['success']) {
                 // Detect structure and extract artists array
-                $isOfficialStructure = isset($tertiaryResult['data']['artists']['items']);
-                $artistsData = $isOfficialStructure
-                    ? ($tertiaryResult['data']['artists']['items'] ?? [])
-                    : ($tertiaryResult['data']['artists'] ?? []);
+                $artistsData = null;
+                $structure = 'unknown';
+                
+                if (isset($tertiaryResult['data']['artist']['relatedContent']['relatedArtists']['items'])) {
+                    // RapidAPI Spotify81 structure
+                    $artistsData = $tertiaryResult['data']['artist']['relatedContent']['relatedArtists']['items'];
+                    $structure = 'rapidapi_spotify81';
+                } elseif (isset($tertiaryResult['data']['artists']['items'])) {
+                    // Official Spotify structure
+                    $artistsData = $tertiaryResult['data']['artists']['items'];
+                    $structure = 'official_spotify';
+                } elseif (isset($tertiaryResult['data']['artists']) && is_array($tertiaryResult['data']['artists'])) {
+                    // Direct array structure
+                    $artistsData = $tertiaryResult['data']['artists'];
+                    $structure = 'direct_array';
+                }
 
                 if (!empty($artistsData)) {
                     $artists = $this->formatArtistsArray($artistsData);
@@ -978,7 +1058,7 @@ class RapidApiSpotifyService
                         'provider' => 'Spotify23',
                         'artist_id' => $artistId,
                         'found_count' => count($artists),
-                        'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi'
+                        'structure' => $structure
                     ]);
                     return $artists;
                 }
@@ -1701,7 +1781,7 @@ class RapidApiSpotifyService
     private function formatArtistsArray(array $artists): array
     {
         return array_map(function ($artist) {
-            // Handle RapidAPI Spotify81 specific structure
+            // Handle RapidAPI Spotify81 specific structure with data wrapper
             if (isset($artist['data'])) {
                 $data = $artist['data'];
                 $profile = $data['profile'] ?? [];
@@ -1711,6 +1791,38 @@ class RapidApiSpotifyService
                 $spotifyId = null;
                 if (isset($data['uri']) && strpos($data['uri'], 'spotify:artist:') === 0) {
                     $spotifyId = str_replace('spotify:artist:', '', $data['uri']);
+                } elseif (isset($data['id'])) {
+                    $spotifyId = $data['id'];
+                }
+                
+                // Extract images from visuals
+                $images = [];
+                if (isset($visuals['avatarImage']['sources'])) {
+                    $images = $visuals['avatarImage']['sources'];
+                }
+                
+                return [
+                    'id' => $spotifyId,
+                    'name' => $profile['name'] ?? 'Unknown Artist',
+                    'followers' => $profile['followers'] ?? 0,
+                    'popularity' => $profile['popularity'] ?? 0,
+                    'genres' => $profile['genres'] ?? [],
+                    'external_url' => $profile['external_urls']['spotify'] ?? null,
+                    'images' => $images
+                ];
+            }
+            
+            // Handle RapidAPI structure with profile directly (no data wrapper)
+            if (isset($artist['profile'])) {
+                $profile = $artist['profile'];
+                $visuals = $artist['visuals'] ?? [];
+                
+                // Extract Spotify ID from URI or id field
+                $spotifyId = null;
+                if (isset($artist['uri']) && strpos($artist['uri'], 'spotify:artist:') === 0) {
+                    $spotifyId = str_replace('spotify:artist:', '', $artist['uri']);
+                } elseif (isset($artist['id'])) {
+                    $spotifyId = $artist['id'];
                 }
                 
                 // Extract images from visuals

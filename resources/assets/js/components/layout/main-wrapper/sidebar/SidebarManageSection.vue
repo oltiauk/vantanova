@@ -17,12 +17,12 @@
         </template>
         Banned Tracks
       </SidebarItem>
-      <SidebarItem :href="url('banned-artists')" screen="BannedArtists">
+      <!-- <SidebarItem :href="url('banned-artists')" screen="BannedArtists">
         <template #icon>
           <Icon :icon="faUserSlash" fixed-width />
         </template>
         Banned Artists
-      </SidebarItem>
+      </SidebarItem> -->
     </ul>
   </SidebarSection>
 </template>

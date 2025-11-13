@@ -231,25 +231,40 @@ const {
 // This allows users to select tracks by blacklisted artists as seed tracks
 // but prevents blacklisted individual tracks from appearing
 const filteredSearchResults = computed(() => {
+  // Normalize a string: lowercase, remove non-alphanum (keep spaces), squash spaces
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+
+  // Build query tokens from the user's input
+  const rawQuery = searchQuery.value || ''
+  const normalizedQuery = normalize(rawQuery)
+  const queryTokens = normalizedQuery.length ? normalizedQuery.split(' ').filter(Boolean) : []
+
   // Deduplicate by normalized artist + title to avoid duplicate entries from backend/providers
   const seen = new Set<string>()
+
   return searchResults.value.filter(track => {
     // Basic validation
-    if (!track || !track.name || !track.artist) {
-      return false
-    }
+    if (!track || !track.name || !track.artist) return false
 
     // Filter out blacklisted tracks (but allow tracks by blacklisted artists)
-    if (isTrackBlacklisted(track)) {
-      return false
+    if (isTrackBlacklisted(track)) return false
+
+    // Dedup key by normalized artist + title
+    const normalizedArtist = normalize(track.artist)
+    const normalizedTitle = normalize(track.name)
+    const key = `${normalizedArtist}|${normalizedTitle}`
+    if (seen.has(key)) return false
+
+    // Optional content filter: require all typed words to appear in artist/title
+    if (queryTokens.length) {
+      // If track has an artists array, include them; otherwise use single artist
+      const altArtists = (track as any).artists?.map((a: any) => a?.name || '')?.join(' ') || ''
+      const haystack = normalize(`${altArtists} ${track.artist} ${track.name}`)
+      // Looser match: require at least one token to appear somewhere
+      const anyTokenPresent = queryTokens.some(tok => haystack.includes(tok))
+      if (!anyTokenPresent) return false
     }
 
-    const normalizedArtist = track.artist.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
-    const normalizedTitle = track.name.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
-    const key = `${normalizedArtist}|${normalizedTitle}`
-    if (seen.has(key)) {
-      return false
-    }
     seen.add(key)
     return true
   })

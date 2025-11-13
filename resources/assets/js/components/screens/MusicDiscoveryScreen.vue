@@ -391,31 +391,41 @@ const refillFromQueue = () => {
     return
   }
 
-  // Pull tracks from queue one by one and fill empty slots
-  let filledCount = 0
-  const emptySlotNumbers = emptySlots.map(s => Number(s))
-
-  for (const slotNumber of emptySlotNumbers) {
-    if (trackQueue.value.length === 0) {
-      console.log(`⚠️ [SLOT SYSTEM] Queue exhausted after filling ${filledCount} slots`)
-      break
+  // Compact existing tracks to the front, then add new tracks at the end
+  const existingTracks: Track[] = []
+  for (let i = 0; i < 20; i++) {
+    const track = slotMap.value[i]
+    if (track !== null && track !== undefined) {
+      existingTracks.push(track)
     }
+  }
 
-    // Pull next track from queue
+  console.log(`🔄 [SLOT SYSTEM] Compacted ${existingTracks.length} existing tracks`)
+
+  // Add new tracks from queue to fill up to 20 slots
+  let filledCount = 0
+  const tracksNeeded = Math.min(emptySlots.length, trackQueue.value.length)
+
+  for (let i = 0; i < tracksNeeded; i++) {
     const nextTrack = trackQueue.value.shift()
     if (nextTrack) {
-      slotMap.value[slotNumber] = nextTrack
-      console.log(`🔄 [SLOT SYSTEM] Filled slot ${slotNumber} with "${nextTrack.artist} - ${nextTrack.name}"`)
+      existingTracks.push(nextTrack)
       filledCount++
     }
+  }
+
+  // Rebuild slot map with compacted tracks (existing first, new at end)
+  slotMap.value = {}
+  for (let i = 0; i < existingTracks.length; i++) {
+    slotMap.value[i] = existingTracks[i]
   }
 
   // Update allRecommendations to reflect the slotMap
   allRecommendations.value = Object.values(slotMap.value).filter(track => track !== null) as Track[]
   totalTracks.value = allRecommendations.value.length
 
-  const remainingEmptySlots = emptySlotNumbers.length - filledCount
-  console.log(`🔄 [SLOT SYSTEM] Filled ${filledCount} slots, ${trackQueue.value.length} tracks remaining in queue`)
+  const remainingEmptySlots = 20 - allRecommendations.value.length
+  console.log(`🔄 [SLOT SYSTEM] Refilled with ${filledCount} new tracks at bottom, ${trackQueue.value.length} tracks remaining in queue`)
   console.log(`🔄 [SLOT SYSTEM] Refill complete: ${allRecommendations.value.length} filled slots, ${remainingEmptySlots} empty slots remaining`)
   console.log(`🔄 [SLOT SYSTEM] Search Again button should now be ${remainingEmptySlots > 0 ? 'VISIBLE' : 'HIDDEN'}`)
 
@@ -823,26 +833,44 @@ const onPendingBlacklist = (identifier: string) => {
 
   console.log(`✅ [SLOT SYSTEM] Removed ${removedCount} tracks from slots`)
 
-  // Auto-refill: fill ALL empty slots immediately from queue, starting from bottom
-  const emptyIndices = Object.keys(slotMap.value)
-    .map(Number)
-    .filter(idx => slotMap.value[idx] === null)
-    .sort((a, b) => a - b)
+  // Auto-refill: compact existing tracks to the front, then add new tracks at the end
+  const existingTracks: Track[] = []
+  for (let i = 0; i < 20; i++) {
+    const track = slotMap.value[i]
+    if (track !== null && track !== undefined) {
+      existingTracks.push(track)
+    }
+  }
 
-  console.log(`🔄 [SLOT SYSTEM] Empty slots to fill: ${emptyIndices.length}, Queue length: ${trackQueue.value.length}`)
+  console.log(`🔄 [SLOT SYSTEM] Compacted ${existingTracks.length} existing tracks`)
 
-  while (emptyIndices.length > 0 && trackQueue.value.length > 0) {
-    const bottomMost = emptyIndices.pop() as number // highest index
+  // Count empty slots
+  const emptyCount = 20 - existingTracks.length
+  console.log(`🔄 [SLOT SYSTEM] Empty slots to fill: ${emptyCount}, Queue length: ${trackQueue.value.length}`)
+
+  // Add new tracks from queue to fill up to 20 slots
+  let filledCount = 0
+  const tracksNeeded = Math.min(emptyCount, trackQueue.value.length)
+
+  for (let i = 0; i < tracksNeeded; i++) {
     const nextTrack = trackQueue.value.shift()
     if (nextTrack) {
-      slotMap.value[bottomMost] = nextTrack
-      console.log(`🔄 [SLOT SYSTEM] Filled slot ${bottomMost} from queue`)
+      existingTracks.push(nextTrack)
+      filledCount++
     }
+  }
+
+  // Rebuild slot map with compacted tracks (existing first, new at end)
+  slotMap.value = {}
+  for (let i = 0; i < existingTracks.length; i++) {
+    slotMap.value[i] = existingTracks[i]
   }
 
   // Update recommendations list
   allRecommendations.value = Object.values(slotMap.value).filter(track => track !== null) as Track[]
   totalTracks.value = allRecommendations.value.length
+
+  console.log(`🔄 [SLOT SYSTEM] Refilled with ${filledCount} new tracks at bottom`)
 
   // No Search Again state
   userHasBannedItems.value = false

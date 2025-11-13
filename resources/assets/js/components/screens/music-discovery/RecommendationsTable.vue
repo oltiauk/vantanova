@@ -32,14 +32,14 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
-      <div class="bg-white/5 rounded-lg overflow-hidden max-w-8xl mx-auto">
+      <div class="bg-white/5 rounded-lg overflow-hidden max-w-7xl mx-auto">
         <div class="overflow-x-auto scrollbar-hide">
           <table class="w-full">
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left pl-3 py-7 font-medium w-10"></th>
                 <th class="text-left p-3 py-7 font-medium w-auto min-w-64">Artist(s)</th>
-                <th class="text-left p-3 font-medium min-w-80">Title</th>
+                <th class="text-left p-3 font-medium min-w-60">Title</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Popularity</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Followers</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Release Date</th>
@@ -157,7 +157,7 @@
                         :class="[
                           'px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center',
                           (expandedTrackId === getTrackKey(slot.track) || listenedTracks.has(getTrackKey(slot.track))) 
-                            ? 'bg-green-600 hover:bg-green-700 text-white' 
+                            ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white' 
                             : 'bg-[#484948] hover:bg-gray-500 text-white'
                         ]"
                       >
@@ -344,7 +344,7 @@ const isBlacklisting = ref(false)
 const lastfmStatsLoading = ref(false)
 const lastfmError = ref(false)
 const isPreviewProcessing = ref(false)
-const sortBy = ref<string>('none')
+const sortBy = ref<string>('recent')
 const sortedRecommendations = ref<Track[]>([])
 const originalRecommendations = ref<Track[]>([])
 const currentPageTracks = ref<Track[]>([])
@@ -374,6 +374,7 @@ const { onRouteChanged } = useRouter()
 
 // Sort options for the custom dropdown
 const sortOptions = [
+  { value: 'recent', label: 'Most Recent' },
   { value: 'none', label: 'Random' },
   { value: 'playcount', label: 'Most Streams' },
   { value: 'listeners', label: 'Most Listeners' },
@@ -535,21 +536,23 @@ const setLikesRatioFilter = (type: string) => {
 
 const getSortIcon = () => {
   switch (sortBy.value) {
+    case 'recent': return faClock
     case 'none': return faFilter
     case 'playcount': return faArrowUp
     case 'listeners': return faArrowUp
     case 'ratio': return faArrowUp
-    default: return faFilter
+    default: return faClock
   }
 }
 
 const getSortText = () => {
   switch (sortBy.value) {
+    case 'recent': return 'Sort by: Most Recent'
     case 'none': return 'Sort by: Random'
     case 'playcount': return 'Sort by: Most Streams'
     case 'listeners': return 'Sort by: Most Listeners'
     case 'ratio': return 'Sort by: Best Ratio (S/L)'
-    default: return 'Sort by: Random'
+    default: return 'Sort by: Most Recent'
   }
 }
 
@@ -625,6 +628,36 @@ const filteredRecommendations = computed(() => {
   return tracks
 })
 
+// Helper function to parse release date for sorting
+const parseReleaseDate = (releaseDate: string | undefined): Date | null => {
+  if (!releaseDate) return null
+  
+  try {
+    const dateStr = releaseDate.trim()
+    
+    // Parse the date - handle YYYY-MM-DD, YYYY-MM, or YYYY formats
+    let date: Date
+    if (dateStr.includes('-')) {
+      // Full date or date with month
+      date = new Date(dateStr)
+    } else if (dateStr.length === 4) {
+      // Just year - use January 1st of that year
+      date = new Date(parseInt(dateStr), 0, 1)
+    } else {
+      return null
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return null
+    }
+    
+    return date
+  } catch (error) {
+    return null
+  }
+}
+
 // Computed property for displayed recommendations with slot-based system
 // Returns array of objects with slot info: { slotIndex: number, track: Track }
 // Filters out null slots so banned tracks are completely removed from display
@@ -643,6 +676,48 @@ const displayRecommendations = computed(() => {
     }
   }
 
+  // Apply sorting based on sortBy value
+  if (sortBy.value === 'recent') {
+    // Sort by release date (most recent first)
+    return [...slotEntries].sort((a, b) => {
+      const dateA = parseReleaseDate(a.track.release_date)
+      const dateB = parseReleaseDate(b.track.release_date)
+      
+      // Tracks without dates go to the end
+      if (!dateA && !dateB) return 0
+      if (!dateA) return 1
+      if (!dateB) return -1
+      
+      // Most recent first (descending order)
+      return dateB.getTime() - dateA.getTime()
+    })
+  } else if (sortBy.value === 'none') {
+    // Random order - return as-is (already shuffled in watch)
+    return slotEntries
+  } else if (sortBy.value === 'playcount') {
+    // Sort by playcount (most streams first)
+    return [...slotEntries].sort((a, b) => {
+      const playcountA = a.track.lastfm_stats?.playcount || 0
+      const playcountB = b.track.lastfm_stats?.playcount || 0
+      return playcountB - playcountA
+    })
+  } else if (sortBy.value === 'listeners') {
+    // Sort by listeners (most listeners first)
+    return [...slotEntries].sort((a, b) => {
+      const listenersA = a.track.lastfm_stats?.listeners || 0
+      const listenersB = b.track.lastfm_stats?.listeners || 0
+      return listenersB - listenersA
+    })
+  } else if (sortBy.value === 'ratio') {
+    // Sort by ratio (best ratio first)
+    return [...slotEntries].sort((a, b) => {
+      const ratioA = (a.track.lastfm_stats?.playcount || 0) / (a.track.lastfm_stats?.listeners || 1)
+      const ratioB = (b.track.lastfm_stats?.playcount || 0) / (b.track.lastfm_stats?.listeners || 1)
+      return ratioB - ratioA
+    })
+  }
+
+  // Default: return as-is
   return slotEntries
 })
 
@@ -2002,7 +2077,9 @@ defineExpose({
 <style scoped>
 /* Quick slide-out animation for removed rows */
 .row-slide-out {
-  transition: transform 0.22s ease, opacity 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
   transform: translateX(100%);
   opacity: 0;
   will-change: transform, opacity;
