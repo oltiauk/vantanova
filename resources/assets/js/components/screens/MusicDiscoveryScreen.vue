@@ -403,11 +403,14 @@ const refillFromQueue = () => {
   console.log(`🔄 [SLOT SYSTEM] Compacted ${existingTracks.length} existing tracks`)
 
   // Add new tracks from queue to fill up to 20 slots
+  // Since queue is sorted by release date (most recent first), we add from the END (oldest)
+  // so new tracks always appear at the bottom and stay there
   let filledCount = 0
   const tracksNeeded = Math.min(emptySlots.length, trackQueue.value.length)
 
+  // Add tracks from the end of the queue (oldest tracks) so they stay at bottom
   for (let i = 0; i < tracksNeeded; i++) {
-    const nextTrack = trackQueue.value.shift()
+    const nextTrack = trackQueue.value.pop() // Use pop() instead of shift() to get from end
     if (nextTrack) {
       existingTracks.push(nextTrack)
       filledCount++
@@ -734,15 +737,67 @@ const getRelatedTracks = async (track: Track, isRefresh = false) => {
         return
       }
 
+      // Helper function to parse release date for sorting
+      const parseReleaseDate = (releaseDate: string | undefined): Date | null => {
+        if (!releaseDate) return null
+        
+        try {
+          const dateStr = releaseDate.trim()
+          
+          // Parse the date - handle YYYY-MM-DD, YYYY-MM, or YYYY formats
+          let date: Date
+          if (dateStr.includes('-')) {
+            // Full date or date with month
+            date = new Date(dateStr)
+          } else if (dateStr.length === 4) {
+            // Just year - use January 1st of that year
+            date = new Date(parseInt(dateStr), 0, 1)
+          } else {
+            return null
+          }
+          
+          // Check if date is valid
+          if (isNaN(date.getTime())) {
+            return null
+          }
+          
+          return date
+        } catch (error) {
+          return null
+        }
+      }
+
+      // Sort ALL tracks by release date (most recent first) BEFORE initializing slots
+      // This ensures tracks are in correct order and new tracks from queue always go to bottom
+      console.log('📅 [SLOT SYSTEM] Sorting all tracks by release date (most recent first)')
+      const sortedTracks = [...filteredTracks].sort((a, b) => {
+        const dateA = parseReleaseDate(a.release_date)
+        const dateB = parseReleaseDate(b.release_date)
+        
+        // Tracks without dates go to the end
+        if (!dateA && !dateB) return 0
+        if (!dateA) return 1
+        if (!dateB) return -1
+        
+        // Most recent first (descending order)
+        return dateB.getTime() - dateA.getTime()
+      })
+
+      console.log('📅 [SLOT SYSTEM] Sorted all tracks by release date', {
+        totalTracks: sortedTracks.length,
+        top5: sortedTracks.slice(0, 5).map(t => ({ name: t.name, release_date: t.release_date })),
+        bottom5: sortedTracks.slice(-5).map(t => ({ name: t.name, release_date: t.release_date })),
+      })
+
       // Determine how many to display and how many to queue
-      const displayCount = Math.min(20, filteredTracks.length)
-      const queueCount = Math.max(0, filteredTracks.length - 20)
+      const displayCount = Math.min(20, sortedTracks.length)
+      const queueCount = Math.max(0, sortedTracks.length - 20)
 
-      // Store tracks 21+ in the queue (already pre-filtered)
-      trackQueue.value = filteredTracks.slice(20)
+      // Store tracks 21+ in the queue (already sorted by release date, most recent first)
+      trackQueue.value = sortedTracks.slice(20)
 
-      // Initialize slot map with first 20 tracks (slots 0-19)
-      const initialTracks = filteredTracks.slice(0, 20)
+      // Initialize slot map with first 20 tracks (most recent, slots 0-19)
+      const initialTracks = sortedTracks.slice(0, 20)
       slotMap.value = {}
       initialTracks.forEach((track, index) => {
         slotMap.value[index] = track
@@ -757,7 +812,7 @@ const getRelatedTracks = async (track: Track, isRefresh = false) => {
       // Reset exhausted state when new tracks are fetched
       queueExhausted.value = false
 
-      console.log(`✅ [SLOT SYSTEM] Initialized ${initialTracks.length} slots, ${queueCount} tracks queued (${allTracks.length} total fetched, ${filteredCount} OLD blacklisted filtered out)`)
+      console.log(`✅ [SLOT SYSTEM] Initialized ${initialTracks.length} slots (sorted by release date, most recent first), ${queueCount} tracks queued (${allTracks.length} total fetched, ${filteredCount} OLD blacklisted filtered out)`)
 
       // Auto-scroll to bottom of page after a brief delay
       setTimeout(() => {
@@ -908,15 +963,12 @@ onMounted(async () => {
 
 // Handle route changes to set seed track from SavedTracksScreen
 onRouteChanged(async route => {
-  console.log('🔍 [MUSIC DISCOVERY] onRouteChanged called with route:', route)
 
   if (route.screen === 'MusicDiscovery') {
-    console.log('🔍 [MUSIC DISCOVERY] Route is for music-discovery screen')
 
     // Check for seed track data in localStorage
     await checkForSeedTrackData()
   } else {
-    console.log('🔍 [MUSIC DISCOVERY] Route is for different screen:', route.screen)
   }
 })
 

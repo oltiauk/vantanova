@@ -141,6 +141,13 @@
       </div>
 
       <div v-else-if="displayedArtists.length > 0" class="results-section">
+        <!-- Info Message -->
+        <div class="text-center mb-4 max-w-4xl mx-auto">
+          <p class="text-k-text-secondary text-sm">
+            Ban or save artists to add new ones at the list's end.
+          </p>
+        </div>
+
         <div class="bg-white/5 rounded-lg overflow-hidden relative z-10 max-w-4xl mx-auto">
           <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full relative z-10">

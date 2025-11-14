@@ -38,8 +38,11 @@ eventBus.on('PLAYLIST_DELETE', async playlist => {
     go(url('home'))
   }
 }).on('LOG_OUT', async () => {
+  console.log('🔴 [GLOBAL] LOG_OUT event received, logging out...')
   await authService.logout()
+  console.log('🔴 [GLOBAL] Navigating to login page')
   go('login')
+  console.log('🔴 [GLOBAL] Forcing window reload')
   forceReloadWindow()
 })
 </script>

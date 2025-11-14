@@ -39,14 +39,20 @@ class Http {
       this.silent || this.hideLoadingIndicator()
       this.silent = false
 
+      console.log('🔴 [HTTP] Error interceptor - status:', error.response?.status, 'url:', error.config?.url, 'method:', error.config?.method)
+
       // Also, if we receive a Bad Request / Unauthorized error
       if (error.response?.status === 400 || error.response?.status === 401) {
+        console.log('🔴 [HTTP] 400/401 error detected')
         // and we're not trying to log in
         if (!(error.config.method === 'post' && error.config.url === 'me')) {
+          console.log('🔴 [HTTP] Not a login request, emitting LOG_OUT')
           // the token must have expired.
           // store the attempted URL so we can redirect the user to it after login.
           authService.setRedirect()
           eventBus.emit('LOG_OUT')
+        } else {
+          console.log('🔴 [HTTP] Login request failed, not emitting LOG_OUT')
         }
       }
 

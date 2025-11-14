@@ -113,6 +113,13 @@
 
       <!-- Results Table -->
       <div v-else-if="filteredTracks.length > 0" class="mt-8">
+        <!-- Info Message -->
+        <div class="text-center mb-4">
+          <p class="text-k-text-secondary text-sm">
+            Ban or save tracks to add new ones at the list's end.
+          </p>
+        </div>
+
         <div class="bg-white/5 rounded-lg overflow-hidden">
           <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full">
@@ -1265,6 +1272,8 @@ const resetFilters = () => {
 
 // Also check when navigating to this screen
 onRouteChanged(route => {
+  console.log('🏷️ [LABEL SEARCH] onRouteChanged called - route.screen:', route.screen)
+
   // Close dropdown immediately when navigating to ANY screen (including when leaving or returning)
   if (expandedTrackId.value) {
     expandedTrackId.value = null
@@ -1280,6 +1289,8 @@ onRouteChanged(route => {
     // Check for stored query AFTER resetting filters
     checkForStoredLabelQuery()
   }
+
+  console.log('🏷️ [LABEL SEARCH] onRouteChanged handler finished')
 })
 </script>
 

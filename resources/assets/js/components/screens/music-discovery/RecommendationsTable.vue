@@ -32,6 +32,13 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
+      <!-- Info Message -->
+      <div class="text-center mb-4 max-w-7xl mx-auto">
+        <p class="text-k-text-secondary text-sm">
+          Ban or save tracks to add new ones at the list's end.
+        </p>
+      </div>
+
       <div class="bg-white/5 rounded-lg overflow-hidden max-w-7xl mx-auto">
         <div class="overflow-x-auto scrollbar-hide">
           <table class="w-full">
@@ -136,9 +143,20 @@
                     </div>
                   </td>
 
-                  <!-- Preview Actions -->
+                  <!-- Related/Preview Actions -->
                   <td class="pr-3 pl-4 align-middle">
                     <div class="flex gap-2 justify-center">
+                      <!-- Related Track Button -->
+                      <button
+                        @click="getRelatedTracks(slot.track)"
+                        :disabled="processingTrack === getTrackKey(slot.track)"     
+                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                        title="Find Related Tracks"
+                      >
+                        <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
+                        <span>Related</span>
+                      </button>
+
                       <!-- Preview Button -->
                       <button
                         @click="handlePreviewClick(slot.track)"
@@ -319,6 +337,7 @@ const emit = defineEmits<{
   'clearError': []
   'page-change': [page: number]
   'per-page-change': [perPage: number]
+  'related-tracks': [track: Track]
   'pending-blacklist': [trackKey: string]
   'user-banned-item': []
   'current-batch-banned-item': []
@@ -666,19 +685,10 @@ const displayRecommendations = computed(() => {
 
   // Apply sorting based on sortBy value
   if (sortBy.value === 'recent') {
-    // Sort by release date (most recent first)
-    return [...slotEntries].sort((a, b) => {
-      const dateA = parseReleaseDate(a.track.release_date)
-      const dateB = parseReleaseDate(b.track.release_date)
-      
-      // Tracks without dates go to the end
-      if (!dateA && !dateB) return 0
-      if (!dateA) return 1
-      if (!dateB) return -1
-      
-      // Most recent first (descending order)
-      return dateB.getTime() - dateA.getTime()
-    })
+    // Tracks are already sorted by release date (most recent first) in MusicDiscoveryScreen
+    // Don't re-sort to prevent tracks from jumping around when new tracks are added from queue
+    // Just return tracks in their current slot order (most recent first, new tracks at bottom)
+    return slotEntries
   } else if (sortBy.value === 'none') {
     // Random order - return as-is (already shuffled in watch)
     return slotEntries
@@ -1181,6 +1191,11 @@ const markTrackAsListened = async (track: Track) => {
 // Kept for compatibility with parent, now a no-op
 const flushPendingAutoBans = () => {}
 
+const getRelatedTracks = (track: Track) => {
+  // Close any open preview dropdown when getting related tracks
+  expandedTrackId.value = null
+  emit('related-tracks', track)
+}
 
 // Update current page tracks when page changes
 const updateCurrentPageTracks = () => {

@@ -14,6 +14,7 @@ export const routes: Route[] = [
     name: 'home',
     path: '/home',
     screen: 'Home',
+    redirect: () => '/discover',
   },
   {
     name: '404',
@@ -182,6 +183,11 @@ export const routes: Route[] = [
     },
   },
   {
+    name: 'login',
+    path: '/login',
+    redirect: () => '/discover',
+  },
+  {
     name: 'register',
     path: '/register',
     screen: 'Register',
@@ -219,11 +225,6 @@ export const routes: Route[] = [
     name: 'banned-tracks',
     path: '/banned-tracks',
     screen: 'BannedTracks'
-  },
-  {
-    name: 'banned-artists',
-    path: '/banned-artists',
-    screen: 'BannedArtists'
   },
   {
     name: 'saved-tracks',

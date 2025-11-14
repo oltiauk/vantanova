@@ -76,8 +76,8 @@
               </div>
             </div>
 
-            <!-- Search Button - Show only for manual text search (not for track selection) -->
-            <div v-if="!hasRecommendations && searchQuery.trim() && !selectedTrack && !pendingTrack" class="flex justify-center mt-6">
+            <!-- Search Button - Show only when user has stopped typing -->
+            <div v-if="!hasRecommendations && searchQuery.trim() && !selectedTrack && !pendingTrack && hasStoppedTyping" class="flex justify-center mt-6">
               <button
                 :disabled="isSearching"
                 class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
@@ -204,6 +204,8 @@ const currentPage = ref(1)
 const isSearching = ref(false)
 const searchContainer = ref<HTMLElement | null>(null)
 const pendingTrack = ref<Track | null>(null) // Track selected from dropdown, pending search button click
+const hasStoppedTyping = ref(false) // Track if user has stopped typing
+let typingDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // Queue state management
 const hasMoreInQueue = ref(false) // Track if more results available
@@ -320,6 +322,20 @@ const onSearchInput = () => {
   pendingTrack.value = null
   // Clear search results when user types
   searchResults.value = []
+  
+  // Reset typing state - user is currently typing
+  hasStoppedTyping.value = false
+  
+  // Clear existing timer
+  if (typingDebounceTimer) {
+    clearTimeout(typingDebounceTimer)
+  }
+  
+  // Set timer to detect when user stops typing (800ms delay)
+  typingDebounceTimer = setTimeout(() => {
+    hasStoppedTyping.value = true
+    typingDebounceTimer = null
+  }, 800)
 }
 
 // Manual search functionality
@@ -347,6 +363,12 @@ const performSearch = () => {
   // If user has typed a search query, prioritize searching for new tracks
   if (searchQuery.value.trim()) {
     console.log('🔎 [SEED] Manual query search path')
+    // Reset typing state when search is performed
+    hasStoppedTyping.value = false
+    if (typingDebounceTimer) {
+      clearTimeout(typingDebounceTimer)
+      typingDebounceTimer = null
+    }
     searchTracks()
   }
 
@@ -411,6 +433,12 @@ const selectSeedTrack = (track: Track) => {
   // Clear search results after selection
   searchResults.value = []
   searchQuery.value = ''
+  // Reset typing state
+  hasStoppedTyping.value = false
+  if (typingDebounceTimer) {
+    clearTimeout(typingDebounceTimer)
+    typingDebounceTimer = null
+  }
   // Always get related tracks for the newly selected seed track
   getRelatedTracks(track, false) // false = not a refresh
 }
@@ -420,6 +448,12 @@ const clearSeedTrack = () => {
   // Clear search results to return to initial state
   searchResults.value = []
   searchQuery.value = ''
+  // Reset typing state
+  hasStoppedTyping.value = false
+  if (typingDebounceTimer) {
+    clearTimeout(typingDebounceTimer)
+    typingDebounceTimer = null
+  }
   // Emit event to clear recommendations
   emit('clear-recommendations')
 }
@@ -434,6 +468,12 @@ const getRelatedTracks = (track: Track, isRefresh = false) => {
   // Clear search results when getting related tracks to prevent overlay
   searchResults.value = []
   searchQuery.value = ''
+  // Reset typing state
+  hasStoppedTyping.value = false
+  if (typingDebounceTimer) {
+    clearTimeout(typingDebounceTimer)
+    typingDebounceTimer = null
+  }
 
   // Just emit the related tracks request without setting as seed track
   // (the track should already be set as seed track if called from selectSeedTrack)
@@ -660,6 +700,12 @@ watch(() => props.hasRecommendations, (hasRecommendations, wasRecommendations) =
     // Clear search results when recommendations first appear to prevent overlay
     searchResults.value = []
     searchQuery.value = ''
+    // Reset typing state
+    hasStoppedTyping.value = false
+    if (typingDebounceTimer) {
+      clearTimeout(typingDebounceTimer)
+      typingDebounceTimer = null
+    }
     // Parent will reset currentBatchHasBannedItems flag when new recommendations arrive
   }
 })
@@ -680,6 +726,11 @@ onMounted(async () => {
 // Clean up event listener
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  // Clean up typing debounce timer
+  if (typingDebounceTimer) {
+    clearTimeout(typingDebounceTimer)
+    typingDebounceTimer = null
+  }
 })
 
 // Load user's saved tracks and blacklisted items

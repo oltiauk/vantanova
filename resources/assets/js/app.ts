@@ -10,6 +10,27 @@ import Router from '@/router'
 import '@/../css/app.pcss'
 import App from './App.vue'
 
+// Global error logging
+window.addEventListener('error', (event) => {
+  console.error('🔴 [GLOBAL ERROR]', event.error || event.message)
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('🔴 [UNHANDLED REJECTION]', event.reason)
+})
+
+// Log any navigation attempts
+window.addEventListener('beforeunload', (event) => {
+  console.log('🔴 [NAVIGATION] Page unloading - beforeunload event')
+  console.trace('Stack trace:')
+})
+
+// Intercept clicks on links
+document.addEventListener('click', (event) => {
+  const target = event.target as HTMLElement
+  const link = target.closest('a')
+}, true)
+
 createApp(App)
   .provide(RouterKey, new Router())
   .component('Icon', FontAwesomeIcon)

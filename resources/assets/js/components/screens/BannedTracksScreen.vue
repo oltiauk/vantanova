@@ -353,32 +353,41 @@ const resetPagination = () => {
   currentPage.value = 1
 }
 
+// Store handler references for proper cleanup
+let handleTrackBlacklisted: ((event: CustomEvent) => void) | null = null
+let handleTrackUnblacklisted: ((event: CustomEvent) => void) | null = null
+let handleStorageChange: ((event: StorageEvent) => void) | null = null
+let handleArtistBanned: ((artistName: string) => void) | null = null
+let handleArtistUnbanned: ((artistName: string) => void) | null = null
+
 // Event listeners for real-time updates
 const setupEventListeners = () => {
   // Listen for artist ban/unban events from other components
-  eventBus.on('ARTIST_BANNED', (artistName: string) => {
+  handleArtistBanned = (artistName: string) => {
     console.log(`🔄 Received ARTIST_BANNED event for: ${artistName}`)
     // State is already updated by the shared composable, UI will automatically update
-  })
+  }
+  eventBus.on('ARTIST_BANNED', handleArtistBanned)
 
-  eventBus.on('ARTIST_UNBANNED', (artistName: string) => {
+  handleArtistUnbanned = (artistName: string) => {
     console.log(`🔄 Received ARTIST_UNBANNED event for: ${artistName}`)
     // State is already updated by the shared composable, UI will automatically update
-  })
+  }
+  eventBus.on('ARTIST_UNBANNED', handleArtistUnbanned)
 
   // Listen for track blacklist events from other screens (e.g., when saving tracks)
-  const handleTrackBlacklisted = (event: CustomEvent) => {
+  handleTrackBlacklisted = (event: CustomEvent) => {
     console.log('🔄 Track blacklisted from another screen, refreshing list...')
     loadTracks()
   }
 
-  const handleTrackUnblacklisted = (event: CustomEvent) => {
+  handleTrackUnblacklisted = (event: CustomEvent) => {
     console.log('🔄 Track removed from blacklist from another screen, refreshing list...')
     loadTracks()
   }
 
   // Listen for localStorage changes (cross-tab communication)
-  const handleStorageChange = (event: StorageEvent) => {
+  handleStorageChange = (event: StorageEvent) => {
     if (event.key === 'track-blacklisted-timestamp') {
       console.log('🔄 Track blacklist updated in another tab, refreshing...')
       loadTracks()
@@ -386,14 +395,34 @@ const setupEventListeners = () => {
   }
 
   window.addEventListener('track-blacklisted', handleTrackBlacklisted as EventListener)
+  window.addEventListener('track-unblacklisted', handleTrackUnblacklisted as EventListener)
   window.addEventListener('storage', handleStorageChange)
 }
 
 const cleanupEventListeners = () => {
-  eventBus.off('ARTIST_BANNED')
-  eventBus.off('ARTIST_UNBANNED')
-  window.removeEventListener('track-blacklisted', () => {})
-  window.removeEventListener('storage', () => {})
+  // Remove eventBus listeners with stored handler references
+  if (handleArtistBanned) {
+    eventBus.off('ARTIST_BANNED', handleArtistBanned)
+    handleArtistBanned = null
+  }
+  if (handleArtistUnbanned) {
+    eventBus.off('ARTIST_UNBANNED', handleArtistUnbanned)
+    handleArtistUnbanned = null
+  }
+  
+  // Remove window event listeners with stored handler references
+  if (handleTrackBlacklisted) {
+    window.removeEventListener('track-blacklisted', handleTrackBlacklisted as EventListener)
+    handleTrackBlacklisted = null
+  }
+  if (handleTrackUnblacklisted) {
+    window.removeEventListener('track-unblacklisted', handleTrackUnblacklisted as EventListener)
+    handleTrackUnblacklisted = null
+  }
+  if (handleStorageChange) {
+    window.removeEventListener('storage', handleStorageChange)
+    handleStorageChange = null
+  }
 }
 
 // Lifecycle

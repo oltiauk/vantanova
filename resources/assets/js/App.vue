@@ -33,7 +33,7 @@
   <AcceptInvitation v-if="layout === 'invitation'" />
   <ResetPasswordForm v-if="layout === 'reset-password'" />
 
-  <AppInitializer v-if="authenticated" @error="onInitError" @success="onInitSuccess" />
+  <AppInitializer v-if="initializing" @error="onInitError" @success="onInitSuccess" />
 </template>
 
 <script lang="ts" setup>
@@ -83,9 +83,13 @@ const { isCurrentScreen, getCurrentScreen, resolveRoute, onRouteChanged } = useR
 const online = useOnline()
 
 const authenticated = ref(false)
+const initializing = ref(false)
 const initialized = ref(false)
 
-const triggerAppInitialization = () => (authenticated.value = true)
+const triggerAppInitialization = () => {
+  authenticated.value = true
+  initializing.value = true
+}
 
 const updateLayoutFromRoute = () => {
   // Don't update layout if user is authenticated and initialized
@@ -121,7 +125,7 @@ const onUserRegistered = () => {
 }
 
 const onInitSuccess = async () => {
-  authenticated.value = false
+  initializing.value = false
   initialized.value = true
 
   // call resolveRoute() after init() so that the onResolve hooks can use the stores
@@ -131,6 +135,7 @@ const onInitSuccess = async () => {
 
 const onInitError = () => {
   authenticated.value = false
+  initializing.value = false
   layout.value = 'auth'
 }
 

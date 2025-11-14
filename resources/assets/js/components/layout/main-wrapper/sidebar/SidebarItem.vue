@@ -23,7 +23,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from '@/composables/useRouter'
 import { eventBus } from '@/utils/eventBus'
 
@@ -34,7 +34,7 @@ const props = withDefaults(defineProps<{ href?: string | undefined, screen?: Scr
 
 const current = ref(false)
 
-const { onRouteChanged } = useRouter()
+const { onRouteChanged, getCurrentScreen } = useRouter()
 
 const onClick = () => {
   eventBus.emit('TOGGLE_SIDEBAR')
@@ -49,6 +49,12 @@ const onClick = () => {
 }
 
 if (screen) {
+  // Check initial route state
+  onMounted(() => {
+    current.value = getCurrentScreen() === props.screen
+  })
+  
+  // Update on route changes
   onRouteChanged(route => (current.value = route.screen === props.screen))
 }
 </script>

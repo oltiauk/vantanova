@@ -65,15 +65,21 @@ export default class Router {
 
     watch(
       this.$currentRoute,
-      (newValue, oldValue) => this.routeChangedHandlers.forEach(async handler => await handler(newValue, oldValue)),
+      (newValue, oldValue) => {
+        this.routeChangedHandlers.forEach(handler => handler(newValue, oldValue))
+      },
       {
         deep: true,
         immediate: true,
       },
     )
 
-    addEventListener('popstate', () => this.resolve(), true)
-    addEventListener('hashchange', () => this.resolve(), true)
+    addEventListener('popstate', () => {
+      this.resolve()
+    }, true)
+    addEventListener('hashchange', () => {
+      this.resolve()
+    }, true)
   }
 
   public static go (path: string | number, reload = false) {
@@ -94,7 +100,8 @@ export default class Router {
 
   public async resolve () {
     if (!location.hash || location.hash === '#/' || location.hash === '#!/') {
-      return Router.go(this.homeRoute.path)
+      // Redirect to /discover (Music Discovery) instead of /home
+      return Router.go('/discover')
     }
 
     const matchedRoute = this.tryMatchRoute()
@@ -104,8 +111,11 @@ export default class Router {
       return this.triggerNotFound()
     }
 
-    if ((await route.onResolve?.(params)) === false) {
-      return this.triggerNotFound()
+    if (route.onResolve) {
+      const result = await route.onResolve(params)
+      if (result === false) {
+        return this.triggerNotFound()
+      }
     }
 
     if (route.redirect) {
@@ -117,7 +127,9 @@ export default class Router {
   }
 
   public triggerNotFound = async () => await this.activateRoute(this.notFoundRoute)
-  public onRouteChanged = (handler: RouteChangedHandler) => this.routeChangedHandlers.push(handler)
+  public onRouteChanged = (handler: RouteChangedHandler) => {
+    this.routeChangedHandlers.push(handler)
+  }
 
   public async activateRoute (route: Route, params: RouteParams = {}) {
     this.$currentRoute.value = route
