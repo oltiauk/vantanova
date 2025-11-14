@@ -136,20 +136,9 @@
                     </div>
                   </td>
 
-                  <!-- Related/Preview Actions -->
+                  <!-- Preview Actions -->
                   <td class="pr-3 pl-4 align-middle">
                     <div class="flex gap-2 justify-center">
-                      <!-- Related Track Button -->
-                      <button
-                        @click="getRelatedTracks(slot.track)"
-                        :disabled="processingTrack === getTrackKey(slot.track)"
-                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                        title="Find Related Tracks"
-                      >
-                        <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
-                        <span>Related</span>
-                      </button>
-
                       <!-- Preview Button -->
                       <button
                         @click="handlePreviewClick(slot.track)"
@@ -330,7 +319,6 @@ const emit = defineEmits<{
   'clearError': []
   'page-change': [page: number]
   'per-page-change': [perPage: number]
-  'related-tracks': [track: Track]
   'pending-blacklist': [trackKey: string]
   'user-banned-item': []
   'current-batch-banned-item': []
@@ -1193,11 +1181,6 @@ const markTrackAsListened = async (track: Track) => {
 // Kept for compatibility with parent, now a no-op
 const flushPendingAutoBans = () => {}
 
-const getRelatedTracks = (track: Track) => {
-  // Close any open preview dropdown when getting related tracks
-  expandedTrackId.value = null
-  emit('related-tracks', track)
-}
 
 // Update current page tracks when page changes
 const updateCurrentPageTracks = () => {

@@ -1,6 +1,6 @@
 @extends('base')
 
-@section('title', 'Koel')
+@section('title', 'Vantanova')
 
 @push('scripts')
     <script>

@@ -13,9 +13,11 @@
 
     <link rel="manifest" href="{{ static_url('manifest.json') }}"/>
     <meta name="msapplication-config" content="{{ static_url('browserconfig.xml') }}"/>
-    <link rel="icon" type="image/x-icon" href="{{ static_url('img/favicon.ico') }}"/>
-    <link rel="icon" href="{{ static_url('img/icon.png') }}">
-    <link rel="apple-touch-icon" href="{{ static_url('img/icon.png') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ static_url('icons/Vantanova-facivon-white.svg') }}?v=3"/>
+    <link rel="shortcut icon" type="image/svg+xml" href="{{ static_url('icons/Vantanova-facivon-white.svg') }}?v=3"/>
+    <link rel="icon" type="image/x-icon" href="{{ static_url('img/favicon.ico') }}?v=2"/>
+    <link rel="icon" href="{{ static_url('img/icon.png') }}?v=2">
+    <link rel="apple-touch-icon" href="{{ static_url('img/icon.png') }}?v=2">
 
     @unless(License::isPlus())
     <script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>

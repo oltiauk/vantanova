@@ -40,6 +40,14 @@
             <Icon :icon="faTools" fixed-width />
             Settings
           </button>
+          <div class="border-t border-white/10 my-1" />
+          <button
+            class="w-full px-4 py-2.5 text-left hover:bg-white/10 transition flex items-center gap-3 text-k-text-primary"
+            @click="logout"
+          >
+            <Icon :icon="faArrowRightFromBracket" fixed-width />
+            Logout
+          </button>
         </div>
       </Transition>
     </Teleport>
@@ -47,11 +55,12 @@
 </template>
 
 <script lang="ts" setup>
-import { faUser, faUsers, faTools } from '@fortawesome/free-solid-svg-icons'
-import { ref, nextTick } from 'vue'
+import { faArrowRightFromBracket, faTools, faUser, faUsers } from '@fortawesome/free-solid-svg-icons'
+import { nextTick, ref } from 'vue'
 import { onClickOutside } from '@vueuse/core'
 import { useAuthorization } from '@/composables/useAuthorization'
 import { useRouter } from '@/composables/useRouter'
+import { eventBus } from '@/utils/eventBus'
 
 const { go, url } = useRouter()
 const { isAdmin } = useAuthorization()
@@ -64,7 +73,9 @@ const dropdownTop = ref('0px')
 const dropdownRight = ref('0px')
 
 const updateDropdownPosition = () => {
-  if (!triggerButton.value) return
+  if (!triggerButton.value) {
+    return
+  }
 
   const rect = triggerButton.value.getBoundingClientRect()
   dropdownTop.value = `${rect.bottom + 8}px`
@@ -98,6 +109,11 @@ const goToSettings = () => {
   go(url('settings'))
 }
 
+const logout = () => {
+  closeMenu()
+  eventBus.emit('LOG_OUT')
+}
+
 onClickOutside(dropdownMenu, closeMenu, { ignore: [triggerButton] })
 </script>
 
@@ -112,7 +128,9 @@ onClickOutside(dropdownMenu, closeMenu, { ignore: [triggerButton] })
 
 .dropdown-enter-active,
 .dropdown-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .dropdown-enter-from,

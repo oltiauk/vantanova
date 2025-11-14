@@ -9,16 +9,25 @@
     </template>
 
     <div class="wrapper">
-      <div class="search-form max-w-[45.5rem] mx-auto space-y-6">
+      <div class="search-form max-w-[67rem] mx-auto space-y-6">
         <!-- Search Input -->
         <div class="relative">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Search for a Record Label"
-            class="w-full px-4 py-3 rounded-lg bg-white/10 border-0 focus:outline-none search-input"
-            @keyup.enter="performSearch"
-          >
+          <div class="flex">
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search for a Record Label"
+              class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg border-0 focus:outline-none text-white text-lg search-input"
+              @keyup.enter="performSearch"
+            >
+            <button
+              class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
+              :disabled="!searchQuery.trim() || isLoading"
+              @click="performSearch"
+            >
+              <Icon :icon="faSearch" class="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <!-- Filters -->
@@ -290,7 +299,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faBan, faCheck, faChevronDown, faHeart, faPause, faPlay, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faBan, faCheck, faChevronDown, faHeart, faPause, faPlay, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { http } from '@/services/http'
 import { logger } from '@/utils/logger'

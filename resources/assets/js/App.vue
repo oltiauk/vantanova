@@ -28,6 +28,8 @@
 
   <LoginForm v-if="layout === 'auth'" @loggedin="onUserLoggedIn" />
 
+  <RegisterForm v-if="layout === 'register'" @registered="onUserRegistered" />
+
   <AcceptInvitation v-if="layout === 'invitation'" />
   <ResetPasswordForm v-if="layout === 'reset-password'" />
 
@@ -56,6 +58,7 @@ import MediaBrowserContextMenu from '@/components/media-browser/MediaBrowserCont
 
 const Hotkeys = defineAsyncComponent(() => import('@/components/utils/HotkeyListener.vue'))
 const LoginForm = defineAsyncComponentWithLoadingState(() => import('@/components/auth/LoginForm.vue'))
+const RegisterForm = defineAsyncComponentWithLoadingState(() => import('@/components/auth/RegisterForm.vue'))
 const MainWrapper = defineAsyncComponentWithLoadingState(() => import('@/components/layout/main-wrapper/index.vue'))
 const AlbumContextMenu = defineAsyncComponent(() => import('@/components/album/AlbumContextMenu.vue'))
 const ArtistContextMenu = defineAsyncComponent(() => import('@/components/artist/ArtistContextMenu.vue'))
@@ -74,9 +77,9 @@ const toaster = ref<InstanceType<typeof MessageToaster>>()
 const currentSong = ref<Playable>()
 const showDropZone = ref(false)
 
-const layout = ref<'main' | 'auth' | 'invitation' | 'reset-password'>()
+const layout = ref<'main' | 'auth' | 'register' | 'invitation' | 'reset-password'>()
 
-const { isCurrentScreen, getCurrentScreen, resolveRoute } = useRouter()
+const { isCurrentScreen, getCurrentScreen, resolveRoute, onRouteChanged } = useRouter()
 const online = useOnline()
 
 const authenticated = ref(false)
@@ -84,9 +87,37 @@ const initialized = ref(false)
 
 const triggerAppInitialization = () => (authenticated.value = true)
 
+const updateLayoutFromRoute = () => {
+  // Don't update layout if user is authenticated and initialized
+  if (authenticated.value && initialized.value) {
+    return
+  }
+
+  switch (getCurrentScreen()) {
+    case 'Register':
+      layout.value = 'register'
+      break
+    case 'Invitation.Accept':
+      layout.value = 'invitation'
+      break
+    case 'Password.Reset':
+      layout.value = 'reset-password'
+      break
+    default:
+      // Only set to auth if not authenticated
+      if (!authenticated.value) {
+        layout.value = 'auth'
+      }
+  }
+}
+
 const onUserLoggedIn = () => {
   layout.value = 'main'
   triggerAppInitialization()
+}
+
+const onUserRegistered = () => {
+  layout.value = 'auth'
 }
 
 const onInitSuccess = async () => {
@@ -117,17 +148,12 @@ onMounted(async () => {
   }
 
   await resolveRoute()
+  updateLayoutFromRoute()
 
-  switch (getCurrentScreen()) {
-    case 'Invitation.Accept':
-      layout.value = 'invitation'
-      break
-    case 'Password.Reset':
-      layout.value = 'reset-password'
-      break
-    default:
-      layout.value = 'auth'
-  }
+  // Watch for route changes and update layout accordingly
+  onRouteChanged(() => {
+    updateLayoutFromRoute()
+  })
 
   // Add an ugly mac/non-mac class for OS-targeting styles.
   // I'm crying inside.

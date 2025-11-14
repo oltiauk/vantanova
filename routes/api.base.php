@@ -51,6 +51,7 @@ use App\Http\Controllers\API\PrivatizeSongsController;
 use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\PublicizeSongsController;
 use App\Http\Controllers\API\QueueStateController;
+use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\RegisterPlayController;
 use App\Http\Controllers\API\ResetPasswordController;
 use App\Http\Controllers\API\ScrobbleController;
@@ -85,6 +86,8 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
     Route::post('me/otp', [AuthController::class, 'loginUsingOneTimeToken']);
 
     Route::delete('me', [AuthController::class, 'logout']);
+
+    Route::post('register', RegisterController::class);
 
     Route::post('forgot-password', ForgotPasswordController::class);
     Route::post('reset-password', ResetPasswordController::class);

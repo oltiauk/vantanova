@@ -73,6 +73,7 @@ export default class Router {
     )
 
     addEventListener('popstate', () => this.resolve(), true)
+    addEventListener('hashchange', () => this.resolve(), true)
   }
 
   public static go (path: string | number, reload = false) {
@@ -85,12 +86,8 @@ export default class Router {
       path = `/${path}`
     }
 
-    if (!path.startsWith('/#')) {
-      path = `/#${path}`
-    }
-
-    path = path.substring(1, path.length)
-    location.assign(`${location.origin}${location.pathname}${path}`)
+    // Use location.hash to trigger hashchange event
+    location.hash = path
 
     reload && forceReloadWindow()
   }

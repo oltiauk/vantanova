@@ -8,7 +8,7 @@
       @submit.prevent="login"
     >
       <div class="text-center mb-8">
-        <img alt="Koel's logo" class="inline-block" src="@/../img/logo.svg" width="156">
+        <img alt="Vantanova's logo" class="inline-block" :src="logoUrl" width="300">
       </div>
 
       <FormRow>
@@ -23,10 +23,15 @@
         <Btn data-testid="submit" type="submit">Log In</Btn>
       </FormRow>
 
-      <FormRow v-if="canResetPassword">
-        <a class="text-right text-[.95rem] text-k-text-secondary" role="button" @click.prevent="showForgotPasswordForm">
-          Forgot password?
-        </a>
+      <FormRow>
+        <div class="flex justify-between items-center">
+          <a class="text-[.95rem] text-k-text-secondary" role="button" @click.prevent="goToRegister">
+            Sign up
+          </a>
+          <a v-if="canResetPassword" class="text-[.95rem] text-k-text-secondary" role="button" @click.prevent="showForgotPasswordForm">
+            Forgot password?
+          </a>
+        </div>
       </FormRow>
     </form>
 
@@ -43,6 +48,7 @@ import { onMounted, ref } from 'vue'
 import { authService } from '@/services/authService'
 import { logger } from '@/utils/logger'
 import { useMessageToaster } from '@/composables/useMessageToaster'
+import { useRouter } from '@/composables/useRouter'
 
 import Btn from '@/components/ui/form/Btn.vue'
 import PasswordField from '@/components/ui/form/PasswordField.vue'
@@ -52,6 +58,9 @@ import TextInput from '@/components/ui/form/TextInput.vue'
 import FormRow from '@/components/ui/form/FormRow.vue'
 
 const emit = defineEmits<{ (e: 'loggedin'): void }>()
+const router = useRouter()
+
+const logoUrl = '/VantaNova-Logo.svg'
 
 const DEMO_ACCOUNT = {
   email: 'demo@koel.dev',
@@ -67,6 +76,10 @@ const failed = ref(false)
 const showingForgotPasswordForm = ref(false)
 
 const showForgotPasswordForm = () => (showingForgotPasswordForm.value = true)
+
+const goToRegister = () => {
+  router.go('/register')
+}
 
 const login = async () => {
   try {

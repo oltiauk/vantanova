@@ -60,6 +60,10 @@ export const authService = {
     return lsGet(AUDIO_TOKEN_STORAGE_KEY) || lsGet(API_TOKEN_STORAGE_KEY)
   },
 
+  async register (name: string, email: string, password: string, passwordConfirmation: string) {
+    await http.post('register', { name, email, password, password_confirmation: passwordConfirmation })
+  },
+
   requestResetPasswordLink: async (email: string) => await http.post('forgot-password', { email }),
 
   resetPassword: async (email: string, password: string, token: string) => {

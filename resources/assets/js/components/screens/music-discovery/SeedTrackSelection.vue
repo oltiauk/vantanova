@@ -52,7 +52,7 @@
                       :class="{
                         'bg-k-accent/10': pendingTrack && pendingTrack.id === track.id,
                       }"
-                      @click="fillSearchBar(track)"
+                      @click="selectSeedTrack(track)"
                     >
                       <!-- Track Info -->
                       <div class="flex-1 min-w-0">
@@ -76,15 +76,14 @@
               </div>
             </div>
 
-            <!-- Search Button - Show when track is pending or no results yet (initial search) -->
-            <div v-if="pendingTrack || (!hasRecommendations && searchQuery.trim() && !selectedTrack)" class="flex justify-center mt-6">
+            <!-- Search Button - Show only for manual text search (not for track selection) -->
+            <div v-if="!hasRecommendations && searchQuery.trim() && !selectedTrack && !pendingTrack" class="flex justify-center mt-6">
               <button
                 :disabled="isSearching"
                 class="px-6 py-2 bg-k-accent text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-500 transition-colors flex items-center gap-2"
                 @click="performSearch"
               >
-                <span v-if="pendingTrack">Search Related Tracks</span>
-                <span v-else>Search</span>
+                <span>Search</span>
               </button>
             </div>
           </div>
@@ -111,8 +110,6 @@
             </button>
           </div>
         </div>
-
-        
       </div>
     </div>
 
@@ -244,16 +241,22 @@ const filteredSearchResults = computed(() => {
 
   return searchResults.value.filter(track => {
     // Basic validation
-    if (!track || !track.name || !track.artist) return false
+    if (!track || !track.name || !track.artist) {
+      return false
+    }
 
     // Filter out blacklisted tracks (but allow tracks by blacklisted artists)
-    if (isTrackBlacklisted(track)) return false
+    if (isTrackBlacklisted(track)) {
+      return false
+    }
 
     // Dedup key by normalized artist + title
     const normalizedArtist = normalize(track.artist)
     const normalizedTitle = normalize(track.name)
     const key = `${normalizedArtist}|${normalizedTitle}`
-    if (seen.has(key)) return false
+    if (seen.has(key)) {
+      return false
+    }
 
     // Optional content filter: require all typed words to appear in artist/title
     if (queryTokens.length) {
@@ -262,7 +265,9 @@ const filteredSearchResults = computed(() => {
       const haystack = normalize(`${altArtists} ${track.artist} ${track.name}`)
       // Looser match: require at least one token to appear somewhere
       const anyTokenPresent = queryTokens.some(tok => haystack.includes(tok))
-      if (!anyTokenPresent) return false
+      if (!anyTokenPresent) {
+        return false
+      }
     }
 
     seen.add(key)
@@ -303,11 +308,10 @@ const formatArtists = (track: Track): string => {
   return track.artist
 }
 
-// Fill search bar with selected track (don't search yet)
+// Fill search bar with selected track (don't search yet) - DEPRECATED: now directly selects
 const fillSearchBar = (track: Track) => {
-  pendingTrack.value = track
-  searchQuery.value = `${formatArtists(track)} - ${track.name}`
-  searchResults.value = [] // Clear dropdown
+  // This function is kept for compatibility but now directly selects the track
+  selectSeedTrack(track)
 }
 
 // Handle search input - clear pending track when user types
@@ -344,7 +348,6 @@ const performSearch = () => {
   if (searchQuery.value.trim()) {
     console.log('🔎 [SEED] Manual query search path')
     searchTracks()
-    return
   }
 
   // If there's already a selected seed track and recommendations, this is a refresh search

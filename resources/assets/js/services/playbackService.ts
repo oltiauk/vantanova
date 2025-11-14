@@ -299,7 +299,7 @@ class PlaybackService {
   }
 
   public async stop () {
-    document.title = 'Koel'
+    document.title = 'Vantanova'
     
     if (this.youtubePlayer) {
       this.youtubePlayer.pause()
@@ -465,7 +465,7 @@ class PlaybackService {
   }
 
   private async setNowPlayingMeta (playable: Playable) {
-    document.title = `${playable.title} ♫ Koel`
+    document.title = `${playable.title} ♫ Vantanova`
     
     if (!this.youtubePlayer) {
       this.player.media.setAttribute(

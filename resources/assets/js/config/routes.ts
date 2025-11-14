@@ -182,6 +182,11 @@ export const routes: Route[] = [
     },
   },
   {
+    name: 'register',
+    path: '/register',
+    screen: 'Register',
+  },
+  {
     name: 'invitation.accept',
     path: '/invitation/accept/:token',
     screen: 'Invitation.Accept',

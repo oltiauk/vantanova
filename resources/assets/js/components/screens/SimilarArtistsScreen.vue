@@ -556,12 +556,21 @@ const refillSlotsFromQueue = () => {
   // Add new artists from queue to fill up to 20 slots
   let filledCount = 0
   const artistsNeeded = Math.min(emptyCount, artistQueue.value.length)
+  const newlyAddedArtists: LastfmArtist[] = []
 
   for (let i = 0; i < artistsNeeded; i++) {
     const nextArtist = artistQueue.value.shift()
     if (nextArtist) {
       existingArtists.push(nextArtist)
+      newlyAddedArtists.push(nextArtist)
       filledCount++
+      console.log(`🔄 [SLOT SYSTEM] Adding artist from queue:`, {
+        name: nextArtist.name,
+        id: nextArtist.id,
+        mbid: nextArtist.mbid,
+        hasFollowers: nextArtist.followers !== undefined,
+        followers: nextArtist.followers,
+      })
     }
   }
 
@@ -575,6 +584,19 @@ const refillSlotsFromQueue = () => {
   updateDisplayedArtistsFromSlots()
 
   console.log(`🔄 [SLOT SYSTEM] Refilled with ${filledCount} new artists at bottom, ${artistQueue.value.length} artists remaining in queue`)
+  console.log(`🔄 [SLOT SYSTEM] Newly added artists details:`, newlyAddedArtists.map(a => ({
+    name: a.name,
+    id: a.id,
+    mbid: a.mbid,
+    followers: a.followers,
+  })))
+
+  // Load followers/listeners data for newly added artists
+  // Skip sorting because artists from queue are already sorted by followers
+  if (filledCount > 0) {
+    console.log(`📊 [SLOT SYSTEM] Triggering loadPageListenersCounts() for ${filledCount} newly added artists (skipSort=true)`)
+    loadPageListenersCounts(true) // Skip sorting - queue is already sorted
+  }
 }
 
 // Sorting
@@ -1099,26 +1121,48 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
       similarArtists.value = artistsWithId
       filteredArtists.value = artistsWithId
 
-      // Initialize slot map with first 20 artists (slots 0-19)
-      const initialArtists = artistsWithId.slice(0, 20)
+      // Load followers/listeners count for ALL artists before sorting and populating slots
+      console.log('📊 [FRONTEND] Loading followers for ALL artists before sorting', {
+        totalArtists: artistsWithId.length,
+      })
+      await loadAllArtistsFollowers(artistsWithId)
+
+      // Sort all artists by followers (descending) - most followers first
+      const sortedArtists = [...artistsWithId].sort((a, b) => {
+        const aFollowers = a.followers || 0
+        const bFollowers = b.followers || 0
+        // If followers are equal, use listeners as tiebreaker
+        if (aFollowers === bFollowers) {
+          const aListeners = Number.parseInt(a.listeners || '0', 10)
+          const bListeners = Number.parseInt(b.listeners || '0', 10)
+          return bListeners - aListeners
+        }
+        return bFollowers - aFollowers
+      })
+
+      console.log('📊 [FRONTEND] Sorted all artists by followers', {
+        top5: sortedArtists.slice(0, 5).map(a => ({ name: a.name, followers: a.followers })),
+        bottom5: sortedArtists.slice(-5).map(a => ({ name: a.name, followers: a.followers })),
+      })
+
+      // Initialize slot map with top 20 artists (most followers first)
+      const initialArtists = sortedArtists.slice(0, 20)
       slotMap.value = {}
       initialArtists.forEach((artist, index) => {
         slotMap.value[index] = artist
       })
 
-      // Store remaining artists in queue for refilling empty slots
-      artistQueue.value = artistsWithId.slice(20)
+      // Store remaining artists in queue (already sorted by followers, descending)
+      artistQueue.value = sortedArtists.slice(20)
 
-      console.log(`✅ [SLOT SYSTEM] Initialized ${initialArtists.length} slots, ${artistQueue.value.length} artists in queue`)
+      console.log(`✅ [SLOT SYSTEM] Initialized ${initialArtists.length} slots (sorted by followers), ${artistQueue.value.length} artists in queue`)
 
       // Update displayed artists from slots
       updateDisplayedArtistsFromSlots()
 
-      // Apply initial sorting first (without listeners data)
-      sortArtists()
-
-      // Load followers/listeners count for displayed artists
-      await loadPageListenersCounts()
+      // Don't apply sorting here - artists are already sorted by followers
+      // Just update the display
+      displayedArtists.value = initialArtists
 
       // Set initial load complete
       initialLoadComplete.value = true
@@ -1146,13 +1190,83 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
   }
 }
 
-// Load followers/listeners counts for displayed artists only
-const loadPageListenersCounts = async () => {
+// Track if we need to reload after current request completes
+const pendingListenersReload = ref(false)
+
+// Load followers/listeners counts for ALL artists (used during initial load)
+const loadAllArtistsFollowers = async (artists: LastfmArtist[]) => {
+  if (artists.length === 0) {
+    return
+  }
+
+  try {
+    // Get artist IDs and MBIDs for all artists
+    const artistIds = artists
+      .filter(artist => artist.id && artist.id.trim())
+      .map(artist => artist.id)
+
+    const mbids = artists
+      .filter(artist => artist.mbid && artist.mbid.trim())
+      .map(artist => artist.mbid)
+
+    console.log('📊 [FRONTEND] Loading followers for ALL artists', {
+      totalArtists: artists.length,
+      artistIdsCount: artistIds.length,
+      mbidsCount: mbids.length,
+    })
+
+    if (artistIds.length > 0 || mbids.length > 0) {
+      const response = await http.post('similar-artists/batch-listeners', {
+        artist_ids: artistIds,
+        mbids,
+      })
+
+      if (response.success && response.data) {
+        // Update all artists with followers/listeners data
+        let updatedCount = 0
+        artists.forEach(artist => {
+          const artistId = artist.id || artist.mbid
+          if (artistId && response.data[artistId]) {
+            const data = response.data[artistId]
+
+            // Update with Spotify followers data
+            if (data.followers !== undefined) {
+              artist.followers = data.followers
+            }
+            if (data.popularity !== undefined) {
+              artist.popularity = data.popularity
+            }
+
+            // Update with Last.fm listeners data
+            if (data.listeners !== undefined) {
+              artist.listeners = data.listeners.toString()
+            }
+            if (data.playcount !== undefined) {
+              artist.playcount = data.playcount?.toString()
+            }
+
+            updatedCount++
+          }
+        })
+
+        console.log(`📊 [FRONTEND] Updated ${updatedCount} artists with followers data`)
+      }
+    }
+  } catch (error: any) {
+    console.error('📊 [FRONTEND] Failed to load followers for all artists:', error)
+  }
+}
+
+// Load followers/listeners counts for displayed artists only (used during refill)
+const loadPageListenersCounts = async (skipSort = false) => {
   if (loadingPageListeners.value) {
+    console.log('📊 [FRONTEND] loadPageListenersCounts() already in progress, will reload after completion')
+    pendingListenersReload.value = true
     return
   }
 
   loadingPageListeners.value = true
+  pendingListenersReload.value = false
 
   try {
     // Get artist IDs for displayed artists (from slots)
@@ -1165,10 +1279,17 @@ const loadPageListenersCounts = async () => {
       .map(artist => artist.mbid)
 
     console.log('📊 [FRONTEND] Loading followers/listeners for displayed artists', {
+      totalDisplayedArtists: displayedArtists.value.length,
       artistIdsCount: artistIds.length,
       mbidsCount: mbids.length,
-      artistIds: artistIds.slice(0, 3), // Log first 3 for debugging
-      mbids: mbids.slice(0, 3),
+      artistIds: artistIds.slice(0, 5), // Log first 5 for debugging
+      mbids: mbids.slice(0, 5),
+      allArtists: displayedArtists.value.map(a => ({
+        name: a.name,
+        id: a.id,
+        mbid: a.mbid,
+        currentFollowers: a.followers,
+      })),
     })
 
     if (artistIds.length > 0 || mbids.length > 0) {
@@ -1184,13 +1305,19 @@ const loadPageListenersCounts = async () => {
       })
 
       if (response.success && response.data) {
+        console.log('📊 [FRONTEND] Batch followers response data keys:', Object.keys(response.data))
+        console.log('📊 [FRONTEND] Batch followers response data sample:', Object.entries(response.data).slice(0, 3).map(([key, value]) => ({ key, value })))
+
         // Update artists in slot map with followers/listeners data
+        let updatedCount = 0
+        let notFoundCount = 0
         for (let i = 0; i < 20; i++) {
           const artist = slotMap.value[i]
           if (artist) {
             const artistId = artist.id || artist.mbid
             if (artistId && response.data[artistId]) {
               const data = response.data[artistId]
+              const beforeFollowers = artist.followers
 
               // Update with Spotify followers data
               if (data.followers !== undefined) {
@@ -1207,15 +1334,43 @@ const loadPageListenersCounts = async () => {
               if (data.playcount !== undefined) {
                 artist.playcount = data.playcount?.toString()
               }
+
+              updatedCount++
+              console.log(`📊 [FRONTEND] Updated artist ${i}:`, {
+                name: artist.name,
+                id: artistId,
+                beforeFollowers,
+                afterFollowers: artist.followers,
+                data,
+              })
+            } else {
+              notFoundCount++
+              if (artistId) {
+                console.log(`⚠️ [FRONTEND] Artist ${i} not found in response:`, {
+                  name: artist.name,
+                  id: artistId,
+                  availableKeys: Object.keys(response.data),
+                })
+              } else {
+                console.log(`⚠️ [FRONTEND] Artist ${i} has no ID/mbid:`, {
+                  name: artist.name,
+                  id: artist.id,
+                  mbid: artist.mbid,
+                })
+              }
             }
           }
         }
 
+        console.log(`📊 [FRONTEND] Updated ${updatedCount} artists, ${notFoundCount} not found in response`)
+
         // Update displayed artists from slots
         updateDisplayedArtistsFromSlots()
 
-        // Re-apply sorting if needed
-        sortArtists()
+        // Re-apply sorting if needed (unless skipSort is true, e.g., during refill)
+        if (!skipSort) {
+          sortArtists()
+        }
 
         console.log('📊 [FRONTEND] Followers/listeners data updated', {
           updatedArtists: displayedArtists.value.filter(a => a.followers || a.listeners).length,
@@ -1234,6 +1389,15 @@ const loadPageListenersCounts = async () => {
     console.error('📊 [FRONTEND] Failed to load followers/listeners:', error)
   } finally {
     loadingPageListeners.value = false
+    
+    // If a reload was requested while we were loading, trigger it now
+    if (pendingListenersReload.value) {
+      console.log('📊 [FRONTEND] Pending reload requested, triggering another loadPageListenersCounts()')
+      pendingListenersReload.value = false
+      // Use nextTick to ensure the state has updated
+      await nextTick()
+      loadPageListenersCounts()
+    }
   }
 }
 
