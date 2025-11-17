@@ -322,15 +322,15 @@ const onSearchInput = () => {
   pendingTrack.value = null
   // Clear search results when user types
   searchResults.value = []
-  
+
   // Reset typing state - user is currently typing
   hasStoppedTyping.value = false
-  
+
   // Clear existing timer
   if (typingDebounceTimer) {
     clearTimeout(typingDebounceTimer)
   }
-  
+
   // Set timer to detect when user stops typing (800ms delay)
   typingDebounceTimer = setTimeout(() => {
     hasStoppedTyping.value = true
