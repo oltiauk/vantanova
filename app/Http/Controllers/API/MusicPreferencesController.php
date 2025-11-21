@@ -238,6 +238,7 @@ class MusicPreferencesController extends Controller
             'track_name' => 'required|string',
             'artist_name' => 'required|string',
             'spotify_id' => 'sometimes|string|nullable',
+            'spotify_artist_id' => 'sometimes|string|nullable',
             'label' => 'sometimes|string|nullable',
             'popularity' => 'sometimes|integer|nullable|min:0|max:100',
             'followers' => 'sometimes|integer|nullable|min:0',
@@ -266,6 +267,7 @@ class MusicPreferencesController extends Controller
 
         try {
             $spotifyId = $request->spotify_id;
+            $spotifyArtistId = $request->spotify_artist_id;
             $popularity = $request->popularity;
             $followers = $request->followers;
 
@@ -308,18 +310,18 @@ class MusicPreferencesController extends Controller
                         $popularity = $trackData['popularity'] ?? $popularity;
 
                         // Extract artist ID
-                        $artistId = $trackData['artists']['items'][0]['uri'] ?? null;
-                        if ($artistId) {
+                        $spotifyArtistId = $trackData['artists']['items'][0]['uri'] ?? null;
+                        if ($spotifyArtistId) {
                             // Extract just the ID part from spotify:artist:ID format
-                            $artistId = str_replace('spotify:artist:', '', $artistId);
+                            $spotifyArtistId = str_replace('spotify:artist:', '', $spotifyArtistId);
 
                             \Log::info('💾 Save Track: Got track details', [
                                 'popularity' => $popularity,
-                                'artist_id' => $artistId
+                                'artist_id' => $spotifyArtistId
                             ]);
 
                             // Step 3: Fetch artist details for followers count
-                            $artistResult = $this->rapidApiSpotifyService->getArtistById($artistId);
+                            $artistResult = $this->rapidApiSpotifyService->getArtistById($spotifyArtistId);
 
                             if ($artistResult['success'] && isset($artistResult['data'])) {
                                 $artistData = $artistResult['data'];
@@ -340,6 +342,7 @@ class MusicPreferencesController extends Controller
                 $request->track_name,
                 $request->artist_name,
                 $spotifyId,
+                $spotifyArtistId,
                 $request->label,
                 $popularity,
                 $followers,
@@ -354,7 +357,8 @@ class MusicPreferencesController extends Controller
                 'track_name' => $request->track_name,
                 'spotify_id' => $spotifyId,
                 'popularity' => $popularity,
-                'followers' => $followers
+                'followers' => $followers,
+                'spotify_artist_id' => $spotifyArtistId,
             ]);
 
             return response()->json([
@@ -362,8 +366,9 @@ class MusicPreferencesController extends Controller
                 'message' => 'Track saved successfully (expires in 24 hours)',
                 'data' => [
                     'spotify_id' => $spotifyId,
+                    'spotify_artist_id' => $spotifyArtistId,
                     'popularity' => $popularity,
-                    'followers' => $followers
+                    'followers' => $followers,
                 ]
             ]);
         } catch (\Exception $e) {

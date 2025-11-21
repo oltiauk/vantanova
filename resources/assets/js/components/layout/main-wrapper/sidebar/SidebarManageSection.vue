@@ -11,6 +11,12 @@
         </template>
         Saved Tracks
       </SidebarItem>
+      <SidebarItem :href="url('artist-watchlist')" screen="ArtistWatchlist">
+        <template #icon>
+          <Icon :icon="faEye" fixed-width />
+        </template>
+        Artists Watchlist
+      </SidebarItem>
       <SidebarItem :href="url('banned-tracks')" screen="BannedTracks">
         <template #icon>
           <Icon :icon="faBan" fixed-width />
@@ -50,7 +56,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faBan, faUserSlash, faHeart, faUsers, faUpload, faTools } from '@fortawesome/free-solid-svg-icons'
+import { faBan, faEye, faUserSlash, faHeart, faUsers, faUpload, faTools } from '@fortawesome/free-solid-svg-icons'
 import { useRouter } from '@/composables/useRouter'
 import { useAuthorization } from '@/composables/useAuthorization'
 

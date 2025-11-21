@@ -413,6 +413,7 @@ declare type ScreenName =
   | 'BannedArtists'
   | 'SoundCloudRelatedTracks'
   | 'SimilarArtists'
+  | 'ArtistWatchlist'
   | '404'
 
 declare type ArtistAlbumCardLayout = 'full' | 'compact'

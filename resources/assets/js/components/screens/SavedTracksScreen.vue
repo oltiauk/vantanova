@@ -86,6 +86,7 @@
               <tr class="border-b border-white/10">
                 <th class="text-left py-7 px-2 font-medium" />
                 <th class="text-center px-2 font-medium w-12" />
+                <th class="text-center px-2 font-medium w-12" />
                 <th class="text-left px-2 py-7 font-medium w-auto min-w-48">Artist(s)</th>
                 <th class="text-left px-2 font-medium">Title</th>
                 <th class="text-center px-2 font-medium">Record Label</th>
@@ -120,6 +121,34 @@
                         :icon="copiedTrackId === track.id ? faCheck : faCopy"
                         class="w-4 h-4"
                       />
+                    </button>
+                  </td>
+
+                  <!-- Watchlist -->
+                  <td class="p-3 align-middle text-center">
+                    <button
+                      :disabled="followInProgress === getTrackKey(track)"
+                      class="watchlist-btn"
+                      title="Add the artist to the watchlist"
+                      aria-label="Add the artist to the watchlist"
+                      @click="followArtist(track)"
+                    >
+                      <svg
+                        v-if="followInProgress === getTrackKey(track)"
+                        class="animate-spin h-3 w-3 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <img
+                        v-else
+                        src="/public/icons/FollowArtist.svg"
+                        alt="Add artist"
+                        class="watchlist-icon"
+                      >
                     </button>
                   </td>
 
@@ -386,6 +415,7 @@ interface SavedTrack {
   track_name: string
   artist_name: string
   spotify_id: string | null
+  spotify_artist_id?: string | null
   created_at: string
   expires_at: string
   // Additional Spotify data
@@ -399,12 +429,28 @@ interface SavedTrack {
   album_id?: string
 }
 
+interface WatchlistEventArtist {
+  id?: number
+  artist_id: string
+  artist_name: string
+  artist_image_url?: string | null
+  followers?: number | null
+}
+
+interface WatchlistEventDetail {
+  action: 'added'
+  artist: WatchlistEventArtist
+}
+
+const WATCHLIST_EVENT = 'artist-watchlist-updated' as const
+
 // Initialize router
 const { onRouteChanged, go } = useRouter()
 
 // State
 const isLoading = ref(false)
 const isProcessing = ref(false)
+const followInProgress = ref<string | null>(null)
 const searchQuery = ref('')
 const sortBy = ref('most_recent')
 const currentPage = ref(1)
@@ -1197,6 +1243,58 @@ onRouteChanged(route => {
 
 // Watch search query and sort to reset pagination
 watch([searchQuery, sortBy], resetPagination)
+
+const emitWatchlistAddition = (artist: WatchlistEventArtist) => {
+  window.dispatchEvent(new CustomEvent<WatchlistEventDetail>(WATCHLIST_EVENT, {
+    detail: {
+      action: 'added',
+      artist,
+    },
+  }))
+}
+
+const followArtist = async (track: SavedTrack) => {
+  const trackKey = getTrackKey(track)
+  followInProgress.value = trackKey
+
+  try {
+    let spotifyArtistId = track.spotify_artist_id || null
+    let artistImage: string | null = null
+    let followers: number | undefined
+
+    if (!spotifyArtistId) {
+      const response = await http.post<{ success: boolean, data: Array<{ id: string, image?: string, followers?: number }> }>('music-preferences/artist-watchlist/search', {
+        query: track.artist_name,
+      })
+
+      if (response.success && response.data.length > 0) {
+        spotifyArtistId = response.data[0].id
+        artistImage = response.data[0].image || null
+        followers = response.data[0].followers
+      }
+    }
+
+    if (!spotifyArtistId) {
+      throw new Error('Unable to find this artist on Spotify.')
+    }
+
+    const watchlistResponse = await http.post<{ success: boolean, data: WatchlistEventArtist }>('music-preferences/artist-watchlist', {
+      artist_id: spotifyArtistId,
+      artist_name: track.artist_name,
+      artist_image_url: artistImage,
+      followers,
+    })
+
+    if (watchlistResponse.success && watchlistResponse.data) {
+      emitWatchlistAddition(watchlistResponse.data)
+    }
+  } catch (error: any) {
+    console.error('Failed to follow artist:', error)
+    alert(error.response?.data?.error || error.message || 'Unable to follow artist right now.')
+  } finally {
+    followInProgress.value = null
+  }
+}
 </script>
 
 <style scoped>
@@ -1344,5 +1442,25 @@ watch([searchQuery, sortBy], resetPagination)
 iframe {
   background-color: rgba(255, 255, 255, 0.05);
   border: none;
+}
+
+.watchlist-btn {
+  @apply inline-flex items-center justify-center w-8 h-8 rounded bg-[#484948] hover:bg-gray-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed;
+}
+
+.watchlist-icon {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) saturate(100%) invert(76%) sepia(4%) saturate(342%) hue-rotate(169deg) brightness(92%)
+    contrast(88%);
+  opacity: 0.85;
+  transition:
+    opacity 0.2s ease,
+    filter 0.2s ease;
+}
+
+.watchlist-btn:hover .watchlist-icon {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(100%);
 }
 </style>

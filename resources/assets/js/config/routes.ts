@@ -232,6 +232,11 @@ export const routes: Route[] = [
     screen: 'SavedTracks'
   },
   {
+    name: 'artist-watchlist',
+    path: '/artist-watchlist',
+    screen: 'ArtistWatchlist'
+  },
+  {
     name: 'soundcloud',
     path: '/soundcloud',
     screen: 'SoundCloud'

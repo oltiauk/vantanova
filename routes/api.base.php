@@ -7,6 +7,7 @@ use App\Http\Controllers\API\AlbumController;
 use App\Http\Controllers\API\AlbumSongController;
 use App\Http\Controllers\API\ArtistAlbumController;
 use App\Http\Controllers\API\ArtistController;
+use App\Http\Controllers\API\ArtistWatchlistController;
 use App\Http\Controllers\API\ArtistSongController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CheckResourcePermissionController;
@@ -269,6 +270,13 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::get('saved-tracks', [MusicPreferencesController::class, 'getSavedTracks'])->name('saved-tracks');
             Route::get('blacklisted-artists', [MusicPreferencesController::class, 'getBlacklistedArtists'])->name('blacklisted-artists');
             Route::get('saved-artists', [MusicPreferencesController::class, 'getSavedArtists'])->name('saved-artists');
+            
+            // Artist watchlist
+            Route::get('artist-watchlist', [ArtistWatchlistController::class, 'index'])->name('artist-watchlist.index');
+            Route::post('artist-watchlist', [ArtistWatchlistController::class, 'store'])->name('artist-watchlist.store');
+            Route::delete('artist-watchlist/{artistId}', [ArtistWatchlistController::class, 'destroy'])->name('artist-watchlist.destroy');
+            Route::post('artist-watchlist/search', [ArtistWatchlistController::class, 'searchArtists'])->name('artist-watchlist.search');
+            Route::post('artist-watchlist/releases', [ArtistWatchlistController::class, 'releases'])->name('artist-watchlist.releases');
             
             // Listened tracks
             Route::post('listened-track', [MusicPreferencesController::class, 'markListened'])->name('listened-track.mark');
