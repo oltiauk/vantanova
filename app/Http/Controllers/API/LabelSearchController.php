@@ -48,7 +48,7 @@ class LabelSearchController extends Controller
             }
 
             // Search for albums with increased limit
-            $searchResults = $this->spotifyService->searchAlbums($query, 50);
+            $searchResults = $this->searchAlbumsWithFallback($query, 50);
 
             // If no results with exact label, try broader search
             if (empty($searchResults['albums']['items'])) {
@@ -67,7 +67,7 @@ class LabelSearchController extends Controller
                 }
 
                 Log::info('Trying broader search', ['broad_query' => $broadQuery]);
-                $searchResults = $this->spotifyService->searchAlbums($broadQuery, 50);
+                $searchResults = $this->searchAlbumsWithFallback($broadQuery, 50);
             }
 
             // Debug logging - clean up available_markets to reduce log size
@@ -319,6 +319,44 @@ class LabelSearchController extends Controller
                 'is_banned' => $isrc && in_array($isrc, $bannedIsrcs)
             ]);
         }, $tracks);
+    }
+
+    /**
+     * Search albums using RapidAPI (with 3-tier dispatcher) first, then fallback to SpotifyService
+     */
+    private function searchAlbumsWithFallback(string $query, int $limit = 50): array
+    {
+        if (RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
+            Log::info('🔍 [LABEL SEARCH] Attempting RapidAPI album search', [
+                'query' => $query,
+                'limit' => $limit
+            ]);
+
+            try {
+                $rapidResult = $this->rapidApiSpotifyService->searchAlbums($query, $limit);
+                $items = $rapidResult['albums']['items'] ?? [];
+
+                if (!empty($items)) {
+                    Log::info('🔍 [LABEL SEARCH] RapidAPI album search successful', [
+                        'query' => $query,
+                        'found' => count($items)
+                    ]);
+                    return $rapidResult;
+                }
+            } catch (\Exception $e) {
+                Log::warning('🔍 [LABEL SEARCH] RapidAPI album search failed, falling back to SpotifyService', [
+                    'query' => $query,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        Log::info('🔍 [LABEL SEARCH] Falling back to SpotifyService album search', [
+            'query' => $query,
+            'limit' => $limit
+        ]);
+
+        return $this->spotifyService->searchAlbums($query, $limit);
     }
 
     /**

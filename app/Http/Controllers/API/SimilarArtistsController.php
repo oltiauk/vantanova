@@ -42,81 +42,36 @@ class SimilarArtistsController extends Controller
                 'has_service' => !!$this->rapidApiSpotifyService
             ]);
 
-            // Try RapidAPI Spotify first (primary)
             if (RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
-                Log::info('🔍 [SIMILAR ARTISTS] Attempting RapidAPI Spotify search (primary)', [
+                Log::info('🔍 [SIMILAR ARTISTS] Delegating search to RapidApiSpotifyService (3-tier with rate limiting)', [
                     'query' => $query,
                     'limit' => $limit
                 ]);
-                
+
                 $artists = $this->rapidApiSpotifyService->searchArtists($query, $limit);
-                
+
                 if (!empty($artists)) {
-                    // Remove duplicates from primary results
                     $deduplicatedArtists = $this->removeDuplicateArtists($artists);
-                    
-                    Log::info('🔍 [SIMILAR ARTISTS] RapidAPI Spotify search successful', [
+
+                    Log::info('🔍 [SIMILAR ARTISTS] RapidAPI Spotify search successful (service handled provider selection)', [
                         'query' => $query,
                         'original_count' => count($artists),
                         'deduplicated_count' => count($deduplicatedArtists),
                         'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $deduplicatedArtists), 0, 3)
                     ]);
-                    
+
                     return response()->json([
                         'success' => true,
                         'data' => $deduplicatedArtists
                     ]);
-                } else {
-                    Log::warning('🔍 [SIMILAR ARTISTS] RapidAPI Spotify search returned no results', [
-                        'query' => $query
-                    ]);
                 }
-            } else {
-                Log::info('🔍 [SIMILAR ARTISTS] RapidAPI Spotify not available', [
-                    'enabled' => RapidApiSpotifyService::enabled(),
-                    'has_service' => !!$this->rapidApiSpotifyService
-                ]);
             }
 
-            // Try RapidAPI Spotify-web2 as Backup 1
-            Log::info('🔍 [SIMILAR ARTISTS] Attempting RapidAPI Spotify-web2 search (Backup 1)');
-            $unlimitedArtists = $this->searchWithUnlimitedAPI($query, $limit);
-            if (!empty($unlimitedArtists)) {
-                // Remove duplicates from backup results
-                $deduplicatedUnlimitedArtists = $this->removeDuplicateArtists($unlimitedArtists);
-
-                Log::info('🔍 [SIMILAR ARTISTS] RapidAPI Spotify-web2 search successful', [
-                    'query' => $query,
-                    'original_count' => count($unlimitedArtists),
-                    'deduplicated_count' => count($deduplicatedUnlimitedArtists),
-                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $deduplicatedUnlimitedArtists), 0, 3)
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $deduplicatedUnlimitedArtists
-                ]);
-            }
-
-            // Try Spotify23 as Backup 2 (final fallback)
-            Log::info('🔍 [SIMILAR ARTISTS] Attempting Spotify23 search (Backup 2)');
-            $spotify23Artists = $this->searchWithSpotify23($query, $limit);
-            if (!empty($spotify23Artists)) {
-                // Remove duplicates from Spotify23 results
-                $deduplicatedSpotify23Artists = $this->removeDuplicateArtists($spotify23Artists);
-
-                Log::info('🔍 [SIMILAR ARTISTS] Spotify23 search successful', [
-                    'query' => $query,
-                    'original_count' => count($spotify23Artists),
-                    'deduplicated_count' => count($deduplicatedSpotify23Artists),
-                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $deduplicatedSpotify23Artists), 0, 3)
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $deduplicatedSpotify23Artists
-                ]);
-            }
+            Log::warning('🔍 [SIMILAR ARTISTS] RapidAPI Spotify search failed across all providers', [
+                'query' => $query,
+                'rapidapi_enabled' => RapidApiSpotifyService::enabled(),
+                'has_service' => !!$this->rapidApiSpotifyService
+            ]);
 
             return response()->json([
                 'success' => false,
@@ -163,86 +118,23 @@ class SimilarArtistsController extends Controller
                 'rapidapi_enabled' => RapidApiSpotifyService::enabled()
             ]);
 
-            // Collect artists from multiple sources to get more than 20
-            $allArtists = [];
-            $seenArtists = [];
-
-            // Try RapidAPI Spotify81 first (Primary) - usually returns 20
             if (RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
-                Log::info('🎵 [SIMILAR ARTISTS] Attempting RapidAPI Spotify81 similar artists (Primary)', [
-                    'artist_id' => $artistId,
-                    'limit' => $limit
-                ]);
+                $artists = $this->rapidApiSpotifyService->getSimilarArtists($artistId, $limit);
 
-                $spotify81Artists = $this->rapidApiSpotifyService->getSimilarArtists($artistId, $limit);
-                if (!empty($spotify81Artists)) {
-                    foreach ($spotify81Artists as $artist) {
-                        $key = $artist['id'] ?? $artist['name'];
-                        if (!isset($seenArtists[$key])) {
-                            $allArtists[] = $artist;
-                            $seenArtists[$key] = true;
-                        }
-                    }
-                    Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify81 added artists', [
+                if (!empty($artists)) {
+                    $deduped = $this->removeDuplicateArtists($artists);
+
+                    Log::info('🎵 [SIMILAR ARTISTS] RapidAPI similar artists successful (service handled provider selection)', [
                         'artist_id' => $artistId,
-                        'added_count' => count($spotify81Artists),
-                        'total_so_far' => count($allArtists)
+                        'total_count' => count($deduped),
+                        'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $deduped), 0, 5)
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'data' => $deduped
                     ]);
                 }
-            }
-
-            // Try RapidAPI Spotify-web2 as Backup 1 - might return more
-            Log::info('🎵 [SIMILAR ARTISTS] Attempting RapidAPI Spotify-web2 similar artists (Backup 1)');
-            $unlimitedSimilar = $this->getSimilarArtistsWithUnlimitedAPI($artistId, $limit);
-            if (!empty($unlimitedSimilar)) {
-                $addedCount = 0;
-                foreach ($unlimitedSimilar as $artist) {
-                    $key = $artist['id'] ?? $artist['name'];
-                    if (!isset($seenArtists[$key])) {
-                        $allArtists[] = $artist;
-                        $seenArtists[$key] = true;
-                        $addedCount++;
-                    }
-                }
-                Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify-web2 added artists', [
-                    'artist_id' => $artistId,
-                    'added_count' => $addedCount,
-                    'total_so_far' => count($allArtists)
-                ]);
-            }
-
-            // Try Spotify23 as Backup 2 - might return more
-            Log::info('🎵 [SIMILAR ARTISTS] Attempting Spotify23 similar artists (Backup 2)');
-            $spotify23Similar = $this->getSimilarArtistsWithSpotify23($artistId, $limit);
-            if (!empty($spotify23Similar)) {
-                $addedCount = 0;
-                foreach ($spotify23Similar as $artist) {
-                    $key = $artist['id'] ?? $artist['name'];
-                    if (!isset($seenArtists[$key])) {
-                        $allArtists[] = $artist;
-                        $seenArtists[$key] = true;
-                        $addedCount++;
-                    }
-                }
-                Log::info('🎵 [SIMILAR ARTISTS] Spotify23 added artists', [
-                    'artist_id' => $artistId,
-                    'added_count' => $addedCount,
-                    'total_so_far' => count($allArtists)
-                ]);
-            }
-
-            // Return combined results if we have any
-            if (!empty($allArtists)) {
-                Log::info('🎵 [SIMILAR ARTISTS] Combined similar artists successful', [
-                    'artist_id' => $artistId,
-                    'total_count' => count($allArtists),
-                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $allArtists), 0, 5)
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $allArtists
-                ]);
             }
 
             return response()->json([
@@ -286,17 +178,11 @@ class SimilarArtistsController extends Controller
                 'rapidapi_enabled' => RapidApiSpotifyService::enabled()
             ]);
 
-            // Try RapidAPI Spotify81 first (Primary)
             if (RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
-                Log::info('📊 [SIMILAR ARTISTS] Attempting RapidAPI Spotify81 batch followers (Primary)', [
-                    'artist_count' => count($artistIds),
-                    'artist_ids' => $artistIds
-                ]);
-
                 $followersData = $this->rapidApiSpotifyService->getBatchArtistFollowers($artistIds);
 
                 if (!empty($followersData)) {
-                    Log::info('📊 [SIMILAR ARTISTS] RapidAPI Spotify81 batch followers successful', [
+                    Log::info('📊 [SIMILAR ARTISTS] RapidAPI batch followers successful (service handled provider selection)', [
                         'requested_count' => count($artistIds),
                         'returned_count' => count($followersData),
                         'success_rate' => round((count($followersData) / count($artistIds)) * 100, 1) . '%'
@@ -306,48 +192,7 @@ class SimilarArtistsController extends Controller
                         'success' => true,
                         'data' => $followersData
                     ]);
-                } else {
-                    Log::warning('📊 [SIMILAR ARTISTS] RapidAPI Spotify81 batch followers returned no data', [
-                        'artist_count' => count($artistIds)
-                    ]);
                 }
-            } else {
-                Log::info('📊 [SIMILAR ARTISTS] RapidAPI Spotify81 batch followers not available', [
-                    'enabled' => RapidApiSpotifyService::enabled(),
-                    'has_service' => !!$this->rapidApiSpotifyService
-                ]);
-            }
-
-            // Try Spotify-web2 as Backup 1
-            Log::info('📊 [SIMILAR ARTISTS] Attempting Spotify-web2 batch followers (Backup 1)');
-            $web2Followers = $this->getBatchArtistFollowersWithSpotifyWeb2($artistIds);
-            if (!empty($web2Followers)) {
-                Log::info('📊 [SIMILAR ARTISTS] Spotify-web2 batch followers successful', [
-                    'requested_count' => count($artistIds),
-                    'returned_count' => count($web2Followers),
-                    'success_rate' => round((count($web2Followers) / count($artistIds)) * 100, 1) . '%'
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $web2Followers
-                ]);
-            }
-
-            // Try Spotify23 as Backup 2 (final fallback)
-            Log::info('📊 [SIMILAR ARTISTS] Attempting Spotify23 batch followers (Backup 2)');
-            $spotify23Followers = $this->getBatchArtistFollowersWithSpotify23($artistIds);
-            if (!empty($spotify23Followers)) {
-                Log::info('📊 [SIMILAR ARTISTS] Spotify23 batch followers successful', [
-                    'requested_count' => count($artistIds),
-                    'returned_count' => count($spotify23Followers),
-                    'success_rate' => round((count($spotify23Followers) / count($artistIds)) * 100, 1) . '%'
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $spotify23Followers
-                ]);
             }
 
             return response()->json([
@@ -424,70 +269,6 @@ class SimilarArtistsController extends Controller
                                 'name' => $artistName
                             ],
                             'tracks' => array_slice($playable, 0, $limit)
-                        ]
-                    ]);
-                }
-            }
-
-            // Try RapidAPI Spotify-web2 as Backup 1
-            if (!empty($artistId)) {
-                Log::info('🎵 [SIMILAR ARTISTS] Attempting RapidAPI Spotify-web2 preview (Backup 1)');
-                $unlimitedTracks = $this->getPreviewWithUnlimitedAPI($artistId, $limit);
-
-                // Filter out remixes and non-playable tracks
-                $playableBackup = array_values(array_filter($unlimitedTracks, function ($t) {
-                    $isPlayable = !empty($t['external_url']) || !empty($t['preview_url']);
-                    $isNotRemix = !$this->isRemixTrack($t['name'] ?? '');
-                    return $isPlayable && $isNotRemix;
-                }));
-
-                if (!empty($playableBackup)) {
-                    Log::info('🎵 [SIMILAR ARTISTS] RapidAPI Spotify-web2 preview successful', [
-                        'artist_id' => $artistId,
-                        'tracks_count' => count($playableBackup),
-                        'has_playable' => true
-                    ]);
-
-                    return response()->json([
-                        'success' => true,
-                        'data' => [
-                            'artist' => [
-                                'id' => $artistId,
-                                'name' => $artistName
-                            ],
-                            'tracks' => $playableBackup
-                        ]
-                    ]);
-                }
-            }
-
-            // Try Spotify23 as Backup 2
-            if (!empty($artistId)) {
-                Log::info('🎵 [SIMILAR ARTISTS] Attempting Spotify23 preview (Backup 2)');
-                $spotify23Tracks = $this->getPreviewWithSpotify23($artistId, $limit);
-
-                // Filter out remixes and non-playable tracks
-                $playableSpotify23 = array_values(array_filter($spotify23Tracks, function ($t) {
-                    $isPlayable = !empty($t['external_url']) || !empty($t['preview_url']);
-                    $isNotRemix = !$this->isRemixTrack($t['name'] ?? '');
-                    return $isPlayable && $isNotRemix;
-                }));
-
-                if (!empty($playableSpotify23)) {
-                    Log::info('🎵 [SIMILAR ARTISTS] Spotify23 preview successful', [
-                        'artist_id' => $artistId,
-                        'tracks_count' => count($playableSpotify23),
-                        'has_playable' => true
-                    ]);
-
-                    return response()->json([
-                        'success' => true,
-                        'data' => [
-                            'artist' => [
-                                'id' => $artistId,
-                                'name' => $artistName
-                            ],
-                            'tracks' => $playableSpotify23
                         ]
                     ]);
                 }
@@ -688,287 +469,6 @@ class SimilarArtistsController extends Controller
     }
 
     /**
-     * Search with RapidAPI UnlimitedAPI as backup
-     */
-    private function searchWithUnlimitedAPI(string $query, int $limit): array
-    {
-        try {
-            Log::info('🔍 [SIMILAR ARTISTS] Starting UnlimitedAPI search', [
-                'query' => $query,
-                'limit' => $limit
-            ]);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify-web2.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get('https://spotify-web2.p.rapidapi.com/search', [
-                'q' => $query,
-                'type' => 'artists',
-                'limit' => min($limit, 50)
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-
-                // Detect structure and extract artists array
-                // Official Spotify: data.artists.items[]
-                // RapidAPI: data.artists[]
-                $artistsData = null;
-                if (isset($data['artists']['items'])) {
-                    $artistsData = $data['artists']['items'];
-                } elseif (isset($data['artists']) && is_array($data['artists'])) {
-                    $artistsData = $data['artists'];
-                }
-
-                if ($artistsData) {
-                    $artists = $this->formatUnlimitedAPIArtists($artistsData);
-                    Log::info('🔍 [SIMILAR ARTISTS] UnlimitedAPI search successful', [
-                        'query' => $query,
-                        'count' => count($artists)
-                    ]);
-                    return $artists;
-                }
-            }
-
-            Log::warning('🔍 [SIMILAR ARTISTS] UnlimitedAPI search failed', [
-                'query' => $query,
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('🔍 [SIMILAR ARTISTS] UnlimitedAPI search exception', [
-                'query' => $query,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Format UnlimitedAPI artists to match expected format
-     * Handles both RapidAPI structure (with data.profile) and Official Spotify structure
-     */
-    private function formatUnlimitedAPIArtists(array $artists): array
-    {
-        return array_map(function ($artist) {
-            // Handle RapidAPI structure with nested data
-            if (isset($artist['data'])) {
-                $data = $artist['data'];
-                $profile = $data['profile'] ?? [];
-                $visuals = $data['visuals'] ?? [];
-
-                // Extract Spotify ID from URI
-                $spotifyId = null;
-                if (isset($data['uri']) && str_starts_with($data['uri'], 'spotify:artist:')) {
-                    $spotifyId = str_replace('spotify:artist:', '', $data['uri']);
-                }
-
-                // Extract images from visuals
-                $images = [];
-                if (isset($visuals['avatarImage']['sources'])) {
-                    $images = $visuals['avatarImage']['sources'];
-                }
-
-                return [
-                    'id' => $spotifyId,
-                    'name' => $profile['name'] ?? 'Unknown Artist',
-                    'followers' => $profile['followers'] ?? 0,
-                    'popularity' => $profile['popularity'] ?? 0,
-                    'genres' => $profile['genres'] ?? [],
-                    'external_url' => $profile['external_urls']['spotify'] ?? null,
-                    'images' => $images
-                ];
-            }
-
-            // Handle Official Spotify structure
-            return [
-                'id' => $artist['id'] ?? null,
-                'name' => $artist['name'] ?? 'Unknown Artist',
-                'followers' => $artist['followers']['total'] ?? 0,
-                'popularity' => $artist['popularity'] ?? 0,
-                'genres' => $artist['genres'] ?? [],
-                'external_url' => $artist['external_urls']['spotify'] ?? null,
-                'images' => $artist['images'] ?? []
-            ];
-        }, $artists);
-    }
-
-    /**
-     * Get similar artists with RapidAPI UnlimitedAPI as backup
-     */
-    private function getSimilarArtistsWithUnlimitedAPI(string $artistId, int $limit): array
-    {
-        try {
-            Log::info('🎵 [SIMILAR ARTISTS] Starting UnlimitedAPI similar artists', [
-                'artist_id' => $artistId,
-                'limit' => $limit
-            ]);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify-web2.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get("https://spotify-web2.p.rapidapi.com/artist_related", [
-                'id' => $artistId
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-
-                // Detect structure and extract artists array
-                $artistsData = null;
-                if (isset($data['artists']['items'])) {
-                    // Official Spotify: artists.items[]
-                    $artistsData = $data['artists']['items'];
-                } elseif (isset($data['artists']) && is_array($data['artists'])) {
-                    // RapidAPI or direct array: artists[]
-                    $artistsData = $data['artists'];
-                }
-
-                if ($artistsData) {
-                    // Don't limit the results - return all available artists for the queue system
-                    $artists = $this->formatUnlimitedAPIArtists($artistsData);
-                    Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI similar artists successful', [
-                        'artist_id' => $artistId,
-                        'count' => count($artists),
-                        'limit_requested' => $limit,
-                        'actual_returned' => count($artists)
-                    ]);
-                    return $artists;
-                }
-            }
-
-            Log::warning('🎵 [SIMILAR ARTISTS] UnlimitedAPI similar artists failed', [
-                'artist_id' => $artistId,
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('🎵 [SIMILAR ARTISTS] UnlimitedAPI similar artists exception', [
-                'artist_id' => $artistId,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Get preview with RapidAPI UnlimitedAPI as backup
-     */
-    private function getPreviewWithUnlimitedAPI(string $artistId, int $limit): array
-    {
-        try {
-            Log::info('🎵 [SIMILAR ARTISTS] Starting UnlimitedAPI preview', [
-                'artist_id' => $artistId,
-                'limit' => $limit
-            ]);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify-web2.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get("https://spotify-web2.p.rapidapi.com/artist_overview", [
-                'id' => $artistId
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-
-                // First, try to get topTracks (preferred - has preview URLs)
-                if (isset($data['data']['artist']['discography']['topTracks']['items'])) {
-                    $topTracks = $data['data']['artist']['discography']['topTracks']['items'];
-
-                    Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI using topTracks', [
-                        'artist_id' => $artistId,
-                        'tracks_count' => count($topTracks)
-                    ]);
-
-                    // Sort by playcount (highest first) to get most popular tracks
-                    usort($topTracks, function($a, $b) {
-                        $aPlaycount = $a['track']['playcount'] ?? 0;
-                        $bPlaycount = $b['track']['playcount'] ?? 0;
-                        return $bPlaycount - $aPlaycount;
-                    });
-
-                    $tracks = [];
-                    foreach ($topTracks as $trackItem) {
-                        // Stop if we have enough non-remix tracks WITH preview URLs
-                        if (count($tracks) >= $limit) break;
-
-                        $topTrack = $trackItem['track'] ?? null;
-                        if (!$topTrack) continue;
-
-                        $trackId = $topTrack['id'] ?? null;
-                        $trackName = $topTrack['name'] ?? 'Unknown Track';
-
-                        // Skip remix tracks - only get non-remix tracks
-                        if ($this->isRemixTrack($trackName)) {
-                            continue;
-                        }
-
-                        $previewUrl = $topTrack['preview_url'] ?? null;
-
-                        // Skip tracks without preview URLs - we need playable tracks
-                        if (!$previewUrl) {
-                            Log::debug('🎵 [SIMILAR ARTISTS] Skipping track without preview', [
-                                'track_name' => $trackName
-                            ]);
-                            continue;
-                        }
-
-                        $artistName = $topTrack['artists']['items'][0]['profile']['name'] ?? 'Unknown';
-
-                        if ($trackId) {
-                            $tracks[] = [
-                                'id' => $trackId,
-                                'name' => $trackName,
-                                'artists' => [['name' => $artistName]],
-                                'preview_url' => $previewUrl,
-                                'external_url' => "https://open.spotify.com/track/{$trackId}",
-                                'duration_ms' => $topTrack['duration']['totalMilliseconds'] ?? null,
-                            ];
-                        }
-                    }
-
-                    if (!empty($tracks)) {
-                        Log::info('🎵 [SIMILAR ARTISTS] UnlimitedAPI preview successful (topTracks)', [
-                            'artist_id' => $artistId,
-                            'track_name' => $tracks[0]['name'],
-                            'has_preview' => !empty($tracks[0]['preview_url']),
-                            'is_remix' => false
-                        ]);
-                        return $tracks;
-                    }
-
-                    // If no tracks with previews found, log and fall through to next provider
-                    Log::warning('🎵 [SIMILAR ARTISTS] UnlimitedAPI: No tracks with preview URLs found', [
-                        'artist_id' => $artistId,
-                        'tracks_checked' => count($topTracks)
-                    ]);
-                }
-            }
-
-            Log::warning('🎵 [SIMILAR ARTISTS] UnlimitedAPI preview failed', [
-                'artist_id' => $artistId,
-                'status' => $response->status()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('🎵 [SIMILAR ARTISTS] UnlimitedAPI preview exception', [
-                'artist_id' => $artistId,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
      * Get Spotify oEmbed data for a track
      */
     private function getSpotifyOEmbedData(string $spotifyTrackId): ?array
@@ -987,13 +487,13 @@ class SimilarArtistsController extends Controller
                     'spotify_track_id' => $spotifyTrackId
                 ]);
                 return $oEmbedData;
-            } else {
-                Log::warning("🎵 Similar Artists: Failed to get oEmbed", [
-                    'spotify_track_id' => $spotifyTrackId,
-                    'status' => $response->status()
-                ]);
-                return null;
             }
+
+            Log::warning("🎵 Similar Artists: Failed to get oEmbed", [
+                'spotify_track_id' => $spotifyTrackId,
+                'status' => $response->status()
+            ]);
+            return null;
         } catch (\Exception $e) {
             Log::error('Similar Artists: Spotify oEmbed error', [
                 'track_id' => $spotifyTrackId,
@@ -1001,401 +501,6 @@ class SimilarArtistsController extends Controller
             ]);
             return null;
         }
-    }
-
-    /**
-     * Search with Spotify23 as third backup
-     */
-    private function searchWithSpotify23(string $query, int $limit): array
-    {
-        try {
-            Log::info('🔍 [SIMILAR ARTISTS] Starting Spotify23 search', [
-                'query' => $query,
-                'limit' => $limit
-            ]);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify23.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get('https://spotify23.p.rapidapi.com/search/', [
-                'q' => $query,
-                'type' => 'multi',
-                'offset' => 0,
-                'limit' => min($limit, 10),
-                'numberOfTopResults' => 5
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-
-                // Detect structure and extract artists array
-                // Official Spotify: data.artists.items[]
-                // RapidAPI: data.artists[]
-                $artistsData = null;
-                if (isset($data['artists']['items'])) {
-                    $artistsData = $data['artists']['items'];
-                } elseif (isset($data['artists']) && is_array($data['artists'])) {
-                    $artistsData = $data['artists'];
-                }
-
-                if ($artistsData) {
-                    $artists = $this->formatSpotify23Artists($artistsData);
-                    Log::info('🔍 [SIMILAR ARTISTS] Spotify23 search successful', [
-                        'query' => $query,
-                        'count' => count($artists)
-                    ]);
-                    return $artists;
-                }
-            }
-
-            Log::warning('🔍 [SIMILAR ARTISTS] Spotify23 search failed', [
-                'query' => $query,
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('🔍 [SIMILAR ARTISTS] Spotify23 search exception', [
-                'query' => $query,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Get similar artists with Spotify23 as third backup
-     */
-    private function getSimilarArtistsWithSpotify23(string $artistId, int $limit): array
-    {
-        try {
-            Log::info('🎵 [SIMILAR ARTISTS] Starting Spotify23 similar artists', [
-                'artist_id' => $artistId,
-                'limit' => $limit
-            ]);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify23.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get("https://spotify23.p.rapidapi.com/artist_related/", [
-                'id' => $artistId
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-
-                // Detect structure and extract artists array
-                $artistsData = null;
-                if (isset($data['artists']['items'])) {
-                    // Official Spotify: artists.items[]
-                    $artistsData = $data['artists']['items'];
-                } elseif (isset($data['artists']) && is_array($data['artists'])) {
-                    // RapidAPI or direct array: artists[]
-                    $artistsData = $data['artists'];
-                }
-
-                if ($artistsData) {
-                    // Don't limit the results - return all available artists for the queue system
-                    $artists = $this->formatSpotify23Artists($artistsData);
-                    Log::info('🎵 [SIMILAR ARTISTS] Spotify23 similar artists successful', [
-                        'artist_id' => $artistId,
-                        'count' => count($artists),
-                        'limit_requested' => $limit,
-                        'actual_returned' => count($artists)
-                    ]);
-                    return $artists;
-                }
-            }
-
-            Log::warning('🎵 [SIMILAR ARTISTS] Spotify23 similar artists failed', [
-                'artist_id' => $artistId,
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('🎵 [SIMILAR ARTISTS] Spotify23 similar artists exception', [
-                'artist_id' => $artistId,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Get batch artist followers with Spotify-web2 as backup 1
-     */
-    private function getBatchArtistFollowersWithSpotifyWeb2(array $artistIds): array
-    {
-        try {
-            Log::info('📊 [SIMILAR ARTISTS] Starting Spotify-web2 batch followers', [
-                'artist_count' => count($artistIds),
-                'artist_ids' => $artistIds
-            ]);
-
-            // Join artist IDs with comma for batch request
-            $idsParam = implode(',', $artistIds);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify-web2.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get("https://spotify-web2.p.rapidapi.com/artists/", [
-                'ids' => $idsParam
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                if (isset($data['artists'])) {
-                    $followersData = [];
-                    foreach ($data['artists'] as $artist) {
-                        if (isset($artist['id']) && isset($artist['followers']['total'])) {
-                            $followersData[$artist['id']] = $artist['followers']['total'];
-                        }
-                    }
-
-                    Log::info('📊 [SIMILAR ARTISTS] Spotify-web2 batch followers successful', [
-                        'requested_count' => count($artistIds),
-                        'returned_count' => count($followersData)
-                    ]);
-                    return $followersData;
-                }
-            }
-
-            Log::warning('📊 [SIMILAR ARTISTS] Spotify-web2 batch followers failed', [
-                'artist_count' => count($artistIds),
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('📊 [SIMILAR ARTISTS] Spotify-web2 batch followers exception', [
-                'artist_count' => count($artistIds),
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Get batch artist followers with Spotify23 as backup 2
-     */
-    private function getBatchArtistFollowersWithSpotify23(array $artistIds): array
-    {
-        try {
-            Log::info('📊 [SIMILAR ARTISTS] Starting Spotify23 batch followers', [
-                'artist_count' => count($artistIds),
-                'artist_ids' => $artistIds
-            ]);
-
-            // Join artist IDs with comma for batch request
-            $idsParam = implode(',', $artistIds);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify23.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get("https://spotify23.p.rapidapi.com/artists/", [
-                'ids' => $idsParam
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                if (isset($data['artists'])) {
-                    $followersData = [];
-                    foreach ($data['artists'] as $artist) {
-                        if (isset($artist['id']) && isset($artist['followers']['total'])) {
-                            $followersData[$artist['id']] = $artist['followers']['total'];
-                        }
-                    }
-
-                    Log::info('📊 [SIMILAR ARTISTS] Spotify23 batch followers successful', [
-                        'requested_count' => count($artistIds),
-                        'returned_count' => count($followersData)
-                    ]);
-                    return $followersData;
-                }
-            }
-
-            Log::warning('📊 [SIMILAR ARTISTS] Spotify23 batch followers failed', [
-                'artist_count' => count($artistIds),
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('📊 [SIMILAR ARTISTS] Spotify23 batch followers exception', [
-                'artist_count' => count($artistIds),
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Get preview with Spotify23 as third backup
-     */
-    private function getPreviewWithSpotify23(string $artistId, int $limit): array
-    {
-        try {
-            Log::info('🎵 [SIMILAR ARTISTS] Starting Spotify23 preview', [
-                'artist_id' => $artistId,
-                'limit' => $limit
-            ]);
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                'X-RapidAPI-Host' => 'spotify23.p.rapidapi.com'
-            ])
-            ->timeout(30)
-            ->get("https://spotify23.p.rapidapi.com/artist_overview/", [
-                'id' => $artistId
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-
-                // First, try to get topTracks (preferred - has preview URLs)
-                if (isset($data['data']['artist']['discography']['topTracks']['items'])) {
-                    $topTracks = $data['data']['artist']['discography']['topTracks']['items'];
-
-                    Log::info('🎵 [SIMILAR ARTISTS] Spotify23 using topTracks', [
-                        'artist_id' => $artistId,
-                        'tracks_count' => count($topTracks)
-                    ]);
-
-                    // Sort by playcount (highest first) to get most popular tracks
-                    usort($topTracks, function($a, $b) {
-                        $aPlaycount = $a['track']['playcount'] ?? 0;
-                        $bPlaycount = $b['track']['playcount'] ?? 0;
-                        return $bPlaycount - $aPlaycount;
-                    });
-
-                    $tracks = [];
-                    foreach ($topTracks as $trackItem) {
-                        // Stop if we have enough non-remix tracks WITH preview URLs
-                        if (count($tracks) >= $limit) break;
-
-                        $topTrack = $trackItem['track'] ?? null;
-                        if (!$topTrack) continue;
-
-                        $trackId = $topTrack['id'] ?? null;
-                        $trackName = $topTrack['name'] ?? 'Unknown Track';
-
-                        // Skip remix tracks - only get non-remix tracks
-                        if ($this->isRemixTrack($trackName)) {
-                            continue;
-                        }
-
-                        $previewUrl = $topTrack['preview_url'] ?? null;
-
-                        // Skip tracks without preview URLs - we need playable tracks
-                        if (!$previewUrl) {
-                            Log::debug('🎵 [SIMILAR ARTISTS] Skipping track without preview', [
-                                'track_name' => $trackName
-                            ]);
-                            continue;
-                        }
-
-                        $artistName = $topTrack['artists']['items'][0]['profile']['name'] ?? 'Unknown';
-
-                        if ($trackId) {
-                            $tracks[] = [
-                                'id' => $trackId,
-                                'name' => $trackName,
-                                'artists' => [['name' => $artistName]],
-                                'preview_url' => $previewUrl,
-                                'external_url' => "https://open.spotify.com/track/{$trackId}",
-                                'duration_ms' => $topTrack['duration']['totalMilliseconds'] ?? null,
-                            ];
-                        }
-                    }
-
-                    if (!empty($tracks)) {
-                        Log::info('🎵 [SIMILAR ARTISTS] Spotify23 preview successful (topTracks)', [
-                            'artist_id' => $artistId,
-                            'track_name' => $tracks[0]['name'],
-                            'has_preview' => !empty($tracks[0]['preview_url']),
-                            'is_remix' => false
-                        ]);
-                        return $tracks;
-                    }
-
-                    // If no tracks with previews found, log and fall through to next provider
-                    Log::warning('🎵 [SIMILAR ARTISTS] Spotify23: No tracks with preview URLs found', [
-                        'artist_id' => $artistId,
-                        'tracks_checked' => count($topTracks)
-                    ]);
-                }
-            }
-
-            Log::warning('🎵 [SIMILAR ARTISTS] Spotify23 preview failed', [
-                'artist_id' => $artistId,
-                'status' => $response->status()
-            ]);
-            return [];
-        } catch (\Exception $e) {
-            Log::error('🎵 [SIMILAR ARTISTS] Spotify23 preview exception', [
-                'artist_id' => $artistId,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Format Spotify23 artists to match expected format
-     * Handles both RapidAPI structure (with data.profile) and Official Spotify structure
-     */
-    private function formatSpotify23Artists(array $artists): array
-    {
-        return array_map(function ($artist) {
-            // Handle RapidAPI structure with nested data
-            if (isset($artist['data'])) {
-                $data = $artist['data'];
-                $profile = $data['profile'] ?? [];
-                $visuals = $data['visuals'] ?? [];
-
-                // Extract Spotify ID from URI
-                $spotifyId = null;
-                if (isset($data['uri']) && str_starts_with($data['uri'], 'spotify:artist:')) {
-                    $spotifyId = str_replace('spotify:artist:', '', $data['uri']);
-                }
-
-                // Extract images from visuals
-                $images = [];
-                if (isset($visuals['avatarImage']['sources'])) {
-                    $images = $visuals['avatarImage']['sources'];
-                }
-
-                return [
-                    'id' => $spotifyId,
-                    'name' => $profile['name'] ?? 'Unknown Artist',
-                    'followers' => $profile['followers'] ?? 0,
-                    'popularity' => $profile['popularity'] ?? 0,
-                    'genres' => $profile['genres'] ?? [],
-                    'external_url' => $profile['external_urls']['spotify'] ?? null,
-                    'images' => $images
-                ];
-            }
-
-            // Handle Official Spotify structure
-            return [
-                'id' => $artist['id'] ?? null,
-                'name' => $artist['name'] ?? 'Unknown Artist',
-                'followers' => $artist['followers']['total'] ?? 0,
-                'popularity' => $artist['popularity'] ?? 0,
-                'genres' => $artist['genres'] ?? [],
-                'external_url' => $artist['external_urls']['spotify'] ?? null,
-                'images' => $artist['images'] ?? []
-            ];
-        }, $artists);
     }
 
     /**

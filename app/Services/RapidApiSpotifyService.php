@@ -19,6 +19,9 @@ class RapidApiSpotifyService
     private string $backupApiKey;
     private string $tertiaryApiKey;
     private float $rateLimitDelay = 0.2; // 5 req/sec = 200ms delay
+    private int $providerRateLimitPerSecond = 5; // RapidAPI free tier per host
+    private int $rateLimitWindowSeconds = 1;
+    private int $rateLimitGraceMs = 150; // optional short wait to next window
 
     public function __construct()
     {
@@ -119,6 +122,61 @@ class RapidApiSpotifyService
         \Cache::forget($cacheKey);
 
         \Log::info("🔌 [CIRCUIT BREAKER] Closing circuit for {$provider} - provider healthy");
+    }
+
+    /**
+     * Normalize provider name for cache keys (consistent lower-case)
+     */
+    private function normalizeProviderKey(string $provider, string $host): string
+    {
+        return strtolower($provider ?: $host);
+    }
+
+    /**
+     * Build cache key for per-provider/per-second rate limiting
+     */
+    private function getRateLimitKey(string $providerKey): string
+    {
+        $window = now()->format('YmdHis');
+        return "rapidapi_rps_{$providerKey}_{$window}";
+    }
+
+    /**
+     * Attempt to reserve a rate limit slot for the provider.
+     * Returns true if provider can be used in this second.
+     */
+    private function tryReserveRateLimit(string $providerKey): bool
+    {
+        $cacheKey = $this->getRateLimitKey($providerKey);
+        $expiresAt = now()->addSeconds($this->rateLimitWindowSeconds + 1);
+
+        // Initialize counter for the window if missing
+        \Cache::add($cacheKey, 0, $expiresAt);
+
+        // Short-circuit if already at or above the limit
+        $current = (int) \Cache::get($cacheKey, 0);
+        if ($current >= $this->providerRateLimitPerSecond) {
+            return false;
+        }
+
+        // Reserve a slot (may still race but keeps us under the soft cap)
+        $newCount = \Cache::increment($cacheKey);
+        return $newCount !== false && $newCount <= $this->providerRateLimitPerSecond;
+    }
+
+    /**
+     * Optional tiny wait to roll into the next second to avoid a hard "retry" response.
+     */
+    private function waitForNextWindowAndReserve(string $providerKey): bool
+    {
+        $microsToNextSecond = (int) ((ceil(microtime(true)) - microtime(true)) * 1_000_000);
+
+        if ($microsToNextSecond > 0 && $microsToNextSecond <= $this->rateLimitGraceMs * 1000) {
+            usleep($microsToNextSecond);
+            return $this->tryReserveRateLimit($providerKey);
+        }
+
+        return false;
     }
 
     /**
@@ -583,13 +641,33 @@ class RapidApiSpotifyService
         string $apiKey,
         string $provider
     ): array {
+        $providerKey = $this->normalizeProviderKey($provider, $host);
+
         // Circuit Breaker: Check if this provider should be skipped
-        if ($this->shouldSkipProvider($provider)) {
+        if ($this->shouldSkipProvider($providerKey)) {
             return [
                 'success' => false,
                 'error' => 'Provider temporarily disabled (circuit breaker)',
                 'circuit_open' => true
             ];
+        }
+
+        // Rate limiting: cap each provider at 5 req/sec
+        $hasSlot = $this->tryReserveRateLimit($providerKey);
+        if (!$hasSlot) {
+            // Try to slip into the next second briefly; otherwise bail fast
+            if (!$this->waitForNextWindowAndReserve($providerKey)) {
+                Log::warning("Rate limit reached locally for {$provider}", [
+                    'provider_key' => $providerKey,
+                    'endpoint' => $endpoint
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => 'Rate limit reached for provider - please retry shortly',
+                    'rate_limit_reached' => true
+                ];
+            }
         }
 
         // Remove leading slash if present to avoid double slashes
@@ -634,7 +712,7 @@ class RapidApiSpotifyService
 
             if ($response->successful()) {
                 // Circuit Breaker: Record success (close circuit if it was open)
-                $this->recordSuccess($provider);
+                $this->recordSuccess($providerKey);
                 return ['success' => true, 'data' => $response->json()];
             }
 
@@ -643,14 +721,18 @@ class RapidApiSpotifyService
                 Log::warning("Rate limit exceeded on {$provider}", [
                     'endpoint' => $endpoint
                 ]);
-                // Circuit Breaker: Record failure
-                $this->recordFailure($provider);
-                return ['success' => false, 'error' => 'Rate limit exceeded', 'status' => 429];
+                // Do NOT trigger circuit breaker on expected 429 throttle
+                return [
+                    'success' => false,
+                    'error' => 'Rate limit exceeded',
+                    'status' => 429,
+                    'rate_limit_exceeded' => true
+                ];
             }
 
             // Other errors (4xx, 5xx)
             // Circuit Breaker: Record failure
-            $this->recordFailure($provider);
+            $this->recordFailure($providerKey);
             return [
                 'success' => false,
                 'error' => $response->body(),
@@ -662,7 +744,7 @@ class RapidApiSpotifyService
                 'error' => $e->getMessage()
             ]);
             // Circuit Breaker: Record failure (timeout, connection error, etc.)
-            $this->recordFailure($provider);
+            $this->recordFailure($providerKey);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -831,7 +913,7 @@ class RapidApiSpotifyService
     public function searchArtists(string $query, int $limit = 20): array
     {
         try {
-            \Log::info('🔍 [RAPIDAPI SPOTIFY] Starting artist search', [
+            \Log::info('🔍 [RAPIDAPI SPOTIFY] Starting artist search with 3-tier backup', [
                 'query' => $query,
                 'limit' => $limit,
                 'timestamp' => now()->toISOString()
@@ -843,28 +925,53 @@ class RapidApiSpotifyService
                 'limit' => min($limit, 50) // API limit
             ];
 
-            $result = $this->makeRequest(
-                '/search',
-                $params,
-                'spotify81.p.rapidapi.com',
-                config('services.rapidapi.key'),
-                'Spotify81'
-            );
+            $providers = [
+                ['host' => $this->primaryHost, 'key' => $this->apiKey, 'name' => 'Spotify81'],
+                ['host' => $this->backupHost, 'key' => $this->backupApiKey, 'name' => 'SpotifyWeb2'],
+                ['host' => $this->tertiaryHost, 'key' => $this->tertiaryApiKey, 'name' => 'Spotify23'],
+            ];
 
-            if ($result['success'] && isset($result['data']['artists']['items'])) {
-                $artists = $this->formatArtistsArray($result['data']['artists']['items']);
-                \Log::info('🔍 [RAPIDAPI SPOTIFY] Artist search successful', [
-                    'query' => $query,
-                    'found_count' => count($artists),
-                    'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $artists), 0, 3)
-                ]);
-                return $artists;
+            foreach ($providers as $provider) {
+                $result = $this->makeRequest(
+                    '/search',
+                    $params,
+                    $provider['host'],
+                    $provider['key'],
+                    $provider['name']
+                );
+
+                if ($result['success']) {
+                    // Detect structure and extract artists array
+                    $isOfficialStructure = isset($result['data']['artists']['items']);
+                    $artistsData = $isOfficialStructure
+                        ? ($result['data']['artists']['items'] ?? [])
+                        : ($result['data']['artists'] ?? []);
+
+                    if (!empty($artistsData)) {
+                        $artists = $this->formatArtistsArray($artistsData);
+                        \Log::info('🔍 [RAPIDAPI SPOTIFY] Artist search successful', [
+                            'provider' => $provider['name'],
+                            'query' => $query,
+                            'found_count' => count($artists),
+                            'structure' => $isOfficialStructure ? 'official_spotify' : 'rapidapi',
+                            'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $artists), 0, 3)
+                        ]);
+                        return $artists;
+                    }
+                } else {
+                    \Log::warning('🔍 [RAPIDAPI SPOTIFY] Artist search provider failed', [
+                        'provider' => $provider['name'],
+                        'query' => $query,
+                        'error' => $result['error'] ?? 'Unknown error',
+                        'status' => $result['status'] ?? null,
+                        'rate_limit_reached' => $result['rate_limit_reached'] ?? false,
+                        'rate_limit_exceeded' => $result['rate_limit_exceeded'] ?? false
+                    ]);
+                }
             }
 
-            \Log::warning('🔍 [RAPIDAPI SPOTIFY] Artist search returned no results', [
-                'query' => $query,
-                'result_success' => $result['success'] ?? false,
-                'has_artists' => isset($result['data']['artists']['items'])
+            \Log::error('🔍 [RAPIDAPI SPOTIFY] All artist search providers failed', [
+                'query' => $query
             ]);
             return [];
         } catch (\Exception $e) {
@@ -874,6 +981,102 @@ class RapidApiSpotifyService
                 'trace' => $e->getTraceAsString()
             ]);
             return [];
+        }
+    }
+
+    /**
+     * Search for albums using RapidAPI Spotify with 3-tier backup
+     */
+    public function searchAlbums(string $query, int $limit = 20): array
+    {
+        try {
+            \Log::info('🔍 [RAPIDAPI SPOTIFY] Starting album search with 3-tier backup', [
+                'query' => $query,
+                'limit' => $limit,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            $params = [
+                'q' => $query,
+                'type' => 'albums',
+                'limit' => min($limit, 50)
+            ];
+
+            $providers = [
+                ['host' => $this->primaryHost, 'key' => $this->apiKey, 'name' => 'Spotify81'],
+                ['host' => $this->backupHost, 'key' => $this->backupApiKey, 'name' => 'SpotifyWeb2'],
+                ['host' => $this->tertiaryHost, 'key' => $this->tertiaryApiKey, 'name' => 'Spotify23'],
+            ];
+
+            foreach ($providers as $provider) {
+                $result = $this->makeRequest(
+                    '/search',
+                    $params,
+                    $provider['host'],
+                    $provider['key'],
+                    $provider['name']
+                );
+
+                if ($result['success']) {
+                    $data = $result['data'] ?? [];
+
+                    // Detect structure and extract albums array
+                    // Official Spotify: data.albums.items[]
+                    // RapidAPI: data.albums[] or albums.items[]
+                    $albumsData = null;
+                    $structure = 'unknown';
+
+                    if (isset($data['albums']['items'])) {
+                        $albumsData = $data['albums']['items'];
+                        $structure = 'official_spotify';
+                    } elseif (isset($data['albums']) && is_array($data['albums'])) {
+                        $albumsData = $data['albums'];
+                        $structure = 'rapidapi_albums_array';
+                    } elseif (isset($data['data']['albums']['items'])) {
+                        $albumsData = $data['data']['albums']['items'];
+                        $structure = 'double_wrapped';
+                    }
+
+                    if (!empty($albumsData)) {
+                        $formattedAlbums = $this->formatAlbumsArray($albumsData);
+                        \Log::info('🔍 [RAPIDAPI SPOTIFY] Album search successful', [
+                            'provider' => $provider['name'],
+                            'query' => $query,
+                            'found_count' => count($formattedAlbums),
+                            'structure' => $structure
+                        ]);
+
+                        return [
+                            'success' => true,
+                            'albums' => [
+                                'items' => $formattedAlbums,
+                                'total' => count($formattedAlbums)
+                            ]
+                        ];
+                    }
+                } else {
+                    \Log::warning('🔍 [RAPIDAPI SPOTIFY] Album search provider failed', [
+                        'provider' => $provider['name'],
+                        'query' => $query,
+                        'error' => $result['error'] ?? 'Unknown error',
+                        'status' => $result['status'] ?? null,
+                        'rate_limit_reached' => $result['rate_limit_reached'] ?? false,
+                        'rate_limit_exceeded' => $result['rate_limit_exceeded'] ?? false
+                    ]);
+                }
+            }
+
+            \Log::error('🔍 [RAPIDAPI SPOTIFY] All album search providers failed', [
+                'query' => $query
+            ]);
+            return ['success' => false, 'albums' => ['items' => []]];
+        } catch (\Exception $e) {
+            \Log::error('🔍 [RAPIDAPI SPOTIFY] Album search failed', [
+                'query' => $query,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return ['success' => false, 'albums' => ['items' => []]];
         }
     }
 
@@ -1872,6 +2075,71 @@ class RapidApiSpotifyService
                 'duration_ms' => $track['duration_ms'] ?? null
             ];
         }, $tracks);
+    }
+
+    /**
+     * Normalize albums array to a common Spotify-like structure
+     */
+    private function formatAlbumsArray(array $albums): array
+    {
+        return array_map(function ($album) {
+            // RapidAPI structure wrapped in data
+            if (isset($album['data'])) {
+                $data = $album['data'];
+                $uri = $data['uri'] ?? null;
+                $spotifyId = null;
+                if ($uri && strpos($uri, 'spotify:album:') === 0) {
+                    $spotifyId = str_replace('spotify:album:', '', $uri);
+                } elseif (isset($data['id'])) {
+                    $spotifyId = $data['id'];
+                }
+
+                // Images
+                $images = [];
+                if (isset($data['coverArt']['sources']) && is_array($data['coverArt']['sources'])) {
+                    // Normalize keys to match Spotify (url/height/width)
+                    foreach ($data['coverArt']['sources'] as $img) {
+                        $images[] = [
+                            'url' => $img['url'] ?? null,
+                            'height' => $img['height'] ?? null,
+                            'width' => $img['width'] ?? null,
+                        ];
+                    }
+                } elseif (isset($data['images'])) {
+                    $images = $data['images'];
+                }
+
+                // Release date
+                $releaseDate = null;
+                if (isset($data['date']['year'])) {
+                    $releaseDate = (string) $data['date']['year'];
+                } elseif (isset($data['release_date'])) {
+                    $releaseDate = $data['release_date'];
+                }
+
+                // External URL
+                $externalUrl = null;
+                if ($spotifyId) {
+                    $externalUrl = "https://open.spotify.com/album/{$spotifyId}";
+                } elseif (isset($data['external_urls']['spotify'])) {
+                    $externalUrl = $data['external_urls']['spotify'];
+                }
+
+                return [
+                    'id' => $spotifyId,
+                    'name' => $data['name'] ?? null,
+                    'uri' => $uri,
+                    'release_date' => $releaseDate,
+                    'images' => $images,
+                    'external_urls' => ['spotify' => $externalUrl],
+                    'label' => $data['label'] ?? null,
+                    'artists' => $data['artists']['items'] ?? ($data['artists'] ?? []),
+                ];
+            }
+
+            // Already Spotify-like
+            return $album;
+        }, $albums);
     }
 
     /**
