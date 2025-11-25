@@ -57,6 +57,13 @@
             Label Search
           </SidebarItem>
 
+          <SidebarItem :href="url('artist-watchlist')" screen="ArtistWatchlist">
+            <template #icon>
+              <Icon :icon="faEye" fixed-width />
+            </template>
+            Artists Watchlist
+          </SidebarItem>
+
           <!-- <SidebarItem :href="url('genre-by-year')" screen="GenreByYear">
             <template #icon>
               <img src="/public/icons/TimeExplorer-icon.svg" alt="Time Explorer" class="w-4 h-4 object-contain sidebar-icon-svg">
@@ -78,7 +85,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faMusic, faSearch, faSliders, faTimes, faUsers } from '@fortawesome/free-solid-svg-icons'
+import { faEye, faMusic, faSearch, faSliders, faTimes, faUsers } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { eventBus } from '@/utils/eventBus'

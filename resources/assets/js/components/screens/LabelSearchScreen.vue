@@ -12,21 +12,23 @@
       <div class="search-form max-w-[67rem] mx-auto space-y-6">
         <!-- Search Input -->
         <div class="relative">
-          <div class="flex">
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Search for a Record Label"
-              class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg border-0 focus:outline-none text-white text-lg search-input"
-              @keyup.enter="performSearch"
-            >
-            <button
-              class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
-              :disabled="!searchQuery.trim() || isLoading"
-              @click="performSearch"
-            >
-              <Icon :icon="faSearch" class="w-5 h-5" />
-            </button>
+          <div class="flex justify-center">
+            <div class="flex w-full max-w-3xl">
+              <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="Search for a Record Label"
+                class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg border-0 focus:outline-none text-white text-lg search-input"
+                @keyup.enter="performSearch"
+              >
+              <button
+                class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
+                :disabled="!searchQuery.trim() || isLoading"
+                @click="performSearch"
+              >
+                <Icon :icon="faSearch" class="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 

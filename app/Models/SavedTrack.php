@@ -63,7 +63,7 @@ class SavedTrack extends Model
      */
     public static function saveTrack(
         string|int $userId,
-        string $isrc,
+        ?string $isrc,
         string $trackName,
         string $artistName,
         ?string $spotifyId = null,
@@ -77,9 +77,15 @@ class SavedTrack extends Model
         ?bool $isSingleTrack = true,
         ?string $albumId = null
     ): static {
+        // Use ISRC as primary identifier if available, otherwise use spotify_id
+        $uniqueKey = $isrc
+            ? ['user_id' => $userId, 'isrc' => $isrc]
+            : ['user_id' => $userId, 'spotify_id' => $spotifyId];
+
         return static::updateOrCreate(
-            ['user_id' => $userId, 'isrc' => $isrc],
+            $uniqueKey,
             [
+                'isrc' => $isrc,
                 'track_name' => $trackName,
                 'artist_name' => $artistName,
                 'spotify_id' => $spotifyId,

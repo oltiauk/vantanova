@@ -58,7 +58,7 @@ class MusicPreferencesController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'isrc' => 'required|string',
+            'isrc' => 'sometimes|string|nullable',
             'track_name' => 'required|string',
             'artist_name' => 'required|string',
             'spotify_id' => 'sometimes|string|nullable',
@@ -71,19 +71,33 @@ class MusicPreferencesController extends Controller
             ], 422);
         }
 
+        // Ensure at least one identifier is provided
+        if (empty($request->isrc) && empty($request->spotify_id)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Either ISRC or Spotify ID must be provided'
+            ], 422);
+        }
+
         $userId = Auth::id();
-        
+
         if (!$userId) {
             return response()->json([
                 'success' => false,
                 'error' => 'Authentication required'
             ], 401);
         }
-        
+
         try {
+            // Use ISRC as primary identifier if available, otherwise use spotify_id
+            $uniqueKey = $request->isrc
+                ? ['user_id' => $userId, 'isrc' => $request->isrc]
+                : ['user_id' => $userId, 'spotify_id' => $request->spotify_id];
+
             BlacklistedTrack::updateOrCreate(
-                ['user_id' => $userId, 'isrc' => $request->isrc],
+                $uniqueKey,
                 [
+                    'isrc' => $request->isrc,
                     'track_name' => $request->track_name,
                     'artist_name' => $request->artist_name,
                     'spotify_id' => $request->spotify_id,
@@ -234,7 +248,7 @@ class MusicPreferencesController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'isrc' => 'required|string',
+            'isrc' => 'sometimes|string|nullable',
             'track_name' => 'required|string',
             'artist_name' => 'required|string',
             'spotify_id' => 'sometimes|string|nullable',
@@ -253,6 +267,14 @@ class MusicPreferencesController extends Controller
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Ensure at least one identifier is provided
+        if (empty($request->isrc) && empty($request->spotify_id)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Either ISRC or Spotify ID must be provided'
             ], 422);
         }
 

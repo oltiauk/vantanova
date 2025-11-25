@@ -15,7 +15,7 @@
                     v-model="searchQuery"
                     type="text"
                     class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
-                    placeholder="Search for a Seed Artist"
+                    placeholder="Add an artist in the watchlist"
                     @keydown.enter="handleSearchButtonClick"
                     @input="onSearchInput"
                   >
@@ -57,12 +57,6 @@
                       >
                         <!-- Artist Info -->
                         <div class="flex items-center gap-3 flex-1 min-w-0">
-                          <img
-                            v-if="artist.image"
-                            :src="artist.image"
-                            alt=""
-                            class="w-10 h-10 rounded-full object-cover"
-                          >
                           <div class="flex-1 min-w-0">
                             <div class="font-medium text-k-text-primary group-hover:text-gray-200 transition-colors truncate">
                               {{ artist.name }}
@@ -72,7 +66,7 @@
                             </div>
                           </div>
                         </div>
-                        <span class="px-2 py-1 rounded bg-k-accent/20 text-k-accent text-xs">Follow</span>
+                        <span class="font-medium text-k-text-primary group-hover:text-gray-200 transition-colors text-sm">Follow</span>
                       </div>
                     </div>
 
@@ -183,22 +177,21 @@
                       <td class="pr-3 py-4 align-middle">
                         <div class="flex gap-2 justify-end">
                           <button
-                            :disabled="processingRelease === getReleaseKey(release, index) || release.isSaved"
+                            :disabled="release.isSaved"
                             :class="release.isSaved
-                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              ? 'bg-green-500 hover:bg-green-600 text-white cursor-default'
                               : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                            class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
                             :title="release.isSaved ? 'Saved' : 'Save track'"
                             @click="saveTrack(release, index)"
                           >
                             <Icon :icon="faHeart" class="text-sm" />
                           </button>
                           <button
-                            :disabled="processingRelease === getReleaseKey(release, index)"
                             :class="release.isBanned
-                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              ? 'bg-red-500 hover:bg-red-600 text-white'
                               : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                            class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
                             :title="release.isBanned ? 'Unban track' : 'Ban track'"
                             @click="banTrack(release, index)"
                           >
@@ -228,33 +221,37 @@
                         </div>
                       </td>
                     </tr>
-                    <tr v-if="expandedReleaseKey === getReleaseKey(release, index)">
-                      <td colspan="5" class="bg-black/40 px-6 pb-6">
-                        <div v-if="release.spotify_album_id || release.spotify_track_id" class="max-w-6xl mx-auto">
-                          <iframe
-                            :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
-                            class="w-full rounded-xl spotify-embed"
-                            :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
-                              ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
-                              : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
-                            style="height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
-                            frameborder="0"
-                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                            loading="lazy"
-                            @load="(event) => { event.target.style.opacity = '1' }"
-                          />
-                        </div>
-                        <p v-else class="text-white/70 text-sm py-6 text-center">
-                          No preview available for this release.
-                        </p>
-                        <div class="text-right text-xs text-white/50 mt-2">
-                          <a
-                            href="https://accounts.spotify.com/login"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="text-white/50 hover:text-white/70 transition-colors underline"
-                          >
-                            Connect</a> to Spotify to listen to the full track
+                    <tr v-if="expandedReleaseKey === getReleaseKey(release, index)" class="bg-white/5 border-b border-white/5">
+                      <td colspan="5" class="p-0">
+                        <div class="spotify-player-container p-6 bg-white/3 relative">
+                          <div v-if="release.spotify_album_id || release.spotify_track_id" class="flex items-center justify-center min-h-[152px]">
+                            <iframe
+                              :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
+                              class="w-full max-w-6xl rounded-xl spotify-embed"
+                              :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
+                                ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
+                                : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
+                              style="height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                              frameborder="0"
+                              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                              loading="lazy"
+                              @load="(event) => { event.target.style.opacity = '1' }"
+                            />
+                          </div>
+                          <p v-else class="text-white/70 text-sm py-6 text-center">
+                            No preview available for this release.
+                          </p>
+                          <div class="absolute bottom-0 right-6">
+                            <span class="text-xs text-white/50 font-light">
+                              <a
+                                href="https://accounts.spotify.com/login"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-white/50 hover:text-white/70 transition-colors underline"
+                              >
+                                Connect</a> to Spotify to listen to the full track
+                            </span>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -767,14 +764,75 @@ const openSpotifyReleasePage = (release: WatchlistRelease) => {
 }
 
 const saveTrack = async (release: WatchlistRelease, index: number) => {
+  // Optimistically update the UI immediately
+  release.isSaved = true
+  localStorage.setItem('track-saved-timestamp', Date.now().toString())
+
+  // Process in the background
   const key = getReleaseKey(release, index)
   processingRelease.value = key
 
   try {
+    // Check if this is an album (has album_id and multiple tracks)
+    const isAlbum = release.spotify_album_id && (release.track_count ?? 1) > 1
+
+    let trackId: string | null = release.spotify_track_id
+    let trackName: string = release.track_title
+    let isrc: string | null = release.isrc || null
+
+    // For albums, fetch the first track details from the album API
+    if (isAlbum) {
+      if (!release.spotify_album_id) {
+        release.isSaved = false
+        showNotification('No album ID available for this release.')
+        processingRelease.value = null
+        return
+      }
+
+      try {
+        const response = await http.get<{
+          success: boolean
+          data?: {
+            tracks?: {
+              items?: Array<{
+                id?: string
+                uri?: string
+                name?: string
+                external_ids?: { isrc?: string }
+              }>
+            }
+          }
+        }>(`music-preferences/spotify/album/${release.spotify_album_id}`)
+
+        if (response.success && response.data?.tracks?.items && response.data.tracks.items.length > 0) {
+          const firstTrack = response.data.tracks.items[0]
+          // Extract track ID from id field or from URI (spotify:track:xxxxx)
+          trackId = firstTrack.id || (firstTrack.uri?.match(/spotify:track:([a-zA-Z0-9]+)/)?.[1] ?? null)
+          // Extract track name from the first track
+          trackName = firstTrack.name || release.track_title
+          // Extract ISRC from the first track
+          isrc = firstTrack.external_ids?.isrc || null
+        }
+      } catch (error) {
+        release.isSaved = false
+        console.error('Failed to fetch album tracks:', error)
+        showNotification('Unable to fetch track information for this album. Please try again later.')
+        processingRelease.value = null
+        return
+      }
+
+      if (!trackId) {
+        release.isSaved = false
+        showNotification('No track ID available for this album. The album may not have track information available.')
+        processingRelease.value = null
+        return
+      }
+    }
+
     const payload = {
-      spotify_id: release.spotify_track_id,
-      isrc: release.isrc,
-      track_name: release.track_title,
+      spotify_id: trackId,
+      isrc,
+      track_name: trackName,
       artist_name: release.artist_name,
       label: release.label,
       popularity: release.popularity,
@@ -786,15 +844,13 @@ const saveTrack = async (release: WatchlistRelease, index: number) => {
       album_id: release.spotify_album_id ?? null,
     }
 
-    const response = await http.post('music-preferences/save-track', payload)
+    const saveResponse = await http.post('music-preferences/save-track', payload)
 
-    if (response.success) {
-      release.isSaved = true
-      localStorage.setItem('track-saved-timestamp', Date.now().toString())
-    } else {
-      throw new Error(response.error || 'Failed to save track')
+    if (!saveResponse.success) {
+      throw new Error(saveResponse.error || 'Failed to save track')
     }
   } catch (error: any) {
+    // Revert the optimistic update on error
     release.isSaved = false
     console.error('Failed to save track:', error)
     showNotification(error.response?.data?.error || error.message || 'Unable to save track.')
@@ -804,39 +860,106 @@ const saveTrack = async (release: WatchlistRelease, index: number) => {
 }
 
 const banTrack = async (release: WatchlistRelease, index: number) => {
+  // Store the original state for potential rollback
+  const originalBannedState = release.isBanned
+
+  // Optimistically update the UI immediately
+  release.isBanned = !release.isBanned
+  const timestamp = Date.now().toString()
+  if (release.isBanned) {
+    localStorage.setItem('track-blacklisted-timestamp', timestamp)
+  } else {
+    localStorage.setItem('track-unblacklisted-timestamp', timestamp)
+  }
+
+  // Process in the background
   const key = getReleaseKey(release, index)
   processingRelease.value = key
 
   try {
-    if (release.isBanned) {
+    // Check if this is an album (has album_id and multiple tracks)
+    const isAlbum = release.spotify_album_id && (release.track_count ?? 1) > 1
+
+    let trackId: string | null = release.spotify_track_id
+    let trackName: string = release.track_title
+    let isrc: string | null = release.isrc || null
+
+    // For albums, fetch the first track details from the album API
+    if (isAlbum) {
+      if (!release.spotify_album_id) {
+        release.isBanned = originalBannedState
+        showNotification('No album ID available for this release.')
+        processingRelease.value = null
+        return
+      }
+
+      try {
+        const response = await http.get<{
+          success: boolean
+          data?: {
+            tracks?: {
+              items?: Array<{
+                id?: string
+                uri?: string
+                name?: string
+                external_ids?: { isrc?: string }
+              }>
+            }
+          }
+        }>(`music-preferences/spotify/album/${release.spotify_album_id}`)
+
+        if (response.success && response.data?.tracks?.items && response.data.tracks.items.length > 0) {
+          const firstTrack = response.data.tracks.items[0]
+          // Extract track ID from id field or from URI (spotify:track:xxxxx)
+          trackId = firstTrack.id || (firstTrack.uri?.match(/spotify:track:([a-zA-Z0-9]+)/)?.[1] ?? null)
+          // Extract track name from the first track
+          trackName = firstTrack.name || release.track_title
+          // Extract ISRC from the first track
+          isrc = firstTrack.external_ids?.isrc || null
+        }
+      } catch (error) {
+        release.isBanned = originalBannedState
+        console.error('Failed to fetch album tracks:', error)
+        showNotification('Unable to fetch track information for this album. Please try again later.')
+        processingRelease.value = null
+        return
+      }
+
+      if (!trackId) {
+        release.isBanned = originalBannedState
+        showNotification('No track ID available for this album. The album may not have track information available.')
+        processingRelease.value = null
+        return
+      }
+    }
+
+    if (originalBannedState) {
+      // Was banned, now unbanning
       const params = new URLSearchParams({
-        isrc: release.isrc || '',
-        track_name: release.track_title,
+        isrc: isrc || '',
+        track_name: trackName,
         artist_name: release.artist_name,
       })
       const response = await http.delete(`music-preferences/blacklist-track?${params.toString()}`)
-      if (response.success) {
-        release.isBanned = false
-        localStorage.setItem('track-unblacklisted-timestamp', Date.now().toString())
-      } else {
+      if (!response.success) {
         throw new Error(response.error || 'Failed to unban track')
       }
     } else {
+      // Was not banned, now banning
       const response = await http.post('music-preferences/blacklist-track', {
-        spotify_id: release.spotify_track_id,
-        isrc: release.isrc,
-        track_name: release.track_title,
+        spotify_id: trackId,
+        isrc,
+        track_name: trackName,
         artist_name: release.artist_name,
       })
 
-      if (response.success) {
-        release.isBanned = true
-        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
-      } else {
+      if (!response.success) {
         throw new Error(response.error || 'Failed to ban track')
       }
     }
   } catch (error: any) {
+    // Revert the optimistic update on error
+    release.isBanned = originalBannedState
     console.error('Failed to toggle ban track:', error)
     showNotification(error.response?.data?.error || error.message || 'Unable to update ban status.')
   } finally {
@@ -858,8 +981,33 @@ const formatNumber = (num: number | null | undefined): string => {
 }
 
 const formatDate = (dateString: string): string => {
+  if (!dateString) {
+    return 'Unknown'
+  }
+
   const date = new Date(dateString)
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown'
+  }
+
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+
+  if (diffDays === 0) {
+    return 'Today'
+  }
+
+  if (diffDays === 1) {
+    return '1 day ago'
+  }
+
+  if (diffDays < 7) {
+    return `${diffDays} days ago`
+  }
+
+  const diffWeeks = Math.max(1, Math.floor(diffDays / 7))
+  return diffWeeks === 1 ? '1 week ago' : `${diffWeeks} weeks ago`
 }
 
 const formatCooldown = (seconds: number): string => {
