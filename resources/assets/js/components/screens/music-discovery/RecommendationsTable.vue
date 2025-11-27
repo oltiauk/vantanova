@@ -35,8 +35,45 @@
       <!-- Info Message -->
       <div class="text-center mb-4 max-w-7xl mx-auto">
         <p class="text-k-text-secondary text-sm">
-          Ban or save tracks to add new ones at the list's end.
+          Save or ban tracks to mark them. Use Load More to see additional recommendations.
         </p>
+      </div>
+
+      <div class="flex items-center justify-between max-w-7xl mx-auto mb-4 px-1">
+        <h3 class="text-lg font-semibold">
+          Related Tracks ({{ displayRecommendations.length }})
+        </h3>
+        
+        <!-- Sort by Dropdown -->
+        <div class="relative">
+          <button
+            @click="toggleLikesRatioDropdown"
+            @blur="hideLikesRatioDropdown"
+            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
+            style="background-color: rgba(47, 47, 47, 255) !important;"
+          >
+            {{ getSortText() }}
+            <Icon :icon="faChevronDown" class="text-xs" />
+          </button>
+          
+          <!-- Dropdown Menu -->
+          <div 
+            v-if="showLikesRatioDropdown"
+            class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-50"
+            style="background-color: rgb(67,67,67,255);"
+          >
+            <button
+              v-for="option in sortOptions"
+              :key="option.value"
+              @mousedown.prevent="setLikesRatioFilter(option.value)"
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+              :class="option.value === 'none' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length-1].value ? 'rounded-b-lg' : '')"
+              :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="bg-white/5 rounded-lg overflow-hidden max-w-7xl mx-auto">
@@ -55,13 +92,12 @@
               </tr>
             </thead>
             <tbody>
-              <template v-for="(slot, index) in displayRecommendations" :key="`slot-${slot.slotIndex}`">
+              <template v-for="(track, index) in displayRecommendations" :key="getTrackKey(track)">
                 <!-- Track Row -->
                 <tr
                   :class="[
                     'transition h-16 border-b border-white/5',
-                    (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5',
-                    (slot.track as any).__leaving ? 'row-slide-out' : ''
+                    (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing)) ? 'bg-white/5' : 'hover:bg-white/5'
                   ]"
                 >
                   <!-- Index -->
@@ -74,14 +110,14 @@
                   <!-- Artist -->
                   <td class="p-3 align-middle">
                     <span class="font-medium text-white">
-                      {{ slot.track.artist }}
+                      {{ track.artist }}
                     </span>
                   </td>
 
                   <!-- Title -->
                   <td class="p-3 align-middle">
                     <div class="flex items-center gap-2">
-                      <span class="text-white/80">{{ slot.track.name }}</span>
+                      <span class="text-white/80">{{ track.name }}</span>
                     </div>
                   </td>
 
@@ -89,7 +125,7 @@
                   <td class="p-3 align-middle text-center">
                     <div class="flex items-center justify-center">
                       <span class="text-white/80 text-sm font-medium">
-                        {{ slot.track.popularity !== undefined && slot.track.popularity !== null ? `${slot.track.popularity}%` : 'N/A' }}
+                        {{ track.popularity !== undefined && track.popularity !== null ? `${track.popularity}%` : 'N/A' }}
                       </span>
                     </div>
                   </td>
@@ -98,7 +134,7 @@
                   <td class="p-3 align-middle text-center">
                     <div class="flex items-center justify-center">
                       <span class="text-white/60 text-sm">
-                        {{ formatFollowers(slot.track.followers) }}
+                        {{ formatFollowers(track.followers) }}
                       </span>
                     </div>
                   </td>
@@ -107,7 +143,7 @@
                   <td class="p-3 align-middle text-center">
                     <div class="flex items-center justify-center">
                       <span class="text-white/60 text-sm">
-                        {{ formatReleaseDate(slot.track.release_date) }}
+                        {{ formatReleaseDate(track.release_date) }}
                       </span>
                     </div>
                   </td>
@@ -117,26 +153,26 @@
                     <div class="flex gap-2 justify-center">
                       <!-- Save Button (24h) -->
                       <button
-                        @click="saveTrack(slot.track)"
-                        :disabled="processingTrack === getTrackKey(slot.track)"
-                        :class="isTrackSaved(slot.track)
+                        @click="saveTrack(track)"
+                        :disabled="processingTrack === getTrackKey(track)"
+                        :class="isTrackSaved(track)
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                        :title="isTrackSaved(slot.track) ? 'Click to unsave track' : 'Save the Track (24h)'"
+                        :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
                       >
                         <Icon :icon="faHeart" class="text-sm" />
                       </button>
 
                       <!-- Blacklist Button -->
                       <button
-                        @click="blacklistTrack(slot.track)"
-                        :disabled="processingTrack === getTrackKey(slot.track)"
-                        :class="isTrackBlacklisted(slot.track)
+                        @click="blacklistTrack(track)"
+                        :disabled="processingTrack === getTrackKey(track)"
+                        :class="isTrackBlacklisted(track)
                           ? 'bg-red-600 hover:bg-red-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                        :title="isTrackBlacklisted(slot.track) ? 'Click to unblock track' : 'Ban the Track'"
+                        :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Ban the Track'"
                       >
                         <Icon :icon="faBan" class="text-sm" />
                       </button>
@@ -148,8 +184,8 @@
                     <div class="flex gap-2 justify-center">
                       <!-- Related Track Button -->
                       <button
-                        @click="getRelatedTracks(slot.track)"
-                        :disabled="processingTrack === getTrackKey(slot.track)"     
+                        @click="getRelatedTracks(track)"
+                        :disabled="processingTrack === getTrackKey(track)"     
                         class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                         title="Find Related Tracks"
                       >
@@ -159,19 +195,19 @@
 
                       <!-- Preview Button -->
                       <button
-                        @click="handlePreviewClick(slot.track)"
-                        :disabled="processingTrack === getTrackKey(slot.track)"
+                        @click="handlePreviewClick(track)"
+                        :disabled="processingTrack === getTrackKey(track)"
                         :class="[
                           'px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center',
-                          (expandedTrackId === getTrackKey(slot.track) || listenedTracks.has(getTrackKey(slot.track))) 
+                          (expandedTrackId === getTrackKey(track) || listenedTracks.has(getTrackKey(track))) 
                             ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white' 
                             : 'bg-[#484948] hover:bg-gray-500 text-white'
                         ]"
                       >
                         <!-- Regular icon when not processing -->
-                        <img v-if="expandedTrackId !== getTrackKey(slot.track) && !(processingTrack === getTrackKey(slot.track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                        <Icon v-if="expandedTrackId === getTrackKey(slot.track) && !(processingTrack === getTrackKey(slot.track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
-                        <span :class="(processingTrack === getTrackKey(slot.track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(slot.track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(slot.track) ? 'Close' : (listenedTracks.has(getTrackKey(slot.track)) ? 'Listened' : 'Preview')) }}</span>
+                        <img v-if="expandedTrackId !== getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                        <Icon v-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
+                        <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Preview')) }}</span>
                       </button>
                     </div>
                   </td>
@@ -179,12 +215,12 @@
 
                 <!-- Spotify Player Dropdown -->
                 <Transition name="spotify-dropdown" mode="out-in">
-                  <tr v-if="slot.track && (expandedTrackId === getTrackKey(slot.track) || (processingTrack === getTrackKey(slot.track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(slot.track)}-${index}`">
+                  <tr v-if="track && (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(track)}-${index}`">
                     <td colspan="8" class="p-0 bg-white/5 border-b border-white/5">
                       <div class="spotify-player-container p-6 bg-white/3 relative">
                           <div class="max-w-6xl mx-auto">
                             <!-- Loading State -->
-                            <div v-if="processingTrack === getTrackKey(slot.track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
+                            <div v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
                               <div class="flex items-center gap-3">
                                 <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
                                 <span class="text-k-text-secondary">Loading Track...</span>
@@ -192,11 +228,11 @@
                             </div>
 
                             <!-- Spotify Embed -->
-                            <div v-else-if="slot.track.id && slot.track.id !== 'NO_TRACK_FOUND'" class="flex items-center justify-center">
+                            <div v-else-if="track.id && track.id !== 'NO_TRACK_FOUND'" class="flex items-center justify-center">
                             <iframe
-                              :key="slot.track.id"
-                              :src="`https://open.spotify.com/embed/track/${slot.track.id}?utm_source=generator&theme=0`"
-                              :title="`${slot.track.artist} - ${slot.track.name}`"
+                              :key="track.id"
+                              :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
+                              :title="`${track.artist} - ${track.name}`"
                               class="w-full spotify-embed"
                               style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
                               frameBorder="0"
@@ -238,36 +274,13 @@
         </div>
       </div>
 
-      <!-- Pagination Controls at Bottom -->
-      <div v-if="isPaginationMode && currentTotalTracks > currentTracksPerPage" class="pagination-section flex items-center justify-center gap-2 mt-8">
+      <!-- Load More -->
+      <div v-if="hasMoreRecommendations" class="flex items-center justify-center mt-8">
         <button
-          :disabled="currentPage === 1"
-          class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
-          @click="goToPage(currentPage - 1)"
+          class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="loadMore"
         >
-          Previous
-        </button>
-
-        <div class="flex items-center gap-1">
-          <button
-            v-for="page in visiblePages"
-            :key="page"
-            :class="page === currentPage ? 'bg-k-accent text-white' : 'bg-k-bg-primary text-gray-300 hover:bg-white/10'"
-            class="w-10 h-10 flex items-center justify-center rounded transition-colors"
-            @click="goToPage(page)"
-          >
-            {{ page }}
-          </button>
-        </div>
-
-        <button
-          :disabled="currentPage === totalPages"
-          class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="{ 'opacity-50 cursor-not-allowed': currentPage === totalPages }"
-          @click="goToPage(currentPage + 1)"
-        >
-          Next
+          Load More<span v-if="remainingRecommendationsCount > 0"> ({{ remainingRecommendationsCount }} left)</span>
         </button>
       </div>
     </div>
@@ -317,31 +330,20 @@ interface Track {
 // Props
 interface Props {
   recommendations: Track[]
-  slotMap: Record<number, Track | null>
   isDiscovering: boolean
   errorMessage: string
   currentProvider: string
   seedTrack: Track | null
-  totalTracks?: number
-  currentPage?: number
-  tracksPerPage?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  seedTrack: null,
-  slotMap: () => ({})
+  seedTrack: null
 })
 
 // Emits
 const emit = defineEmits<{
   'clearError': []
-  'page-change': [page: number]
-  'per-page-change': [perPage: number]
   'related-tracks': [track: Track]
-  'pending-blacklist': [trackKey: string]
-  'user-banned-item': []
-  'current-batch-banned-item': []
-  'pending-auto-bans-cleared': []
 }>()
 
 // State
@@ -351,10 +353,10 @@ const isBlacklisting = ref(false)
 const lastfmStatsLoading = ref(false)
 const lastfmError = ref(false)
 const isPreviewProcessing = ref(false)
-const sortBy = ref<string>('recent')
-const sortedRecommendations = ref<Track[]>([])
+const sortBy = ref<string>('release')
 const originalRecommendations = ref<Track[]>([])
-const currentPageTracks = ref<Track[]>([])
+const randomizedRecommendations = ref<Track[]>([])
+const visibleCount = ref(INITIAL_VISIBLE_COUNT)
 const dropdownOpen = ref(false)
 const showLikesRatioDropdown = ref(false)
 const initialLoadComplete = ref(false)
@@ -373,6 +375,7 @@ const bannedArtists = ref(new Set<string>()) // Store artist names
 
 // Initialize global blacklist filtering composable
 const { 
+  addTrackToBlacklist,
   addArtistToBlacklist,
   loadBlacklistedItems 
 } = useBlacklistFiltering()
@@ -381,12 +384,13 @@ const { onRouteChanged } = useRouter()
 
 // Sort options for the custom dropdown
 const sortOptions = [
-  { value: 'recent', label: 'Most Recent' },
-  { value: 'none', label: 'Random' },
-  { value: 'playcount', label: 'Most Streams' },
-  { value: 'listeners', label: 'Most Listeners' },
-  { value: 'ratio', label: 'Best Ratio (S/L)' }
+  { value: 'release', label: 'Most Recent' },
+  { value: 'popularity', label: 'Most Popular' },
+  { value: 'followers', label: 'Most Followers' }
 ]
+
+const INITIAL_VISIBLE_COUNT = 20
+const LOAD_MORE_STEP = 20
 
 // Music preferences state
 const savedTracks = ref<Set<string>>(new Set())
@@ -510,15 +514,9 @@ const formatRatio = (playcount: number, listeners: number): string => {
 }
 
 // Helper functions for custom dropdown
-const getSortLabel = (value: string): string => {
-  const option = sortOptions.find(opt => opt.value === value)
-  return option ? option.label : 'Random (Default)'
-}
-
 const selectSort = (value: string): void => {
   sortBy.value = value
   dropdownOpen.value = false
-  applySorting()
 }
 
 const toggleLikesRatioDropdown = () => {
@@ -543,96 +541,24 @@ const setLikesRatioFilter = (type: string) => {
 
 const getSortIcon = () => {
   switch (sortBy.value) {
-    case 'recent': return faClock
-    case 'none': return faFilter
-    case 'playcount': return faArrowUp
-    case 'listeners': return faArrowUp
-    case 'ratio': return faArrowUp
+    case 'release': return faClock
+    case 'popularity': return faArrowUp
+    case 'followers': return faArrowUp
     default: return faClock
   }
 }
 
 const getSortText = () => {
   switch (sortBy.value) {
-    case 'recent': return 'Sort by: Most Recent'
-    case 'none': return 'Sort by: Random'
-    case 'playcount': return 'Sort by: Most Streams'
-    case 'listeners': return 'Sort by: Most Listeners'
-    case 'ratio': return 'Sort by: Best Ratio (S/L)'
+    case 'release': return 'Sort by: Most Recent'
+    case 'popularity': return 'Sort by: Most Popular'
+    case 'followers': return 'Sort by: Most Followers'
     default: return 'Sort by: Most Recent'
   }
 }
 
-// Default values for pagination (with fallbacks for legacy mode) 
-const currentPage = computed(() => props.currentPage ?? 1)
-const currentTracksPerPage = computed(() => props.tracksPerPage ?? 20)
-const isPaginationMode = computed(() => props.totalTracks !== undefined)
-
-// Total tracks - use the length of filtered recommendations
-const currentTotalTracks = computed(() => {
-  // console.log(`[RECOMMENDATIONS DEBUG] Props totalTracks: ${props.totalTracks}, isPaginationMode: ${isPaginationMode.value}`)
-  
-  // Always use the filtered recommendations count for accurate pagination
-  const total = filteredRecommendations.value.length
-  // console.log(`[RECOMMENDATIONS DEBUG] Using filtered recommendations total: ${total}`)
-  return total
-})
-
-// Pagination computed properties
-const totalPages = computed(() => {
-  return Math.ceil(currentTotalTracks.value / currentTracksPerPage.value)
-})
-
-const visiblePages = computed(() => {
-  const pages = []
-  const maxVisible = 5
-  const total = totalPages.value
-
-  if (total <= maxVisible) {
-    // Show all pages if total is small
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
-  } else {
-    // Show pages around current page
-    const current = currentPage.value
-    let start = Math.max(1, current - 2)
-    let end = Math.min(total, current + 2)
-
-    // Adjust if we're near the beginning or end
-    if (current <= 3) {
-      end = Math.min(total, 5)
-    } else if (current >= total - 2) {
-      start = Math.max(1, total - 4)
-    }
-
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-  }
-
-  return pages
-})
-
-// Computed property for all filtered recommendations (without sorting - always returns same tracks)
-const filteredRecommendations = computed(() => {
-  // console.log('🔄 FILTERED RECOMMENDATIONS COMPUTED CALLED')
-  // console.log('🔄 Current banned artists:', Array.from(bannedArtists.value))
-  
-  // Always use original recommendations - sorting is handled per-page in displayRecommendations
-  let tracks: Track[] = originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
-  
-  // console.log(`[RECOMMENDATIONS DEBUG] Raw tracks: ${tracks.length}, Props recommendations: ${props.recommendations.length}`)
-  // console.log(`[RECOMMENDATIONS DEBUG] originalRecommendations: ${originalRecommendations.value.length}, sortedRecommendations: ${sortedRecommendations.value.length}`)
-  
-  // Backend already handles seed artist filtering, so no need to filter here
-  // This prevents double-filtering that reduces the track count
-  
-  // Don't filter out banned artists immediately - keep them visible in current results
-  // Filtering will only happen when new recommendations arrive
-  // console.log(`[RECOMMENDATIONS DEBUG] Keeping all tracks visible (including banned): ${tracks.length}`)
-  // console.log('🔄 Tracks being returned:', tracks.map(t => t.artist).slice(0, 5))
-  return tracks
+const baseRecommendations = computed(() => {
+  return originalRecommendations.value.length > 0 ? originalRecommendations.value : props.recommendations
 })
 
 // Helper function to parse release date for sorting
@@ -665,59 +591,52 @@ const parseReleaseDate = (releaseDate: string | undefined): Date | null => {
   }
 }
 
-// Computed property for displayed recommendations with slot-based system
-// Returns array of objects with slot info: { slotIndex: number, track: Track }
-// Filters out null slots so banned tracks are completely removed from display
-const displayRecommendations = computed(() => {
-  // Create array of slot entries from the slot map (slots 0-19), filtering out empty slots
-  const slotEntries: Array<{ slotIndex: number; track: Track }> = []
+const sortedRecommendations = computed(() => {
+  const tracks = [...baseRecommendations.value]
 
-  for (let i = 0; i < 20; i++) {
-    const track = props.slotMap[i]
-    // Only include slots that have actual tracks (skip null/undefined)
-    if (track !== null && track !== undefined) {
-      slotEntries.push({
-        slotIndex: i,
-        track: track
-      })
-    }
-  }
+  if (sortBy.value === 'release') {
+    return [...tracks].sort((a, b) => {
+      const dateA = parseReleaseDate(a.release_date)
+      const dateB = parseReleaseDate(b.release_date)
 
-  // Apply sorting based on sortBy value
-  if (sortBy.value === 'recent') {
-    // Tracks are already sorted by release date (most recent first) in MusicDiscoveryScreen
-    // Don't re-sort to prevent tracks from jumping around when new tracks are added from queue
-    // Just return tracks in their current slot order (most recent first, new tracks at bottom)
-    return slotEntries
-  } else if (sortBy.value === 'none') {
-    // Random order - return as-is (already shuffled in watch)
-    return slotEntries
-  } else if (sortBy.value === 'playcount') {
-    // Sort by playcount (most streams first)
-    return [...slotEntries].sort((a, b) => {
-      const playcountA = a.track.lastfm_stats?.playcount || 0
-      const playcountB = b.track.lastfm_stats?.playcount || 0
-      return playcountB - playcountA
-    })
-  } else if (sortBy.value === 'listeners') {
-    // Sort by listeners (most listeners first)
-    return [...slotEntries].sort((a, b) => {
-      const listenersA = a.track.lastfm_stats?.listeners || 0
-      const listenersB = b.track.lastfm_stats?.listeners || 0
-      return listenersB - listenersA
-    })
-  } else if (sortBy.value === 'ratio') {
-    // Sort by ratio (best ratio first)
-    return [...slotEntries].sort((a, b) => {
-      const ratioA = (a.track.lastfm_stats?.playcount || 0) / (a.track.lastfm_stats?.listeners || 1)
-      const ratioB = (b.track.lastfm_stats?.playcount || 0) / (b.track.lastfm_stats?.listeners || 1)
-      return ratioB - ratioA
+      if (!dateA && !dateB) return 0
+      if (!dateA) return 1
+      if (!dateB) return -1
+
+      return dateB.getTime() - dateA.getTime()
     })
   }
 
-  // Default: return as-is
-  return slotEntries
+  if (sortBy.value === 'popularity') {
+    return [...tracks].sort((a, b) => {
+      const popularityA = a.popularity ?? 0
+      const popularityB = b.popularity ?? 0
+      return popularityB - popularityA
+    })
+  }
+
+  if (sortBy.value === 'followers') {
+    return [...tracks].sort((a, b) => {
+      const followersA = a.followers ?? 0
+      const followersB = b.followers ?? 0
+      return followersB - followersA
+    })
+  }
+
+  return tracks
 })
+
+const displayRecommendations = computed(() => {
+  return sortedRecommendations.value.slice(0, visibleCount.value)
+})
+
+const hasMoreRecommendations = computed(() => visibleCount.value < sortedRecommendations.value.length)
+const remainingRecommendationsCount = computed(() => Math.max(sortedRecommendations.value.length - visibleCount.value, 0))
+
+const loadMore = () => {
+  const nextCount = Math.min(sortedRecommendations.value.length, visibleCount.value + LOAD_MORE_STEP)
+  visibleCount.value = nextCount
+}
 
 const isTrackSaved = (track: Track): boolean => {
   const trackKey = getTrackKey(track)
@@ -810,17 +729,6 @@ const saveTrack = async (track: Track) => {
     // Update UI immediately for instant feedback
     savedTracks.value.add(trackKey)
     clientUnsavedTracks.value.delete(trackKey)
-    
-    // Animate removal: mark row as leaving, then remove after a short delay
-    ;(track as any).__leaving = true
-    setTimeout(() => {
-      emit('pending-blacklist', track.id)
-    }, 220)
-    console.log(`💾 [RECS TABLE] Saved track - immediately removing from display: ${track.name}`)
-    
-    // Emit that user has done an action (for Search Again functionality)
-    emit('user-banned-item')
-    emit('current-batch-banned-item')
 
     try {
       // Generate a fallback ISRC if none exists
@@ -909,6 +817,7 @@ const saveTrack = async (track: Track) => {
         if (blacklistResponse.success) {
           // Update local blacklist state
           blacklistedTracks.value.add(trackKey)
+          addTrackToBlacklist(track)
           console.log('✅ [RECS TABLE] Track blacklisted in backend:', track.name)
 
           // Trigger BannedTracksScreen refresh
@@ -1016,14 +925,7 @@ const blacklistTrack = async (track: Track) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
-        // Animate removal: mark row as leaving, then remove after a short delay
-        ;(track as any).__leaving = true
-        setTimeout(() => {
-          emit('pending-blacklist', track.id)
-        }, 220)
-        // Emit that user has banned an item (for Search Again functionality)
-        emit('user-banned-item')
-        emit('current-batch-banned-item')
+        addTrackToBlacklist(track)
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
       }
@@ -1195,56 +1097,6 @@ const getRelatedTracks = (track: Track) => {
   // Close any open preview dropdown when getting related tracks
   expandedTrackId.value = null
   emit('related-tracks', track)
-}
-
-// Update current page tracks when page changes
-const updateCurrentPageTracks = () => {
-  // Use original filtered tracks (unsorted) for consistent pagination
-  // Sorting will be applied per-page in displayRecommendations computed
-  const allFilteredTracks = filteredRecommendations.value
-  const start = (currentPage.value - 1) * currentTracksPerPage.value
-  const end = start + currentTracksPerPage.value
-  currentPageTracks.value = allFilteredTracks.slice(start, end)
-  // console.log(`[PAGE TRACKS] Updated current page tracks: ${currentPageTracks.value.length} tracks for page ${currentPage.value}`)
-}
-
-// Fetch stats for current page tracks if they don't have stats yet
-const fetchStatsForCurrentPage = async () => {
-  // Last.fm stats fetching disabled
-  return
-}
-
-// Pagination methods
-const goToPage = (page: number) => {
-  if (page >= 1 && page <= totalPages.value) {
-    // Close any open preview dropdown when changing pages
-    expandedTrackId.value = null
-
-    // Enable animations for page change
-    allowAnimations.value = true
-    initialLoadComplete.value = false
-
-    // Scroll to recommendations table
-    const tableElement = document.querySelector('.recommendations-table')
-    if (tableElement) {
-      tableElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      })
-    }
-
-    // Disable animations after they complete
-    setTimeout(() => {
-      allowAnimations.value = false
-      initialLoadComplete.value = true
-    }, 2000)
-
-    emit('page-change', page)
-  }
-}
-
-const changePerPage = () => {
-  emit('per-page-change', props.tracksPerPage)
 }
 
 // Enhanced notification functions for better UX
@@ -1461,7 +1313,7 @@ const blacklistUnsavedTracks = async () => {
   
   try {
     // Get all currently displayed tracks that are not saved
-    const unsavedTracks = filteredRecommendations.value.filter(track => !isTrackSaved(track))
+    const unsavedTracks = baseRecommendations.value.filter(track => !isTrackSaved(track))
     
     if (unsavedTracks.length === 0) {
       // console.log('No unsaved tracks to blacklist')
@@ -1512,16 +1364,6 @@ const blacklistUnsavedTracks = async () => {
     }
     
     // console.log(`✅ Bulk blacklist complete! Processed ${processedCount} tracks`)
-    
-    // Emit the blacklisted track keys to the parent component
-    const blacklistedKeys = unsavedTracks
-      .filter(track => blacklistedTracks.value.has(getTrackKey(track)))
-      .map(track => getTrackKey(track))
-    
-    // Bulk blacklist: emit each individually as pending
-    blacklistedKeys.forEach(key => {
-      emit('pending-blacklist', key)
-    })
     
   } catch (error) {
     // console.error('❌ Bulk blacklist failed:', error)
@@ -1626,16 +1468,6 @@ const banArtist = async (track: Track) => {
     bannedArtists.value.add(artistName)
     saveBannedArtists()
     addArtistToBlacklist(artistName)
-    
-    // Emit pending-blacklist with artist name so parent can mark all tracks by this artist
-    const artistKey = artistName.toLowerCase().replace(/[^a-z0-9]/g, '-')
-    emit('pending-blacklist', artistKey)
-    
-    // Emit that user has banned an item (for Search Again functionality)
-    emit('user-banned-item')
-    emit('current-batch-banned-item')
-    // Emit that user has banned an item from current batch
-    emit('current-batch-banned-item')
     
     // console.log('🚫 UI updated immediately (banned), now doing API call in background')
     
@@ -1925,13 +1757,6 @@ const fetchLastFmStatsOptimized = async (tracks: Track[]) => {
   }
 }
 
-// Apply sorting to recommendations (now handled per-page in displayRecommendations computed)
-const applySorting = () => {
-  // Sorting is now handled per-page in the displayRecommendations computed property
-  // This function is kept for compatibility but no longer modifies global state
-  // console.log(`[SORTING] Sort changed to: ${sortBy.value} (will apply to current page only)`)
-}
-
 // Shuffle array function to randomize display
 const shuffleArray = <T>(array: T[]): T[] => {
   const shuffled = [...array]
@@ -1995,28 +1820,11 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     // console.log('🎵 Sample track data:', newRecommendations[0])
     // console.log('🎵 Sample track has lastfm_stats?', !!newRecommendations[0]?.lastfm_stats)
     
-    // Don't filter out banned artists from current session - only filter on fresh searches
-    // Store original recommendations and shuffle them for random display
-    // console.log('👀 STORING originalRecommendations - before shuffle:', newRecommendations.length)
-    originalRecommendations.value = shuffleArray(newRecommendations)
-    // console.log('👀 STORED originalRecommendations - after shuffle:', originalRecommendations.value.length)
-    
-    // Update current page tracks
-    updateCurrentPageTracks()
-    
-    // Last.fm stats fetching disabled
-    // No longer fetching Last.fm stats
-    
-    // console.log('👀 WATCH COMPLETE')
+    originalRecommendations.value = [...newRecommendations]
+    randomizedRecommendations.value = shuffleArray(newRecommendations)
+    visibleCount.value = Math.min(INITIAL_VISIBLE_COUNT, newRecommendations.length)
   }
 }, { immediate: true })
-
-// Watch for page changes and update current page tracks
-watch([currentPage, currentTracksPerPage], async () => {
-  updateCurrentPageTracks()
-  // Lazy load stats for new page
-  await fetchStatsForCurrentPage()
-}, { immediate: false })
 
 // Removed auto-ban listened tracks watcher
 
@@ -2073,15 +1881,6 @@ defineExpose({
 </script>
 
 <style scoped>
-/* Quick slide-out animation for removed rows */
-.row-slide-out {
-  transition:
-    transform 0.22s ease,
-    opacity 0.22s ease;
-  transform: translateX(100%);
-  opacity: 0;
-  will-change: transform, opacity;
-}
 /* Spotify Dropdown Animations */
 .spotify-dropdown-enter-active {
   transition:

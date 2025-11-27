@@ -114,11 +114,11 @@
       </div>
 
       <!-- Results Table -->
-      <div v-else-if="filteredTracks.length > 0" class="mt-8">
+      <div v-else-if="displayTracks.length > 0" class="mt-8">
         <!-- Info Message -->
         <div class="text-center mb-4">
           <p class="text-k-text-secondary text-sm">
-            Ban or save tracks to add new ones at the list's end.
+            Save or ban tracks to mark them. Use Load More to see additional results.
           </p>
         </div>
 
@@ -138,11 +138,10 @@
                 </tr>
               </thead>
               <tbody>
-                <template v-for="(track, index) in filteredTracks" :key="track.spotify_id">
+                <template v-for="(track, index) in displayTracks" :key="track.spotify_id">
                   <tr
                     class="transition h-16 border-b border-white/5" :class="[
-                      expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
-                      (track as any).__leaving ? 'row-slide-out' : '',
+                      expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5'
                     ]"
                   >
                     <!-- Index -->
@@ -296,6 +295,16 @@
             </table>
           </div>
         </div>
+
+        <!-- Load More -->
+        <div v-if="hasMoreTracks" class="flex items-center justify-center mt-8">
+          <button
+            class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="loadMore"
+          >
+            Load More<span v-if="remainingTracksCount > 0"> ({{ remainingTracksCount }} left)</span>
+          </button>
+        </div>
       </div>
 
       <!-- No Results -->
@@ -309,7 +318,7 @@
 
 <script lang="ts" setup>
 import { faBan, faCheck, faChevronDown, faHeart, faPause, faPlay, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { http } from '@/services/http'
 import { logger } from '@/utils/logger'
 import { useRouter } from '@/composables/useRouter'
@@ -327,18 +336,16 @@ const freshDropsFilter = ref(false)
 const releaseYearFilter = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
+const searchSuggestionTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const tracks = ref([])
 const hasSearched = ref(false)
 const lastSearchQuery = ref('')
 const expandedTrackId = ref<string | null>(null)
 const processingTrack = ref<string | null>(null)
 const isPreviewProcessing = ref(false)
-
-// Slot-based virtual table system (like MusicDiscoveryScreen)
-const slotMap = ref<Record<number, any | null>>({})
-const trackQueue = ref<any[]>([]) // Queue for refilling
-const userHasBannedItems = ref(false)
-const queueExhausted = ref(false) // Track when all tracks from queue have been displayed
+const visibleCount = ref(20)
+const INITIAL_VISIBLE_COUNT = 20
+const LOAD_MORE_STEP = 20
 
 // Listened tracks tracking (UI only)
 const listenedTracks = ref(new Set<string>())
@@ -347,28 +354,10 @@ const blacklistedTracks = ref(new Set<string>())
 // Audio for previews
 let currentAudio: HTMLAudioElement | null = null
 
-// Computed: Display tracks from slot system (filter out null slots)
-const filteredTracks = computed(() => {
-  const slots: any[] = []
-  for (let i = 0; i < 20; i++) {
-    const track = slotMap.value[i]
-    if (track !== null && track !== undefined) {
-      slots.push(track)
-    }
-  }
-  return slots
-})
-
-// Count empty slots
-const emptySlotCount = computed(() => {
-  let count = 0
-  for (let i = 0; i < 20; i++) {
-    if (slotMap.value[i] === null || slotMap.value[i] === undefined) {
-      count++
-    }
-  }
-  return count
-})
+const filteredTracks = computed(() => tracks.value)
+const displayTracks = computed(() => tracks.value.slice(0, visibleCount.value))
+const hasMoreTracks = computed(() => visibleCount.value < tracks.value.length)
+const remainingTracksCount = computed(() => Math.max(tracks.value.length - visibleCount.value, 0))
 
 // Handler functions for mutually exclusive filters
 const handleFreshDropsToggle = () => {
@@ -469,6 +458,10 @@ const formatFollowers = (followers: number): string => {
   return followers.toString()
 }
 
+const loadMore = () => {
+  visibleCount.value = Math.min(tracks.value.length, visibleCount.value + LOAD_MORE_STEP)
+}
+
 const performSearch = async () => {
   if (!searchQuery.value.trim()) {
     return
@@ -551,26 +544,8 @@ const performSearch = async () => {
 
     console.log('Total tracks after filtering and sorting:', allTracks.length)
 
-    // Initialize slot system: First 20 go in slots, rest go in queue
-    slotMap.value = {}
-    trackQueue.value = []
-    userHasBannedItems.value = false
-    queueExhausted.value = false // Reset exhausted state for new search
-
-    for (let i = 0; i < Math.min(20, allTracks.length); i++) {
-      slotMap.value[i] = allTracks[i]
-    }
-
-    // Rest go in queue for refilling
-    if (allTracks.length > 20) {
-      trackQueue.value = allTracks.slice(20)
-      console.log(`🎯 [LABEL SEARCH] Initialized ${Object.keys(slotMap.value).length} slots, ${trackQueue.value.length} tracks in queue`)
-    } else {
-      console.log(`🎯 [LABEL SEARCH] Initialized ${Object.keys(slotMap.value).length} slots, no queue`)
-    }
-
-    // Keep tracks.value for backward compatibility
     tracks.value = allTracks
+    visibleCount.value = Math.min(INITIAL_VISIBLE_COUNT, allTracks.length)
 
     hasSearched.value = true
   } catch (error) {
@@ -593,84 +568,6 @@ const performSearch = async () => {
     }
   } finally {
     isLoading.value = false
-  }
-}
-
-// Refill empty slots from queue
-const refillFromQueue = () => {
-  // If queue is exhausted, don't proceed
-  if (queueExhausted.value && trackQueue.value.length === 0) {
-    console.log(`⚠️ [LABEL SEARCH] Queue exhausted - no more tracks available, skipping refill`)
-    return
-  }
-
-  console.log(`🔄 [LABEL SEARCH] Starting refill from queue`)
-
-  // No pending auto-bans to flush
-
-  // Count how many empty slots we have
-  let emptyCount = 0
-  for (let i = 0; i < 20; i++) {
-    if (slotMap.value[i] === null || slotMap.value[i] === undefined) {
-      emptyCount++
-    }
-  }
-
-  console.log(`🔄 [LABEL SEARCH] Found ${emptyCount} empty slots to fill`)
-
-  if (emptyCount === 0) {
-    console.log(`🔄 [LABEL SEARCH] No empty slots to refill`)
-    userHasBannedItems.value = false
-    return
-  }
-
-  userHasBannedItems.value = false
-
-  const availableInQueue = trackQueue.value.length
-  console.log(`🔄 [LABEL SEARCH] Queue has ${availableInQueue} tracks available`)
-
-  if (availableInQueue === 0) {
-    console.log(`⚠️ [LABEL SEARCH] Queue is empty - cannot refill`)
-    queueExhausted.value = true
-    console.log(`⚠️ [LABEL SEARCH] Queue exhausted - all tracks from queue have been displayed`)
-    return
-  }
-
-  // Compact existing tracks to the front, then add new tracks at the end
-  const existingTracks: any[] = []
-  for (let i = 0; i < 20; i++) {
-    const track = slotMap.value[i]
-    if (track !== null && track !== undefined) {
-      existingTracks.push(track)
-    }
-  }
-
-  console.log(`🔄 [LABEL SEARCH] Compacted ${existingTracks.length} existing tracks`)
-
-  // Add new tracks from queue to fill up to 20 slots
-  let filledCount = 0
-  const tracksNeeded = Math.min(emptyCount, trackQueue.value.length)
-
-  for (let i = 0; i < tracksNeeded; i++) {
-    const nextTrack = trackQueue.value.shift()
-    if (nextTrack) {
-      existingTracks.push(nextTrack)
-      filledCount++
-    }
-  }
-
-  // Rebuild slot map with compacted tracks (existing first, new at end)
-  slotMap.value = {}
-  for (let i = 0; i < existingTracks.length; i++) {
-    slotMap.value[i] = existingTracks[i]
-  }
-
-  console.log(`🔄 [LABEL SEARCH] Refilled with ${filledCount} new tracks at bottom, ${trackQueue.value.length} tracks remaining in queue`)
-
-  // Mark queue as exhausted if queue is empty after refill (all originally fetched tracks have been displayed)
-  if (trackQueue.value.length === 0) {
-    queueExhausted.value = true
-    console.log(`⚠️ [LABEL SEARCH] Queue exhausted - all tracks from queue have been displayed`)
   }
 }
 
@@ -774,24 +671,6 @@ const saveTrack = async track => {
     } else {
       // Save track - Update UI immediately for instant feedback
       track.isSaved = true
-
-      // Animate removal for instant UX (before API calls)
-      const trackKey = getTrackKey(track)
-      for (let i = 0; i < 20; i++) {
-        if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
-          ;(slotMap.value[i] as any).__leaving = true
-          setTimeout(() => {
-            if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
-              slotMap.value[i] = null
-              console.log(`💾 [LABEL SEARCH] Saved track - removed from slot ${i}`)
-              // Auto-refill from queue after removal
-              refillFromQueue()
-            }
-          }, 220)
-          userHasBannedItems.value = true
-          break
-        }
-      }
 
       // Do backend work in background without blocking UI
       try {
@@ -960,23 +839,6 @@ const banTrack = async track => {
         track.isBanned = true
         blacklistedTracks.value.add(trackKey)
 
-        // Animate removal (manual ban)
-        for (let i = 0; i < 20; i++) {
-          if (slotMap.value[i] && getTrackKey(slotMap.value[i]) === trackKey) {
-            ;(slotMap.value[i] as any).__leaving = true
-            const idx = i
-            setTimeout(() => {
-              if (slotMap.value[idx] && getTrackKey(slotMap.value[idx]) === trackKey) {
-                slotMap.value[idx] = null
-                console.log(`🚫 [LABEL SEARCH] Manually banned track - removed from slot ${idx}`)
-                // Auto-refill from queue after removal
-                refillFromQueue()
-              }
-            }, 220)
-            userHasBannedItems.value = true
-            break
-          }
-        }
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
       }
@@ -1154,14 +1016,11 @@ const showPreviewErrorNotification = (track, errorMessage: string) => {
 // Clear search state function
 const clearSearchState = () => {
   tracks.value = []
-  slotMap.value = {}
-  trackQueue.value = []
+  visibleCount.value = INITIAL_VISIBLE_COUNT
   hasSearched.value = false
   lastSearchQuery.value = ''
   errorMessage.value = ''
   expandedTrackId.value = null
-  userHasBannedItems.value = false
-  queueExhausted.value = false
   console.log('🏷️ [LABEL SEARCH] Search state cleared')
 }
 
@@ -1240,6 +1099,21 @@ watch(popularityFilter, (newValue, oldValue) => {
   }
 })
 
+// Auto-search suggestions after 2s pause while typing
+watch(searchQuery, newValue => {
+  if (isLoading.value) {
+    return
+  }
+  if (searchSuggestionTimer.value) {
+    clearTimeout(searchSuggestionTimer.value)
+  }
+  if (newValue.trim()) {
+    searchSuggestionTimer.value = setTimeout(() => {
+      performSearch()
+    }, 2000)
+  }
+})
+
 // Check on mount
 onMounted(async () => {
   checkForStoredLabelQuery()
@@ -1261,6 +1135,13 @@ onMounted(async () => {
         console.log('🎵 [LABEL SEARCH] Loaded listened tracks from localStorage:', listenedTracks.value.size)
       }
     } catch {}
+  }
+})
+
+onUnmounted(() => {
+  if (searchSuggestionTimer.value) {
+    clearTimeout(searchSuggestionTimer.value)
+    searchSuggestionTimer.value = null
   }
 })
 
@@ -1370,13 +1251,4 @@ input:focus::placeholder {
   transform: translateY(-4px);
 }
 
-/* Quick slide-out animation for removed rows */
-.row-slide-out {
-  transition:
-    transform 0.22s ease,
-    opacity 0.22s ease;
-  transform: translateX(100%);
-  opacity: 0;
-  will-change: transform, opacity;
-}
 </style>

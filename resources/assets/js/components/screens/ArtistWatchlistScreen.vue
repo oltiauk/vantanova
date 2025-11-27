@@ -142,7 +142,7 @@
                   <th class="text-left px-4 py-4 font-medium w-12">#</th>
                   <th class="text-left px-4 py-4 font-medium">Artist</th>
                   <th class="text-left px-4 py-4 font-medium">Title</th>
-                  <th class="text-left px-4 py-4 font-medium">Release Date</th>
+                  <th class="text-left pl-4 py-4 font-medium">Release Date</th>
                   <th class="text-center pr-3 py-4 font-medium whitespace-nowrap" />
                 </tr>
               </thead>

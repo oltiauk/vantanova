@@ -206,6 +206,7 @@ const searchContainer = ref<HTMLElement | null>(null)
 const pendingTrack = ref<Track | null>(null) // Track selected from dropdown, pending search button click
 const hasStoppedTyping = ref(false) // Track if user has stopped typing
 let typingDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let searchSuggestionTimer: ReturnType<typeof setTimeout> | null = null
 
 // Queue state management
 const hasMoreInQueue = ref(false) // Track if more results available
@@ -336,6 +337,16 @@ const onSearchInput = () => {
     hasStoppedTyping.value = true
     typingDebounceTimer = null
   }, 800)
+
+  // Schedule a search suggestions request after user pauses typing for 2s
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+  }
+  searchSuggestionTimer = setTimeout(() => {
+    if (searchQuery.value.trim()) {
+      searchTracks()
+    }
+  }, 2000)
 }
 
 // Manual search functionality
@@ -368,6 +379,10 @@ const performSearch = () => {
     if (typingDebounceTimer) {
       clearTimeout(typingDebounceTimer)
       typingDebounceTimer = null
+    }
+    if (searchSuggestionTimer) {
+      clearTimeout(searchSuggestionTimer)
+      searchSuggestionTimer = null
     }
     searchTracks()
   }
@@ -439,6 +454,10 @@ const selectSeedTrack = (track: Track) => {
     clearTimeout(typingDebounceTimer)
     typingDebounceTimer = null
   }
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
+  }
   // Always get related tracks for the newly selected seed track
   getRelatedTracks(track, false) // false = not a refresh
 }
@@ -453,6 +472,10 @@ const clearSeedTrack = () => {
   if (typingDebounceTimer) {
     clearTimeout(typingDebounceTimer)
     typingDebounceTimer = null
+  }
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
   }
   // Emit event to clear recommendations
   emit('clear-recommendations')
@@ -473,6 +496,10 @@ const getRelatedTracks = (track: Track, isRefresh = false) => {
   if (typingDebounceTimer) {
     clearTimeout(typingDebounceTimer)
     typingDebounceTimer = null
+  }
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
   }
 
   // Just emit the related tracks request without setting as seed track
@@ -730,6 +757,10 @@ onUnmounted(() => {
   if (typingDebounceTimer) {
     clearTimeout(typingDebounceTimer)
     typingDebounceTimer = null
+  }
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
   }
 })
 

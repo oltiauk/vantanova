@@ -144,8 +144,46 @@
         <!-- Info Message -->
         <div class="text-center mb-4 max-w-4xl mx-auto">
           <p class="text-k-text-secondary text-sm">
-            Ban or save artists to add new ones at the list's end.
+            Save or ban artists to mark them. Use Load More to see additional recommendations.
           </p>
+        </div>
+
+        <div class="flex items-center justify-between max-w-4xl mx-auto mb-4 px-1">
+          <h3 class="text-lg font-semibold">
+            Similar Artists ({{ displayedArtists.length }})
+          </h3>
+
+          <!-- Sort by Dropdown -->
+          <div class="relative">
+            <button
+              @click="toggleLikesRatioDropdown"
+              @blur="hideLikesRatioDropdown"
+              class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
+              style="background-color: rgba(47, 47, 47, 255) !important;"
+            >
+              {{ getSortText() }}
+              <Icon :icon="faChevronDown" class="text-xs" />
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div
+              v-if="showLikesRatioDropdown"
+              class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-50"
+              style="background-color: rgb(67,67,67,255);"
+            >
+              <button
+                v-for="option in sortOptions"
+                :key="option.value"
+                @mousedown.prevent="setLikesRatioFilter(option.value)"
+                class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+                :class="option.value === 'match' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length-1].value ? 'rounded-b-lg' : '')"
+                :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
+              >
+                <Icon :icon="getSortIconForOption(option.value)" class="text-xs" />
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="bg-white/5 rounded-lg overflow-hidden relative z-10 max-w-4xl mx-auto">
@@ -160,13 +198,12 @@
                 </tr>
               </thead>
               <tbody>
-                <template v-for="(slot, index) in displayedSlots" :key="`artist-${slot.artist.mbid || slot.artist.name}`">
+                <template v-for="(artist, index) in displayedArtists" :key="`artist-${artist.mbid || artist.name}`">
                   <!-- Artist Row -->
                   <tr
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
-                      currentlyPreviewingArtist === slot.artist.name ? 'bg-white/5' : '',
-                      slot.artist && (slot.artist as any).__leaving ? 'row-slide-out' : '',
+                      currentlyPreviewingArtist === artist.name ? 'bg-white/5' : ''
                     ]"
                   >
                     <!-- Index -->
@@ -177,13 +214,13 @@
                     <!-- Artist Name -->
                     <td class="p-3 align-middle">
                       <span class="font-medium text-white whitespace-nowrap">
-                        {{ slot.artist.name }}
+                        {{ artist.name }}
                       </span>
                     </td>
 
                     <!-- Followers -->
                     <td class="p-3 px-6 align-middle text-right">
-                      <span class="text-white/80">{{ formatFollowers(slot.artist.followers || 0) }}</span>
+                      <span class="text-white/80">{{ formatFollowers(artist.followers || 0) }}</span>
                     </td>
 
                     <!-- Actions -->
@@ -191,48 +228,48 @@
                       <div class="flex gap-2 justify-end">
                         <!-- Ban Artist (local-only, icon button) -->
                         <button
-                          :class="isArtistBanned(slot.artist)
+                          :class="isArtistBanned(artist)
                             ? 'bg-red-600 hover:bg-red-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                          :title="isArtistBanned(slot.artist) ? 'Click to unban artist' : 'Ban the Artist (Similar Artists only)'"
-                          @click="banArtist(slot.artist)"
+                          :title="isArtistBanned(artist) ? 'Click to unban artist' : 'Ban the Artist (Similar Artists only)'"
+                          @click="banArtist(artist)"
                         >
                           <Icon :icon="faBan" class="text-sm" />
                         </button>
                         <button
                           class="px-3 ml-2 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center text-white"
                           title="Find Similar Artists"
-                          @click="findSimilarArtists(slot.artist)"
+                          @click="findSimilarArtists(artist)"
                         >
                           <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
                           <span>Similars</span>
                         </button>
                         <button
-                          :disabled="loadingPreviewArtist === slot.artist.name"
+                          :disabled="loadingPreviewArtist === artist.name"
                           class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center" :class="[
-                            (currentlyPreviewingArtist === slot.artist.name || hasListenedTracks(slot.artist))
+                            (currentlyPreviewingArtist === artist.name || hasListenedTracks(artist))
                               ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
                               : 'bg-[#484948] hover:bg-gray-500 text-white',
                           ]"
-                          :title="loadingPreviewArtist === slot.artist.name ? 'Loading...' : (currentlyPreviewingArtist === slot.artist.name ? 'Close preview' : (hasListenedTracks(slot.artist) ? 'Tracks have been listened to' : 'Preview artist tracks'))"
-                          @click="previewArtist(slot.artist)"
+                          :title="loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close preview' : (hasListenedTracks(artist) ? 'Tracks have been listened to' : 'Preview artist tracks'))"
+                          @click="previewArtist(artist)"
                         >
                           <!-- Regular icon when not processing -->
-                          <img v-if="currentlyPreviewingArtist !== slot.artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                          <img v-if="currentlyPreviewingArtist !== artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                           <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                          <span :class="loadingPreviewArtist === slot.artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === slot.artist.name ? 'Loading...' : (currentlyPreviewingArtist === slot.artist.name ? 'Close' : (hasListenedTracks(slot.artist) ? 'Listened' : 'Preview')) }}</span>
+                          <span :class="loadingPreviewArtist === artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close' : (hasListenedTracks(artist) ? 'Listened' : 'Preview')) }}</span>
                         </button>
                       </div>
                     </td>
                   </tr>
 
                   <!-- Spotify Preview Section -->
-                  <tr v-if="currentlyPreviewingArtist === slot.artist.name" class="bg-white/5 border-b border-white/5">
+                  <tr v-if="currentlyPreviewingArtist === artist.name" class="bg-white/5 border-b border-white/5">
                     <td colspan="8" class="p-0">
                       <div class="spotify-player-container p-6 bg-white/3 relative">
                         <!-- Loading State -->
-                        <div v-if="loadingPreviewArtist === slot.artist.name" class="flex items-center justify-center" style="height: 80px;">
+                        <div v-if="loadingPreviewArtist === artist.name" class="flex items-center justify-center" style="height: 80px;">
                           <div class="flex items-center gap-3">
                             <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
                             <span class="text-k-text-secondary">Loading tracks...</span>
@@ -240,9 +277,9 @@
                         </div>
 
                         <!-- Tracks Display -->
-                        <div v-else-if="slot.artist.spotifyTracks && slot.artist.spotifyTracks.length > 0" class="max-w-4xl mx-auto">
+                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="max-w-4xl mx-auto">
                           <div
-                            v-for="track in slot.artist.spotifyTracks.slice(0, 1)"
+                            v-for="track in artist.spotifyTracks.slice(0, 1)"
                             :key="track.id"
                             class="w-full"
                           >
@@ -358,6 +395,16 @@
             </table>
           </div>
         </div>
+
+        <!-- Load More -->
+        <div v-if="hasMoreArtists" class="flex items-center justify-center mt-8">
+          <button
+            class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="loadMore"
+          >
+            Load More<span v-if="remainingArtistsCount > 0"> ({{ remainingArtistsCount }} left)</span>
+          </button>
+        </div>
       </div>
 
       <div v-else-if="selectedArtist && !isLoading" class="no-results text-center py-12">
@@ -368,7 +415,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { http } from '@/services/http'
 import { useRouter } from '@/composables/useRouter'
 import { faArrowUp, faBan, faCheck, faChevronDown, faClock, faFilter, faHeart, faMusic, faPlay, faSearch, faSpinner, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
@@ -423,11 +470,15 @@ interface SpotifyTrack {
   }
 }
 
+const INITIAL_VISIBLE_COUNT = 20
+const LOAD_MORE_STEP = 20
+
 // Search state
 const searchQuery = ref('')
 const searchResults = ref<LastfmArtist[]>([])
 const searchLoading = ref(false)
 const searchTimeout = ref<ReturnType<typeof setTimeout>>()
+const searchSuggestionTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const searchContainer = ref<HTMLElement | null>(null)
 const initialLoadComplete = ref(false)
 const allowAnimations = ref(false)
@@ -435,39 +486,11 @@ const allowAnimations = ref(false)
 // Selected artist and results
 const selectedArtist = ref<LastfmArtist | null>(null)
 const similarArtists = ref<LastfmArtist[]>([])
-const filteredArtists = ref<LastfmArtist[]>([])
 const displayedArtists = ref<LastfmArtist[]>([])
-
-// Virtual Slot System: Maps slot position (0-19) to artist object or null
-const slotMap = ref<Record<number, LastfmArtist | null>>({})
-
-// Artist queue for refilling empty slots
-const artistQueue = ref<LastfmArtist[]>([])
-
-// Count empty slots in the slot map
-const emptySlotCount = computed(() => {
-  return Object.values(slotMap.value).filter(artist => artist === null).length
-})
-
-// Computed property for displayed slots (filters out null slots for continuous display)
-const displayedSlots = computed(() => {
-  const slots: Array<{ slotIndex: number, artist: LastfmArtist }> = []
-  for (let i = 0; i < 20; i++) {
-    const artist = slotMap.value[i]
-    if (artist !== null && artist !== undefined) {
-      slots.push({
-        slotIndex: i,
-        artist,
-      })
-    }
-  }
-  return slots
-})
+const visibleCount = ref(INITIAL_VISIBLE_COUNT)
 
 // Loading states
 const isLoading = ref(false)
-const loadingListeners = ref(new Set<string>())
-const loadingPageListeners = ref(false)
 const errorMessage = ref('')
 
 // Preview management
@@ -496,116 +519,6 @@ const hasListenedTracks = (artist: LastfmArtist): boolean => {
   return Array.from(listenedTracks.value).some(trackKey => trackKey.startsWith(`${artistName}-`))
 }
 
-const hideArtist = (artist: LastfmArtist) => {
-  locallyHiddenArtists.value.add(artist.name)
-
-  // Close any open preview for this artist
-  if (currentlyPreviewingArtist.value === artist.name) {
-    closePreview(artist)
-  }
-
-  // Find the slot for this artist, mark as leaving for slide-out, then remove after a short delay
-  for (const slotIdx of Object.keys(slotMap.value)) {
-    const slotNumber = Number(slotIdx)
-    const slotArtist = slotMap.value[slotNumber]
-
-    if (slotArtist && slotArtist.name === artist.name) {
-      ;(slotArtist as any).__leaving = true
-      // Delay removal to allow CSS transition
-      setTimeout(() => {
-        slotMap.value[slotNumber] = null
-        updateDisplayedArtistsFromSlots()
-        // Refill after removal
-        refillSlotsFromQueue()
-      }, 220)
-      break
-    }
-  }
-}
-
-const refillSlotsFromQueue = () => {
-  console.log(`🔄 [SLOT SYSTEM] Starting refill from queue`)
-
-  // Count how many empty slots we have
-  let emptyCount = 0
-  for (let i = 0; i < 20; i++) {
-    if (slotMap.value[i] === null || slotMap.value[i] === undefined) {
-      emptyCount++
-    }
-  }
-
-  console.log(`🔄 [SLOT SYSTEM] Found ${emptyCount} empty slots to fill`)
-
-  if (emptyCount === 0) {
-    console.log(`🔄 [SLOT SYSTEM] No empty slots to refill`)
-    return
-  }
-
-  const availableInQueue = artistQueue.value.length
-  console.log(`🔄 [SLOT SYSTEM] Queue has ${availableInQueue} artists available`)
-
-  if (availableInQueue === 0) {
-    console.log(`⚠️ [SLOT SYSTEM] Queue is empty - cannot refill`)
-    return
-  }
-
-  // Compact existing artists to the front, then add new artists at the end
-  const existingArtists: LastfmArtist[] = []
-  for (let i = 0; i < 20; i++) {
-    const artist = slotMap.value[i]
-    if (artist !== null && artist !== undefined) {
-      existingArtists.push(artist)
-    }
-  }
-
-  console.log(`🔄 [SLOT SYSTEM] Compacted ${existingArtists.length} existing artists`)
-
-  // Add new artists from queue to fill up to 20 slots
-  let filledCount = 0
-  const artistsNeeded = Math.min(emptyCount, artistQueue.value.length)
-  const newlyAddedArtists: LastfmArtist[] = []
-
-  for (let i = 0; i < artistsNeeded; i++) {
-    const nextArtist = artistQueue.value.shift()
-    if (nextArtist) {
-      existingArtists.push(nextArtist)
-      newlyAddedArtists.push(nextArtist)
-      filledCount++
-      console.log(`🔄 [SLOT SYSTEM] Adding artist from queue:`, {
-        name: nextArtist.name,
-        id: nextArtist.id,
-        mbid: nextArtist.mbid,
-        hasFollowers: nextArtist.followers !== undefined,
-        followers: nextArtist.followers,
-      })
-    }
-  }
-
-  // Rebuild slot map with compacted artists (existing first, new at end)
-  slotMap.value = {}
-  for (let i = 0; i < existingArtists.length; i++) {
-    slotMap.value[i] = existingArtists[i]
-  }
-
-  // Update displayed artists
-  updateDisplayedArtistsFromSlots()
-
-  console.log(`🔄 [SLOT SYSTEM] Refilled with ${filledCount} new artists at bottom, ${artistQueue.value.length} artists remaining in queue`)
-  console.log(`🔄 [SLOT SYSTEM] Newly added artists details:`, newlyAddedArtists.map(a => ({
-    name: a.name,
-    id: a.id,
-    mbid: a.mbid,
-    followers: a.followers,
-  })))
-
-  // Load followers/listeners data for newly added artists
-  // Skip sorting because artists from queue are already sorted by followers
-  if (filledCount > 0) {
-    console.log(`📊 [SLOT SYSTEM] Triggering loadPageListenersCounts() for ${filledCount} newly added artists (skipSort=true)`)
-    loadPageListenersCounts(true) // Skip sorting - queue is already sorted
-  }
-}
-
 // Sorting
 const sortBy = ref('listeners-desc')
 const dropdownOpen = ref(false)
@@ -632,13 +545,78 @@ const sortOptions = [
   { value: 'match', label: 'Best Matches' },
   { value: 'listeners-desc', label: 'Most Followers' },
   { value: 'listeners-asc', label: 'Least Followers' },
-  { value: 'ratio-desc', label: 'Best Ratio' },
 ]
+
+const sortedArtists = computed(() => {
+  const artists = [...similarArtists.value]
+
+  switch (sortBy.value) {
+    case 'listeners-desc':
+      return artists.sort((a, b) => {
+        const aFollowers = a.followers || 0
+        const bFollowers = b.followers || 0
+        if (aFollowers !== bFollowers) {
+          return bFollowers - aFollowers
+        }
+        const aListeners = Number.parseInt(a.listeners || '0', 10)
+        const bListeners = Number.parseInt(b.listeners || '0', 10)
+        return bListeners - aListeners
+      })
+    case 'listeners-asc':
+      return artists.sort((a, b) => {
+        const aFollowers = a.followers || 0
+        const bFollowers = b.followers || 0
+        if (aFollowers !== bFollowers) {
+          return aFollowers - bFollowers
+        }
+        const aListeners = Number.parseInt(a.listeners || '0', 10)
+        const bListeners = Number.parseInt(b.listeners || '0', 10)
+        return aListeners - bListeners
+      })
+    case 'ratio-desc':
+      return artists.sort((a, b) => {
+        const aRatio = (a.listeners && a.playcount)
+          ? Number.parseInt(a.playcount, 10) / Number.parseInt(a.listeners, 10)
+          : 0
+        const bRatio = (b.listeners && b.playcount)
+          ? Number.parseInt(b.playcount, 10) / Number.parseInt(b.listeners, 10)
+          : 0
+        return bRatio - aRatio
+      })
+    default:
+      return artists
+  }
+})
+
+const applyDisplayedArtists = () => {
+  visibleCount.value = Math.min(visibleCount.value, sortedArtists.value.length)
+  displayedArtists.value = sortedArtists.value.slice(0, visibleCount.value)
+}
+
+const hasMoreArtists = computed(() => visibleCount.value < sortedArtists.value.length)
+const remainingArtistsCount = computed(() => Math.max(sortedArtists.value.length - visibleCount.value, 0))
+
+const loadMore = () => {
+  visibleCount.value = Math.min(sortedArtists.value.length, visibleCount.value + LOAD_MORE_STEP)
+  applyDisplayedArtists()
+}
+
+watch([sortedArtists, visibleCount], applyDisplayedArtists, { immediate: true })
 
 // Clear dropdown when user types
 const onSearchInput = () => {
   // Clear search results when user edits the query
   searchResults.value = []
+
+  if (searchSuggestionTimer.value) {
+    clearTimeout(searchSuggestionTimer.value)
+  }
+
+  if (searchQuery.value.trim()) {
+    searchSuggestionTimer.value = setTimeout(() => {
+      searchArtists()
+    }, 2000)
+  }
 }
 
 // Manual search functionality
@@ -650,6 +628,10 @@ const performSearch = () => {
   // Clear any existing timeout
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
+  }
+  if (searchSuggestionTimer.value) {
+    clearTimeout(searchSuggestionTimer.value)
+    searchSuggestionTimer.value = null
   }
 
   searchArtists()
@@ -798,10 +780,8 @@ const selectArtist = (artist: LastfmArtist) => {
 
   // Clear previous results
   similarArtists.value = []
-  filteredArtists.value = []
   displayedArtists.value = []
-  slotMap.value = {} // Clear the slot map
-  artistQueue.value = [] // Clear the artist queue
+  visibleCount.value = INITIAL_VISIBLE_COUNT
   currentlyPreviewingArtist.value = null
   errorMessage.value = ''
 
@@ -820,10 +800,8 @@ const clearSeedArtist = () => {
   searchQuery.value = ''
   searchResults.value = []
   similarArtists.value = []
-  filteredArtists.value = []
   displayedArtists.value = []
-  slotMap.value = {} // Clear the slot map
-  artistQueue.value = [] // Clear the artist queue
+  visibleCount.value = INITIAL_VISIBLE_COUNT
   currentlyPreviewingArtist.value = null
   errorMessage.value = ''
 }
@@ -846,11 +824,6 @@ const banArtist = async (artist: LastfmArtist) => {
       // BAN artist locally and hide immediately
       bannedArtists.value.add(uniqueId)
       localStorage.setItem('koel-similar-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
-
-      // Hide from slots and refill from queue
-      hideArtist(artist)
-      // Try to fill any empty slots right away
-      refillSlotsFromQueue()
     }
   } catch (error: any) {
     console.error(`Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} artist:`, error)
@@ -1125,20 +1098,16 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
       // Enable animations BEFORE updating data to prevent flash on initial load
       allowAnimations.value = true
 
-      similarArtists.value = artistsWithId
-      filteredArtists.value = artistsWithId
-
-      // Load followers/listeners count for ALL artists before sorting and populating slots
+      // Load followers/listeners count for ALL artists before sorting and displaying
       console.log('📊 [FRONTEND] Loading followers for ALL artists before sorting', {
         totalArtists: artistsWithId.length,
       })
       await loadAllArtistsFollowers(artistsWithId)
 
-      // Sort all artists by followers (descending) - most followers first
-      const sortedArtists = [...artistsWithId].sort((a, b) => {
+      // Sort by followers (desc) with listeners as tiebreaker for default view
+      const defaultSorted = [...artistsWithId].sort((a, b) => {
         const aFollowers = a.followers || 0
         const bFollowers = b.followers || 0
-        // If followers are equal, use listeners as tiebreaker
         if (aFollowers === bFollowers) {
           const aListeners = Number.parseInt(a.listeners || '0', 10)
           const bListeners = Number.parseInt(b.listeners || '0', 10)
@@ -1147,29 +1116,10 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
         return bFollowers - aFollowers
       })
 
-      console.log('📊 [FRONTEND] Sorted all artists by followers', {
-        top5: sortedArtists.slice(0, 5).map(a => ({ name: a.name, followers: a.followers })),
-        bottom5: sortedArtists.slice(-5).map(a => ({ name: a.name, followers: a.followers })),
-      })
-
-      // Initialize slot map with top 20 artists (most followers first)
-      const initialArtists = sortedArtists.slice(0, 20)
-      slotMap.value = {}
-      initialArtists.forEach((artist, index) => {
-        slotMap.value[index] = artist
-      })
-
-      // Store remaining artists in queue (already sorted by followers, descending)
-      artistQueue.value = sortedArtists.slice(20)
-
-      console.log(`✅ [SLOT SYSTEM] Initialized ${initialArtists.length} slots (sorted by followers), ${artistQueue.value.length} artists in queue`)
-
-      // Update displayed artists from slots
-      updateDisplayedArtistsFromSlots()
-
-      // Don't apply sorting here - artists are already sorted by followers
-      // Just update the display
-      displayedArtists.value = initialArtists
+      // Store full list and reset visible count
+      similarArtists.value = defaultSorted
+      visibleCount.value = Math.min(INITIAL_VISIBLE_COUNT, similarArtists.value.length)
+      applyDisplayedArtists()
 
       // Set initial load complete
       initialLoadComplete.value = true
@@ -1190,15 +1140,12 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
     console.error('Error finding similar artists:', error)
     errorMessage.value = error.response?.data?.message || error.message || 'Failed to find similar artists'
     similarArtists.value = []
-    filteredArtists.value = []
     displayedArtists.value = []
+    visibleCount.value = INITIAL_VISIBLE_COUNT
   } finally {
     isLoading.value = false
   }
 }
-
-// Track if we need to reload after current request completes
-const pendingListenersReload = ref(false)
 
 // Load followers/listeners counts for ALL artists (used during initial load)
 const loadAllArtistsFollowers = async (artists: LastfmArtist[]) => {
@@ -1261,150 +1208,6 @@ const loadAllArtistsFollowers = async (artists: LastfmArtist[]) => {
     }
   } catch (error: any) {
     console.error('📊 [FRONTEND] Failed to load followers for all artists:', error)
-  }
-}
-
-// Load followers/listeners counts for displayed artists only (used during refill)
-const loadPageListenersCounts = async (skipSort = false) => {
-  if (loadingPageListeners.value) {
-    console.log('📊 [FRONTEND] loadPageListenersCounts() already in progress, will reload after completion')
-    pendingListenersReload.value = true
-    return
-  }
-
-  loadingPageListeners.value = true
-  pendingListenersReload.value = false
-
-  try {
-    // Get artist IDs for displayed artists (from slots)
-    const artistIds = displayedArtists.value
-      .filter(artist => artist.id && artist.id.trim())
-      .map(artist => artist.id)
-
-    const mbids = displayedArtists.value
-      .filter(artist => artist.mbid && artist.mbid.trim())
-      .map(artist => artist.mbid)
-
-    console.log('📊 [FRONTEND] Loading followers/listeners for displayed artists', {
-      totalDisplayedArtists: displayedArtists.value.length,
-      artistIdsCount: artistIds.length,
-      mbidsCount: mbids.length,
-      artistIds: artistIds.slice(0, 5), // Log first 5 for debugging
-      mbids: mbids.slice(0, 5),
-      allArtists: displayedArtists.value.map(a => ({
-        name: a.name,
-        id: a.id,
-        mbid: a.mbid,
-        currentFollowers: a.followers,
-      })),
-    })
-
-    if (artistIds.length > 0 || mbids.length > 0) {
-      const response = await http.post('similar-artists/batch-listeners', {
-        artist_ids: artistIds,
-        mbids,
-      })
-
-      console.log('📊 [FRONTEND] Batch followers response received', {
-        success: response.success,
-        dataKeys: Object.keys(response.data || {}),
-        dataCount: Object.keys(response.data || {}).length,
-      })
-
-      if (response.success && response.data) {
-        console.log('📊 [FRONTEND] Batch followers response data keys:', Object.keys(response.data))
-        console.log('📊 [FRONTEND] Batch followers response data sample:', Object.entries(response.data).slice(0, 3).map(([key, value]) => ({ key, value })))
-
-        // Update artists in slot map with followers/listeners data
-        let updatedCount = 0
-        let notFoundCount = 0
-        for (let i = 0; i < 20; i++) {
-          const artist = slotMap.value[i]
-          if (artist) {
-            const artistId = artist.id || artist.mbid
-            if (artistId && response.data[artistId]) {
-              const data = response.data[artistId]
-              const beforeFollowers = artist.followers
-
-              // Update with Spotify followers data
-              if (data.followers !== undefined) {
-                artist.followers = data.followers
-              }
-              if (data.popularity !== undefined) {
-                artist.popularity = data.popularity
-              }
-
-              // Update with Last.fm listeners data
-              if (data.listeners !== undefined) {
-                artist.listeners = data.listeners.toString()
-              }
-              if (data.playcount !== undefined) {
-                artist.playcount = data.playcount?.toString()
-              }
-
-              updatedCount++
-              console.log(`📊 [FRONTEND] Updated artist ${i}:`, {
-                name: artist.name,
-                id: artistId,
-                beforeFollowers,
-                afterFollowers: artist.followers,
-                data,
-              })
-            } else {
-              notFoundCount++
-              if (artistId) {
-                console.log(`⚠️ [FRONTEND] Artist ${i} not found in response:`, {
-                  name: artist.name,
-                  id: artistId,
-                  availableKeys: Object.keys(response.data),
-                })
-              } else {
-                console.log(`⚠️ [FRONTEND] Artist ${i} has no ID/mbid:`, {
-                  name: artist.name,
-                  id: artist.id,
-                  mbid: artist.mbid,
-                })
-              }
-            }
-          }
-        }
-
-        console.log(`📊 [FRONTEND] Updated ${updatedCount} artists, ${notFoundCount} not found in response`)
-
-        // Update displayed artists from slots
-        updateDisplayedArtistsFromSlots()
-
-        // Re-apply sorting if needed (unless skipSort is true, e.g., during refill)
-        if (!skipSort) {
-          sortArtists()
-        }
-
-        console.log('📊 [FRONTEND] Followers/listeners data updated', {
-          updatedArtists: displayedArtists.value.filter(a => a.followers || a.listeners).length,
-          sampleData: displayedArtists.value.slice(0, 2).map(a => ({
-            name: a.name,
-            followers: a.followers,
-            listeners: a.listeners,
-            popularity: a.popularity,
-          })),
-        })
-      }
-    } else {
-      console.log('📊 [FRONTEND] No artist IDs or MBIDs to fetch data for')
-    }
-  } catch (error: any) {
-    console.error('📊 [FRONTEND] Failed to load followers/listeners:', error)
-  } finally {
-    loadingPageListeners.value = false
-    
-    // If a reload was requested while we were loading, trigger it now
-    if (pendingListenersReload.value) {
-      console.log('📊 [FRONTEND] Pending reload requested, triggering another loadPageListenersCounts()')
-      pendingListenersReload.value = false
-      // Use nextTick to ensure the state has updated
-      await nextTick()
-      loadPageListenersCounts()
-    }
   }
 }
 
@@ -1654,86 +1457,14 @@ const isTrackBanned = (track: SpotifyTrack): boolean => {
   return blacklistedTracks.value.has(getTrackKey(track))
 }
 
-const updateDisplayedArtistsFromSlots = () => {
-  // Update displayed artists from slot map (filters out null slots)
-  displayedArtists.value = Object.values(slotMap.value).filter(artist => artist !== null) as LastfmArtist[]
-  console.log(`[SLOT SYSTEM] Updated displayed artists from slots: ${displayedArtists.value.length} artists visible, ${emptySlotCount.value} empty slots`)
-}
-
-const updateDisplayedArtists = () => {
-  // Get artists from slots first
-  const artistsFromSlots = Object.values(slotMap.value).filter(artist => artist !== null) as LastfmArtist[]
-
-  // Apply sorting if needed
-  if (sortBy.value === 'match') {
-    // Default sort - use artists in their original order from slots
-    displayedArtists.value = [...artistsFromSlots]
-    console.log(`[DISPLAY] Showing ${displayedArtists.value.length} artists (match order)`)
-  } else {
-    // Sort the displayed artists
-    const sortedArtists = [...artistsFromSlots].sort((a, b) => {
-      switch (sortBy.value) {
-        case 'listeners-desc':
-          // Prioritize Spotify followers, then Last.fm listeners
-          const aFollowers = a.followers || 0
-          const bFollowers = b.followers || 0
-          if (aFollowers !== bFollowers) {
-            return bFollowers - aFollowers
-          }
-          const aListeners = Number.parseInt(a.listeners || '0', 10)
-          const bListeners = Number.parseInt(b.listeners || '0', 10)
-          return bListeners - aListeners
-        case 'listeners-asc':
-          // Prioritize Spotify followers, then Last.fm listeners
-          const aFollowersAsc = a.followers || 0
-          const bFollowersAsc = b.followers || 0
-          if (aFollowersAsc !== bFollowersAsc) {
-            return aFollowersAsc - bFollowersAsc
-          }
-          const aListenersAsc = Number.parseInt(a.listeners || '0', 10)
-          const bListenersAsc = Number.parseInt(b.listeners || '0', 10)
-          return aListenersAsc - bListenersAsc
-        case 'ratio-desc':
-          const aRatio = (a.listeners && a.playcount)
-            ? Number.parseInt(a.playcount, 10) / Number.parseInt(a.listeners, 10)
-            : 0
-          const bRatio = (b.listeners && b.playcount)
-            ? Number.parseInt(b.playcount, 10) / Number.parseInt(b.listeners, 10)
-            : 0
-          return bRatio - aRatio
-        default:
-          return 0
-      }
-    })
-
-    // Update slot map with sorted order (maintain slot positions but reorder)
-    slotMap.value = {}
-    sortedArtists.forEach((artist, index) => {
-      slotMap.value[index] = artist
-    })
-
-    displayedArtists.value = sortedArtists
-    console.log(`[DISPLAY] Showing ${displayedArtists.value.length} artists (sorted by ${sortBy.value})`)
-  }
-
-  // Set initial load complete when artists are first displayed
-  if (displayedArtists.value.length > 0 && !initialLoadComplete.value) {
-    setTimeout(() => {
-      initialLoadComplete.value = true
-    }, 100)
-  }
-}
-
 // Sorting and filtering
 const sortArtists = () => {
   console.log(`[SORTING] Sort changed to: ${sortBy.value}`)
-  updateDisplayedArtists()
+  applyDisplayedArtists()
 }
 
 const onSortChange = async () => {
   sortArtists()
-  // Load listeners data for displayed artists
-  await loadPageListenersCounts()
 }
 
 // Helper functions for dropdown
@@ -1771,7 +1502,6 @@ const getSortIcon = () => {
   switch (sortBy.value) {
     case 'listeners-desc': return faArrowUp
     case 'listeners-asc': return faArrowUp // Will be rotated in CSS if needed
-    case 'ratio-desc': return faArrowUp
     default: return faFilter // match (best matches)
   }
 }
@@ -1780,7 +1510,6 @@ const getSortText = () => {
   switch (sortBy.value) {
     case 'listeners-desc': return 'Most Followers'
     case 'listeners-asc': return 'Least Followers'
-    case 'ratio-desc': return 'Best Ratio'
     default: return 'Best Matches'
   }
 }
@@ -1789,7 +1518,6 @@ const getSortIconForOption = (optionValue: string) => {
   switch (optionValue) {
     case 'listeners-desc': return faArrowUp
     case 'listeners-asc': return faArrowUp
-    case 'ratio-desc': return faArrowUp
     default: return faFilter
   }
 }
@@ -1931,8 +1659,8 @@ onRouteChanged(async route => {
 
               // Clear previous results
               similarArtists.value = []
-              filteredArtists.value = []
               displayedArtists.value = []
+              visibleCount.value = INITIAL_VISIBLE_COUNT
               currentlyPreviewingArtist.value = null
               errorMessage.value = ''
 
@@ -1952,8 +1680,8 @@ onRouteChanged(async route => {
 
               // Clear previous results
               similarArtists.value = []
-              filteredArtists.value = []
               displayedArtists.value = []
+              visibleCount.value = INITIAL_VISIBLE_COUNT
               currentlyPreviewingArtist.value = null
               errorMessage.value = ''
 
@@ -1997,6 +1725,10 @@ onRouteChanged(async route => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (searchSuggestionTimer.value) {
+    clearTimeout(searchSuggestionTimer.value)
+    searchSuggestionTimer.value = null
+  }
 })
 </script>
 
@@ -2203,12 +1935,4 @@ iframe {
 }
 
 /* Quick slide-out animation for removed rows */
-.row-slide-out {
-  transition:
-    transform 0.22s ease,
-    opacity 0.22s ease;
-  transform: translateX(100%);
-  opacity: 0;
-  will-change: transform, opacity;
-}
 </style>
