@@ -88,299 +88,299 @@
         <div class="bg-white/5 rounded-lg overflow-visible">
           <div class="overflow-x-auto scrollbar-hide">
             <table class="w-full">
-            <thead>
-              <tr class="border-b border-white/10">
-                <th class="text-left py-7 px-2 font-medium" />
-                <th class="text-center px-2 font-medium w-12" />
-                <th class="text-center px-2 font-medium w-12" />
-                <th class="text-left px-2 py-7 font-medium w-auto min-w-48">Artist(s)</th>
-                <th class="text-left px-2 font-medium">Title</th>
-                <th class="text-center px-2 font-medium">Record Label</th>
-                <th class="text-center px-2 font-medium">Popularity</th>
-                <th class="text-center px-2 font-medium">Followers</th>
-                <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
-                <th class="text-center px-2 font-medium whitespace-nowrap" />
-                <th class="text-center px-1 font-medium whitespace-nowrap w-20" />
-                <th class="text-center px-1 font-medium w-20" />
-              </tr>
-            </thead>
-            <tbody>
-              <template v-for="(track, index) in paginatedTracks" :key="track.id">
-                <tr
-                  class="transition h-16 border-b border-white/5" :class="[
-                    expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
-                  ]"
-                >
-                  <!-- Index -->
-                  <td class="p-3 align-middle">
-                    <span class="text-white/60">{{ (currentPage - 1) * tracksPerPage + index + 1 }}</span>
-                  </td>
-
-                  <!-- Clipboard -->
-                  <td class="p-3 align-middle text-center">
-                    <button
-                      class="transition disabled:opacity-50 text-gray-300 hover:text-gray-100"
-                      title="Copy artist and title"
-                      @click="copyTrackInfo(track)"
-                    >
-                      <Icon
-                        :icon="copiedTrackId === track.id ? faCheck : faCopy"
-                        class="w-4 h-4"
-                      />
-                    </button>
-                  </td>
-
-                  <!-- Watchlist -->
-                  <td class="p-3 align-middle text-center">
-                    <button
-                      :disabled="followInProgress === getTrackKey(track)"
-                      class="watchlist-btn"
-                      title="Add the artist to the watchlist"
-                      aria-label="Add the artist to the watchlist"
-                      @click="followArtist(track)"
-                    >
-                      <svg
-                        v-if="followInProgress === getTrackKey(track)"
-                        class="animate-spin h-3 w-3 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      <img
-                        v-else
-                        src="/public/icons/FollowArtist.svg"
-                        alt="Add artist"
-                        class="watchlist-icon"
-                      >
-                    </button>
-                  </td>
-
-                  <!-- Artist -->
-                  <td class="p-3 align-middle">
-                    <span class="font-medium text-gray-300 leading-none">
-                      {{ track.artist_name }}
-                    </span>
-                  </td>
-
-                  <!-- Track Title -->
-                  <td class="p-3 align-middle">
-                    <span class="text-gray-300 leading-tight">
-                      {{ track.track_name }}
-                      <span v-if="track.track_count && track.track_count > 1" class="text-white/50 text-xs ml-1">({{ track.track_count }} tracks)</span>
-                    </span>
-                  </td>
-
-                  <!-- Label -->
-                  <td class="p-3 align-middle text-center">
-                    <template v-if="track.label && track.label !== 'Unknown Label'">
-                      <template v-for="(label, labelIndex) in track.label.split('/')" :key="labelIndex">
-                        <button
-                          class="text-gray-300 text-sm hover:text-gray-100 transition-colors cursor-pointer"
-                          :title="`Search for ${label.trim()} label`"
-                          @click="searchByLabel(label.trim())"
-                        >
-                          {{ label.trim() }}
-                        </button>
-                        <span v-if="labelIndex < track.label.split('/').length - 1" class="text-white/60 text-sm mx-1">/</span>
-                      </template>
-                    </template>
-                    <span v-else class="text-white/80 text-sm">{{ track.label || '-' }}</span>
-                  </td>
-
-                  <!-- Popularity -->
-                  <td class="p-3 align-middle text-center">
-                    <span class="text-white/80 font-medium">{{ track.popularity ? `${track.popularity}%` : '-' }}</span>
-                  </td>
-
-                  <!-- Followers -->
-                  <td class="p-3 align-middle text-center">
-                    <span class="text-white/80 font-medium">{{ track.followers ? formatNumber(track.followers) : '-' }}</span>
-                  </td>
-
-                  <!-- Release Date -->
-                  <td class="p-3 align-middle text-center">
-                    <span class="text-white/80 text-sm">{{ formatDate(track.release_date) }}</span>
-                  </td>
-
-                  <!-- Countdown -->
-                  <td class="p-3 align-middle text-center">
-                    <div class="flex flex-col items-center mt-4">
-                      <span class="text-white/80 font-medium text-sm">
-                        {{ getTimeRemaining(track.expires_at) }}
-                      </span>
-                      <span class="text-white/40 text-xs">remaining</span>
-                    </div>
-                  </td>
-
-                  <!-- Actions Dropdown -->
-                  <td class="px-1 py-3 align-middle">
-                    <div class="flex items-center justify-center relative">
-                      <button
-                        :disabled="isProcessing"
-                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                        title="Actions"
-                        @click="toggleActionsDropdown(track.id)"
-                        @blur="hideActionsDropdown(track.id)"
-                      >
-                        <span>Actions</span>
-                        <Icon :icon="faChevronDown" class="text-xs ml-1" />
-                      </button>
-
-                      <!-- Dropdown Menu -->
-                      <div
-                        v-if="openActionsDropdown === track.id"
-                        class="absolute right-0 w-48 rounded-lg shadow-lg z-[9999]" :class="[
-                          index >= paginatedTracks.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1',
-                        ]"
-                        style="background-color: rgb(67,67,67,255);"
-                      >
-                        <button
-                          v-if="!track.track_count || track.track_count === 1 || track.is_single_track !== false"
-                          class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-                          :class="track.track_count && track.track_count > 1 ? 'rounded-b-lg' : 'rounded-t-lg'"
-                          @mousedown.prevent="viewRelatedTracks(track)"
-                        >
-                          <Icon :icon="faSearch" class="w-4 h-4" />
-                          Related Tracks
-                        </button>
-                        <button
-                          class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-                          :class="!track.track_count || track.track_count === 1 || track.is_single_track !== false ? 'rounded-b-lg' : 'rounded-t-lg rounded-b-lg'"
-                          @mousedown.prevent="viewSimilarArtists(track)"
-                        >
-                          <Icon :icon="faSearch" class="w-4 h-4" />
-                          Similar Artists
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-
-                  <!-- Actions -->
-                  <td class="px-1 py-3 align-middle">
-                    <div class="flex items-center justify-center gap-2">
-                      <!-- Preview -->
-                      <button
-                        :disabled="processingTrack === getTrackKey(track)"
-                        class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[15px] justify-center"
-                        title="Preview Track"
-                        @click="toggleSpotifyPlayer(track)"
-                      >
-                        <!-- Loading spinner when processing -->
-                        <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        <!-- Regular icon when not processing -->
-                        <img v-if="expandedTrackId !== getTrackKey(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                        <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                        <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
-                      </button>
-
-                      <!-- Remove Track -->
-                      <button
-                        :disabled="isProcessing"
-                        class="p-2 rounded-full transition-colors text-gray-300 hover:text-gray-100 hover:bg-white/10 disabled:opacity-50"
-                        title="Remove from saved tracks"
-                        @click="unsaveTrack(track)"
-                      >
-                        <Icon :icon="faTrash" class="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+              <thead>
+                <tr class="border-b border-white/10">
+                  <th class="text-left py-7 px-2 font-medium" />
+                  <th class="text-center px-2 font-medium w-12" />
+                  <th class="text-center px-2 font-medium w-12" />
+                  <th class="text-left px-2 py-7 font-medium w-auto min-w-48">Artist(s)</th>
+                  <th class="text-left px-2 font-medium">Title</th>
+                  <th class="text-center px-2 font-medium">Record Label</th>
+                  <th class="text-center px-2 font-medium">Popularity</th>
+                  <th class="text-center px-2 font-medium">Followers</th>
+                  <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
+                  <th class="text-center px-2 font-medium whitespace-nowrap" />
+                  <th class="text-center px-1 font-medium whitespace-nowrap w-20" />
+                  <th class="text-center px-1 font-medium w-20" />
                 </tr>
+              </thead>
+              <tbody>
+                <template v-for="(track, index) in paginatedTracks" :key="track.id">
+                  <tr
+                    class="transition h-16 border-b border-white/5" :class="[
+                      expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
+                    ]"
+                  >
+                    <!-- Index -->
+                    <td class="p-3 align-middle">
+                      <span class="text-white/60">{{ (currentPage - 1) * tracksPerPage + index + 1 }}</span>
+                    </td>
 
-                <!-- Spotify Player Dropdown Row with Animation -->
-                <Transition name="spotify-dropdown" mode="out-in">
-                  <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="11" class="p-0 overflow-hidden">
-                      <div class="p-4 bg-white/5 relative">
-                        <div class="max-w-4xl mx-auto">
-                          <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
-                            <iframe
-                              :key="track.track_count && track.track_count > 1 ? track.album_id : track.spotify_id"
-                              :src="track.track_count && track.track_count > 1
-                                ? `https://open.spotify.com/embed/album/${track.album_id}?utm_source=generator&theme=0`
-                                : `https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`"
-                              :title="track.track_count && track.track_count > 1
-                                ? `${track.artist_name} - ${track.track_name} (${track.track_count} tracks)`
-                                : `${track.artist_name} - ${track.track_name}`"
-                              class="w-full spotify-embed"
-                              :style="track.track_count && track.track_count > 1
-                                ? 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
-                                : 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
-                              frameBorder="0"
-                              scrolling="no"
-                              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                              loading="lazy"
-                              @load="(event) => { event.target.style.opacity = '1' }"
-                              @error="() => {}"
-                            />
-                          </div>
-                          <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
-                            <div class="text-center text-white/60">
-                              <div class="text-sm font-medium">No Spotify preview available</div>
-                            </div>
-                          </div>
+                    <!-- Clipboard -->
+                    <td class="p-3 align-middle text-center">
+                      <button
+                        class="transition disabled:opacity-50 text-gray-300 hover:text-gray-100"
+                        title="Copy artist and title"
+                        @click="copyTrackInfo(track)"
+                      >
+                        <Icon
+                          :icon="copiedTrackId === track.id ? faCheck : faCopy"
+                          class="w-4 h-4"
+                        />
+                      </button>
+                    </td>
 
-                          <!-- Spotify Login Link -->
-                          <div class="absolute bottom-2 right-4">
-                            <span class="text-xs text-white/50 font-light">
-                              <a
-                                href="https://accounts.spotify.com/login"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-white/50 hover:text-white/70 transition-colors underline"
-                              >
-                                Connect</a> to Spotify to listen to the full track
-                            </span>
-                          </div>
+                    <!-- Watchlist -->
+                    <td class="p-3 align-middle text-center">
+                      <button
+                        :disabled="followInProgress === getTrackKey(track)"
+                        class="watchlist-btn"
+                        title="Add the artist to the watchlist"
+                        aria-label="Add the artist to the watchlist"
+                        @click="followArtist(track)"
+                      >
+                        <svg
+                          v-if="followInProgress === getTrackKey(track)"
+                          class="animate-spin h-3 w-3 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <img
+                          v-else
+                          src="/public/icons/FollowArtist.svg"
+                          alt="Add artist"
+                          class="watchlist-icon"
+                        >
+                      </button>
+                    </td>
+
+                    <!-- Artist -->
+                    <td class="p-3 align-middle">
+                      <span class="font-medium text-gray-300 leading-none">
+                        {{ track.artist_name }}
+                      </span>
+                    </td>
+
+                    <!-- Track Title -->
+                    <td class="p-3 align-middle">
+                      <span class="text-gray-300 leading-tight">
+                        {{ track.track_name }}
+                        <span v-if="track.track_count && track.track_count > 1" class="text-white/50 text-xs ml-1">({{ track.track_count }} tracks)</span>
+                      </span>
+                    </td>
+
+                    <!-- Label -->
+                    <td class="p-3 align-middle text-center">
+                      <template v-if="track.label && track.label !== 'Unknown Label'">
+                        <template v-for="(label, labelIndex) in track.label.split('/')" :key="labelIndex">
+                          <button
+                            class="text-gray-300 text-sm hover:text-gray-100 transition-colors cursor-pointer"
+                            :title="`Search for ${label.trim()} label`"
+                            @click="searchByLabel(label.trim())"
+                          >
+                            {{ label.trim() }}
+                          </button>
+                          <span v-if="labelIndex < track.label.split('/').length - 1" class="text-white/60 text-sm mx-1">/</span>
+                        </template>
+                      </template>
+                      <span v-else class="text-white/80 text-sm">{{ track.label || '-' }}</span>
+                    </td>
+
+                    <!-- Popularity -->
+                    <td class="p-3 align-middle text-center">
+                      <span class="text-white/80 font-medium">{{ track.popularity ? `${track.popularity}%` : '-' }}</span>
+                    </td>
+
+                    <!-- Followers -->
+                    <td class="p-3 align-middle text-center">
+                      <span class="text-white/80 font-medium">{{ track.followers ? formatNumber(track.followers) : '-' }}</span>
+                    </td>
+
+                    <!-- Release Date -->
+                    <td class="p-3 align-middle text-center">
+                      <span class="text-white/80 text-sm">{{ formatDate(track.release_date) }}</span>
+                    </td>
+
+                    <!-- Countdown -->
+                    <td class="p-3 align-middle text-center">
+                      <div class="flex flex-col items-center mt-4">
+                        <span class="text-white/80 font-medium text-sm">
+                          {{ getTimeRemaining(track.expires_at) }}
+                        </span>
+                        <span class="text-white/40 text-xs">remaining</span>
+                      </div>
+                    </td>
+
+                    <!-- Actions Dropdown -->
+                    <td class="px-1 py-3 align-middle">
+                      <div class="flex items-center justify-center relative">
+                        <button
+                          :disabled="isProcessing"
+                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                          title="Actions"
+                          @click="toggleActionsDropdown(track.id)"
+                          @blur="hideActionsDropdown(track.id)"
+                        >
+                          <span>Actions</span>
+                          <Icon :icon="faChevronDown" class="text-xs ml-1" />
+                        </button>
+
+                        <!-- Dropdown Menu -->
+                        <div
+                          v-if="openActionsDropdown === track.id"
+                          class="absolute right-0 w-48 rounded-lg shadow-lg z-[9999]" :class="[
+                            index >= paginatedTracks.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1',
+                          ]"
+                          style="background-color: rgb(67,67,67,255);"
+                        >
+                          <button
+                            v-if="!track.track_count || track.track_count === 1 || track.is_single_track !== false"
+                            class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+                            :class="track.track_count && track.track_count > 1 ? 'rounded-b-lg' : 'rounded-t-lg'"
+                            @mousedown.prevent="viewRelatedTracks(track)"
+                          >
+                            <Icon :icon="faSearch" class="w-4 h-4" />
+                            Related Tracks
+                          </button>
+                          <button
+                            class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+                            :class="!track.track_count || track.track_count === 1 || track.is_single_track !== false ? 'rounded-b-lg' : 'rounded-t-lg rounded-b-lg'"
+                            @mousedown.prevent="viewSimilarArtists(track)"
+                          >
+                            <Icon :icon="faSearch" class="w-4 h-4" />
+                            Similar Artists
+                          </button>
                         </div>
                       </div>
                     </td>
+
+                    <!-- Actions -->
+                    <td class="px-1 py-3 align-middle">
+                      <div class="flex items-center justify-center gap-2">
+                        <!-- Preview -->
+                        <button
+                          :disabled="processingTrack === getTrackKey(track)"
+                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[15px] justify-center"
+                          title="Preview Track"
+                          @click="toggleSpotifyPlayer(track)"
+                        >
+                          <!-- Loading spinner when processing -->
+                          <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <!-- Regular icon when not processing -->
+                          <img v-if="expandedTrackId !== getTrackKey(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                          <Icon v-else :icon="faTimes" class="w-3 h-3" />
+                          <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
+                        </button>
+
+                        <!-- Remove Track -->
+                        <button
+                          :disabled="isProcessing"
+                          class="p-2 rounded-full transition-colors text-gray-300 hover:text-gray-100 hover:bg-white/10 disabled:opacity-50"
+                          title="Remove from saved tracks"
+                          @click="unsaveTrack(track)"
+                        >
+                          <Icon :icon="faTrash" class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </Transition>
-              </template>
-            </tbody>
-          </table>
+
+                  <!-- Spotify Player Dropdown Row with Animation -->
+                  <Transition name="spotify-dropdown" mode="out-in">
+                    <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
+                      <td colspan="11" class="p-0 overflow-hidden">
+                        <div class="p-4 bg-white/5 relative">
+                          <div class="max-w-4xl mx-auto">
+                            <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
+                              <iframe
+                                :key="track.track_count && track.track_count > 1 ? track.album_id : track.spotify_id"
+                                :src="track.track_count && track.track_count > 1
+                                  ? `https://open.spotify.com/embed/album/${track.album_id}?utm_source=generator&theme=0`
+                                  : `https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`"
+                                :title="track.track_count && track.track_count > 1
+                                  ? `${track.artist_name} - ${track.track_name} (${track.track_count} tracks)`
+                                  : `${track.artist_name} - ${track.track_name}`"
+                                class="w-full spotify-embed"
+                                :style="track.track_count && track.track_count > 1
+                                  ? 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
+                                  : 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
+                                frameBorder="0"
+                                scrolling="no"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                                @load="(event) => { event.target.style.opacity = '1' }"
+                                @error="() => {}"
+                              />
+                            </div>
+                            <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
+                              <div class="text-center text-white/60">
+                                <div class="text-sm font-medium">No Spotify preview available</div>
+                              </div>
+                            </div>
+
+                            <!-- Spotify Login Link -->
+                            <div class="absolute bottom-2 right-4">
+                              <span class="text-xs text-white/50 font-light">
+                                <a
+                                  href="https://accounts.spotify.com/login"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="text-white/50 hover:text-white/70 transition-colors underline"
+                                >
+                                  Connect</a> to Spotify to listen to the full track
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </Transition>
+                </template>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      <!-- Pagination Controls -->
-      <div v-if="totalPages > 1 && !isLoading" class="flex items-center justify-center gap-2 mt-8">
-        <button
-          :disabled="currentPage === 1"
-          class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          @click="goToPage(Math.max(1, currentPage - 1))"
-        >
-          Previous
-        </button>
-
-        <div class="flex items-center gap-1">
+        <!-- Pagination Controls -->
+        <div v-if="totalPages > 1 && !isLoading" class="flex items-center justify-center gap-2 mt-8">
           <button
-            v-for="page in visiblePages"
-            :key="page"
-            :class="page === currentPage ? 'bg-k-accent text-white' : 'bg-k-bg-primary text-gray-300 hover:bg-white/10'"
-            class="w-10 h-10 flex items-center justify-center rounded transition-colors"
-            @click="goToPage(page)"
+            :disabled="currentPage === 1"
+            class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="goToPage(Math.max(1, currentPage - 1))"
           >
-            {{ page }}
+            Previous
+          </button>
+
+          <div class="flex items-center gap-1">
+            <button
+              v-for="page in visiblePages"
+              :key="page"
+              :class="page === currentPage ? 'bg-k-accent text-white' : 'bg-k-bg-primary text-gray-300 hover:bg-white/10'"
+              class="w-10 h-10 flex items-center justify-center rounded transition-colors"
+              @click="goToPage(page)"
+            >
+              {{ page }}
+            </button>
+          </div>
+
+          <button
+            :disabled="currentPage === totalPages"
+            class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="goToPage(Math.min(totalPages, currentPage + 1))"
+          >
+            Next
           </button>
         </div>
-
-        <button
-          :disabled="currentPage === totalPages"
-          class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          @click="goToPage(Math.min(totalPages, currentPage + 1))"
-        >
-          Next
-        </button>
       </div>
     </div>
-  </div>
-</ScreenBase>
+  </ScreenBase>
 </template>
 
 <script setup lang="ts">

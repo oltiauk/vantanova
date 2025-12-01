@@ -14,7 +14,7 @@
                   <input
                     v-model="searchQuery"
                     type="text"
-                    class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
+                    class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input text-center placeholder:text-center"
                     placeholder="Add an artist in the watchlist"
                     @keydown.enter="handleSearchButtonClick"
                     @input="onSearchInput"
@@ -116,169 +116,171 @@
           </p>
         </div>
 
-        <div class="bg-white/5 rounded-xl flex-1">
-          <div class="flex items-center justify-between px-6 pt-6 pb-4">
-            <div>
-              <h3 class="text-lg font-semibold text-white">Recent Releases</h3>
-              <p class="text-sm text-white/60">
-                {{ lastUpdated ? `Last refreshed ${formatRelativeTime(lastUpdated)}` : 'Never refreshed' }}
-              </p>
-            </div>
-            <button
-              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="isFetchingReleases || watchlist.length === 0"
-              title="Refresh releases"
-              @click="fetchReleases()"
-            >
-              <Icon :icon="faSync" class="w-4 h-4" :class="{ 'animate-spin': isFetchingReleases }" />
-              <span>Refresh</span>
-            </button>
+        <div class="flex-1">
+          <!-- Info Message -->
+          <div class="text-center mb-4">
+            <p class="text-k-text-secondary text-sm">
+              Follow artists in the Saved Tracks section.
+            </p>
           </div>
 
-          <div class="overflow-x-auto scrollbar-hide">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="border-b border-white/10 text-white/70 text-xs uppercase tracking-wider">
-                  <th class="text-left px-4 py-4 font-medium w-12">#</th>
-                  <th class="text-left px-4 py-4 font-medium">Artist</th>
-                  <th class="text-left px-4 py-4 font-medium">Title</th>
-                  <th class="text-left pl-4 py-4 font-medium">Release Date</th>
-                  <th class="text-center pr-3 py-4 font-medium whitespace-nowrap" />
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="isFetchingReleases" class="text-center">
-                  <td colspan="5" class="py-8 text-white/70">Fetching latest releases…</td>
-                </tr>
-                <tr v-else-if="releases.length === 0" class="text-center">
-                  <td colspan="5" class="py-8 text-white/70">No recent releases found. Try refreshing or adding more artists.</td>
-                </tr>
-                <template v-else>
-                  <template v-for="(release, index) in paginatedReleases" :key="getReleaseKey(release, index)">
-                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                      <td class="px-4 py-4 text-white/70">{{ (currentPage - 1) * releasesPerPage + index + 1 }}</td>
-                      <td class="px-4 py-4">
-                        <p class="text-white font-medium">{{ release.artist_name }}</p>
-                      </td>
-                      <td class="px-4 py-4">
-                        <button
-                          class="text-white font-medium text-left hover:text-white/80 transition"
-                          :title="release.track_count && release.track_count > 1 ? `Open ${release.release_title} album on Spotify` : `Open ${release.track_title} on Spotify`"
-                          @click="openSpotifyReleasePage(release)"
-                        >
-                          {{ release.release_title || release.track_title }}
-                          <span v-if="release.track_count && release.track_count > 1" class="text-white/50 text-xs ml-1">({{ release.track_count }} tracks)</span>
-                        </button>
-                        <p v-if="release.track_title !== release.release_title" class="text-xs text-white/60">{{ release.track_title }}</p>
-                      </td>
-                      <td class="px-4 py-4 text-white/80">
-                        {{ formatDate(release.release_date) }}
-                      </td>
-                      <td class="pr-3 py-4 align-middle">
-                        <div class="flex gap-2 justify-end">
-                          <button
-                            :disabled="release.isSaved"
-                            :class="release.isSaved
-                              ? 'bg-green-500 hover:bg-green-600 text-white cursor-default'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
-                            :title="release.isSaved ? 'Saved' : 'Save track'"
-                            @click="saveTrack(release, index)"
-                          >
-                            <Icon :icon="faHeart" class="text-sm" />
-                          </button>
-                          <button
-                            :class="release.isBanned
-                              ? 'bg-red-500 hover:bg-red-600 text-white'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
-                            :title="release.isBanned ? 'Unban track' : 'Ban track'"
-                            @click="banTrack(release, index)"
-                          >
-                            <Icon :icon="faBan" class="text-sm" />
-                          </button>
-                          <button
-                            :disabled="!hasValidSeed(release)"
-                            class="pr-3 ml-4 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center bg-[#484948] hover:bg-gray-500 text-white"
-                            @click="viewRelatedTracks(release)"
-                          >
-                            <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
-                            <span>Related</span>
-                          </button>
-                          <button
-                            :disabled="processingRelease === getReleaseKey(release, index)"
-                            class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                            :class="expandedReleaseKey === getReleaseKey(release, index)
-                              ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : 'Preview release'"
-                            @click="togglePreview(release, index)"
-                          >
-                            <img v-if="expandedReleaseKey !== getReleaseKey(release, index)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                            <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                            <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : 'Preview' }}</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr v-if="expandedReleaseKey === getReleaseKey(release, index)" class="bg-white/5 border-b border-white/5">
-                      <td colspan="5" class="p-0">
-                        <div class="spotify-player-container p-6 bg-white/3 relative">
-                          <div v-if="release.spotify_album_id || release.spotify_track_id" class="flex items-center justify-center min-h-[152px]">
-                            <iframe
-                              :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
-                              class="w-full max-w-6xl rounded-xl spotify-embed"
-                              :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
-                                ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
-                                : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
-                              style="height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
-                              frameborder="0"
-                              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                              loading="lazy"
-                              @load="(event) => { event.target.style.opacity = '1' }"
-                            />
+          <div class="bg-white/5 rounded-xl">
+            <div class="flex items-center justify-between px-6 pt-6 pb-4">
+              <div>
+                <h3 class="text-lg font-semibold text-white">Released this month</h3>
+              </div>
+              <button
+                class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="isFetchingReleases || watchlist.length === 0"
+                title="Refresh releases"
+                @click="fetchReleases()"
+              >
+                <Icon :icon="faSync" class="w-4 h-4" :class="{ 'animate-spin': isFetchingReleases }" />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            <div class="overflow-x-auto scrollbar-hide">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-white/10 text-white/70 text-xs uppercase tracking-wider">
+                    <th class="text-left px-4 py-4 font-medium w-12">#</th>
+                    <th class="text-left px-4 py-4 font-medium">Artist</th>
+                    <th class="text-left px-4 py-4 font-medium">Title</th>
+                    <th class="text-left pl-4 py-4 font-medium">Release Date</th>
+                    <th class="text-center pr-3 py-4 font-medium whitespace-nowrap" />
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="isFetchingReleases" class="text-center">
+                    <td colspan="5" class="py-8 text-white/70">Fetching latest releases…</td>
+                  </tr>
+                  <tr v-else-if="releases.length === 0" class="text-center">
+                    <td colspan="5" class="py-8 text-white/70">No recent releases found. Try refreshing or adding more artists.</td>
+                  </tr>
+                  <template v-else>
+                    <template v-for="(release, index) in paginatedReleases" :key="getReleaseKey(release, index)">
+                      <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                        <td class="px-4 py-4 text-white/70">{{ (currentPage - 1) * releasesPerPage + index + 1 }}</td>
+                        <td class="px-4 py-4">
+                          <p class="text-white font-medium">{{ release.artist_name }}</p>
+                        </td>
+                        <td class="px-4 py-4">
+                          <span class="text-white font-medium">
+                            {{ release.release_title || release.track_title }}
+                            <span v-if="release.track_count && release.track_count > 1" class="text-white/50 text-xs ml-1">({{ release.track_count }} tracks)</span>
+                          </span>
+                          <p v-if="release.track_title !== release.release_title" class="text-xs text-white/60">{{ release.track_title }}</p>
+                        </td>
+                        <td class="px-4 py-4 text-white/80">
+                          {{ formatDate(release.release_date) }}
+                        </td>
+                        <td class="pr-3 py-4 align-middle">
+                          <div class="flex gap-2 justify-end">
+                            <button
+                              :disabled="release.isSaved"
+                              :class="release.isSaved
+                                ? 'bg-green-500 hover:bg-green-600 text-white cursor-default'
+                                : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                              class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
+                              :title="release.isSaved ? 'Saved' : 'Save track'"
+                              @click="saveTrack(release, index)"
+                            >
+                              <Icon :icon="faHeart" class="text-sm" />
+                            </button>
+                            <button
+                              :class="release.isBanned
+                                ? 'bg-red-500 hover:bg-red-600 text-white'
+                                : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                              class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
+                              :title="release.isBanned ? 'Unban track' : 'Ban track'"
+                              @click="banTrack(release, index)"
+                            >
+                              <Icon :icon="faBan" class="text-sm" />
+                            </button>
+                            <button
+                              :disabled="!hasValidSeed(release)"
+                              class="pr-3 ml-4 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center bg-[#484948] hover:bg-gray-500 text-white"
+                              @click="viewRelatedTracks(release)"
+                            >
+                              <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
+                              <span>Related</span>
+                            </button>
+                            <button
+                              :disabled="processingRelease === getReleaseKey(release, index)"
+                              class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                              :class="expandedReleaseKey === getReleaseKey(release, index)
+                                ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
+                                : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                              :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : 'Preview release'"
+                              @click="togglePreview(release, index)"
+                            >
+                              <img v-if="expandedReleaseKey !== getReleaseKey(release, index)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                              <Icon v-else :icon="faTimes" class="w-3 h-3" />
+                              <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : 'Preview' }}</span>
+                            </button>
                           </div>
-                          <p v-else class="text-white/70 text-sm py-6 text-center">
-                            No preview available for this release.
-                          </p>
-                          <div class="absolute bottom-0 right-6">
-                            <span class="text-xs text-white/50 font-light">
-                              <a
-                                href="https://accounts.spotify.com/login"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-white/50 hover:text-white/70 transition-colors underline"
-                              >
-                                Connect</a> to Spotify to listen to the full track
-                            </span>
+                        </td>
+                      </tr>
+                      <tr v-if="expandedReleaseKey === getReleaseKey(release, index)" class="bg-white/5 border-b border-white/5">
+                        <td colspan="5" class="p-0">
+                          <div class="spotify-player-container p-6 bg-white/3 relative">
+                            <div v-if="release.spotify_album_id || release.spotify_track_id" class="flex items-center justify-center min-h-[152px]">
+                              <iframe
+                                :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
+                                class="w-full max-w-6xl rounded-xl spotify-embed"
+                                :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
+                                  ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
+                                  : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
+                                style="height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                                frameborder="0"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                                @load="(event) => { event.target.style.opacity = '1' }"
+                              />
+                            </div>
+                            <p v-else class="text-white/70 text-sm py-6 text-center">
+                              No preview available for this release.
+                            </p>
+                            <div class="absolute bottom-0 right-6">
+                              <span class="text-xs text-white/50 font-light">
+                                <a
+                                  href="https://accounts.spotify.com/login"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="text-white/50 hover:text-white/70 transition-colors underline"
+                                >
+                                  Connect</a> to Spotify to listen to the full track
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                    </template>
                   </template>
-                </template>
-              </tbody>
-            </table>
-          </div>
-          <div
-            v-if="releases.length > releasesPerPage"
-            class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5"
-          >
-            <button
-              class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="currentPage === 1"
-              @click="goToPage(currentPage - 1)"
+                </tbody>
+              </table>
+            </div>
+            <div
+              v-if="releases.length > releasesPerPage"
+              class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5"
             >
-              Previous
-            </button>
-            <span class="text-white/70 text-sm">Page {{ currentPage }} / {{ totalPages }}</span>
-            <button
-              class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="currentPage >= totalPages"
-              @click="goToPage(currentPage + 1)"
-            >
-              Next
-            </button>
+              <button
+                class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="currentPage === 1"
+                @click="goToPage(currentPage - 1)"
+              >
+                Previous
+              </button>
+              <span class="text-white/70 text-sm">Page {{ currentPage }} / {{ totalPages }}</span>
+              <button
+                class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="currentPage >= totalPages"
+                @click="goToPage(currentPage + 1)"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>
