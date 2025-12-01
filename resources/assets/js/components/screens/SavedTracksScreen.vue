@@ -79,9 +79,15 @@
       </div>
 
       <!-- Saved Tracks Table -->
-      <div v-if="sortedTracks.length > 0 && !isLoading" class="bg-white/5 rounded-lg overflow-visible">
-        <div class="overflow-x-auto scrollbar-hide">
-          <table class="w-full">
+      <div v-if="sortedTracks.length > 0 && !isLoading">
+        <div class="text-center mb-4">
+          <p class="text-k-text-secondary text-sm">
+            Saved tracks remain in the list for 24h only.
+          </p>
+        </div>
+        <div class="bg-white/5 rounded-lg overflow-visible">
+          <div class="overflow-x-auto scrollbar-hide">
+            <table class="w-full">
             <thead>
               <tr class="border-b border-white/10">
                 <th class="text-left py-7 px-2 font-medium" />
@@ -154,25 +160,17 @@
 
                   <!-- Artist -->
                   <td class="p-3 align-middle">
-                    <button
-                      class="font-medium text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left leading-none"
-                      :title="`View ${track.artist_name} on Spotify`"
-                      @click="openSpotifyArtistPage(track)"
-                    >
+                    <span class="font-medium text-gray-300 leading-none">
                       {{ track.artist_name }}
-                    </button>
+                    </span>
                   </td>
 
                   <!-- Track Title -->
                   <td class="p-3 align-middle">
-                    <button
-                      class="text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left"
-                      :title="`View '${track.track_name}' on Spotify`"
-                      @click="openSpotifyTrackPage(track)"
-                    >
+                    <span class="text-gray-300 leading-tight">
                       {{ track.track_name }}
                       <span v-if="track.track_count && track.track_count > 1" class="text-white/50 text-xs ml-1">({{ track.track_count }} tracks)</span>
-                    </button>
+                    </span>
                   </td>
 
                   <!-- Label -->
@@ -381,7 +379,8 @@
         </button>
       </div>
     </div>
-  </ScreenBase>
+  </div>
+</ScreenBase>
 </template>
 
 <script setup lang="ts">

@@ -32,18 +32,7 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
-      <!-- Info Message -->
-      <div class="text-center mb-4 max-w-7xl mx-auto">
-        <p class="text-k-text-secondary text-sm">
-          Save or ban tracks to mark them. Use Load More to see additional recommendations.
-        </p>
-      </div>
-
-      <div class="flex items-center justify-between max-w-7xl mx-auto mb-4 px-1">
-        <h3 class="text-lg font-semibold">
-          Related Tracks ({{ displayRecommendations.length }})
-        </h3>
-        
+      <div class="flex items-center justify-end max-w-7xl mx-auto mb-4 px-1">
         <!-- Sort by Dropdown -->
         <div class="relative">
           <button
@@ -168,7 +157,7 @@
                       <button
                         @click="blacklistTrack(track)"
                         :disabled="processingTrack === getTrackKey(track)"
-                        :class="isTrackBlacklisted(track)
+                        :class="isBanButtonActive(track)
                           ? 'bg-red-600 hover:bg-red-700 text-white'
                           : 'bg-[#484948] hover:bg-gray-500 text-white'"
                         class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
@@ -218,7 +207,7 @@
                   <tr v-if="track && (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(track)}-${index}`">
                     <td colspan="8" class="p-0 bg-white/5 border-b border-white/5">
                       <div class="spotify-player-container p-6 bg-white/3 relative">
-                          <div class="max-w-6xl mx-auto">
+                          <div class="max-w-[75rem] mx-auto">
                             <!-- Loading State -->
                             <div v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
                               <div class="flex items-center gap-3">
@@ -227,13 +216,13 @@
                               </div>
                             </div>
 
-                            <!-- Spotify Embed -->
+                        <!-- Spotify Embed -->
                             <div v-else-if="track.id && track.id !== 'NO_TRACK_FOUND'" class="flex items-center justify-center">
                             <iframe
                               :key="track.id"
                               :src="`https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=0`"
                               :title="`${track.artist} - ${track.name}`"
-                              class="w-full spotify-embed"
+                              class="w-full spotify-embed flex-shrink-0"
                               style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
                               frameBorder="0"
                               scrolling="no"
@@ -280,7 +269,7 @@
           class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           @click="loadMore"
         >
-          Load More<span v-if="remainingRecommendationsCount > 0"> ({{ remainingRecommendationsCount }} left)</span>
+          Load More
         </button>
       </div>
     </div>
@@ -645,6 +634,11 @@ const isTrackSaved = (track: Track): boolean => {
 
 const isTrackBlacklisted = (track: Track): boolean => {
   return blacklistedTracks.value.has(getTrackKey(track))
+}
+
+const isBanButtonActive = (track: Track): boolean => {
+  // Keep functionality (blacklisted) but don't show red state when already saved
+  return isTrackBlacklisted(track) && !isTrackSaved(track)
 }
 
 const isArtistSaved = (track: Track): boolean => {

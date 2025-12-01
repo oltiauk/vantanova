@@ -141,25 +141,15 @@
       </div>
 
       <div v-else-if="displayedArtists.length > 0" class="results-section">
-        <!-- Info Message -->
-        <div class="text-center mb-4 max-w-4xl mx-auto">
-          <p class="text-k-text-secondary text-sm">
-            Save or ban artists to mark them. Use Load More to see additional recommendations.
-          </p>
-        </div>
 
-        <div class="flex items-center justify-between max-w-4xl mx-auto mb-4 px-1">
-          <h3 class="text-lg font-semibold">
-            Similar Artists ({{ displayedArtists.length }})
-          </h3>
-
+        <div class="flex items-center justify-end max-w-4xl mx-auto mb-4 px-1">
           <!-- Sort by Dropdown -->
           <div class="relative">
             <button
-              @click="toggleLikesRatioDropdown"
-              @blur="hideLikesRatioDropdown"
               class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
               style="background-color: rgba(47, 47, 47, 255) !important;"
+              @click="toggleLikesRatioDropdown"
+              @blur="hideLikesRatioDropdown"
             >
               {{ getSortText() }}
               <Icon :icon="faChevronDown" class="text-xs" />
@@ -174,10 +164,10 @@
               <button
                 v-for="option in sortOptions"
                 :key="option.value"
-                @mousedown.prevent="setLikesRatioFilter(option.value)"
                 class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-                :class="option.value === 'match' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length-1].value ? 'rounded-b-lg' : '')"
+                :class="option.value === 'match' ? 'rounded-t-lg' : (option.value === sortOptions[sortOptions.length - 1].value ? 'rounded-b-lg' : '')"
                 :style="sortBy === option.value ? 'background-color: rgb(67,67,67,255)' : ''"
+                @mousedown.prevent="setLikesRatioFilter(option.value)"
               >
                 <Icon :icon="getSortIconForOption(option.value)" class="text-xs" />
                 {{ option.label }}
@@ -203,7 +193,7 @@
                   <tr
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
-                      currentlyPreviewingArtist === artist.name ? 'bg-white/5' : ''
+                      currentlyPreviewingArtist === artist.name ? 'bg-white/5' : '',
                     ]"
                   >
                     <!-- Index -->
@@ -226,17 +216,6 @@
                     <!-- Actions -->
                     <td class="px-4 align-middle">
                       <div class="flex gap-2 justify-end">
-                        <!-- Ban Artist (local-only, icon button) -->
-                        <button
-                          :class="isArtistBanned(artist)
-                            ? 'bg-red-600 hover:bg-red-700 text-white'
-                            : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                          class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
-                          :title="isArtistBanned(artist) ? 'Click to unban artist' : 'Ban the Artist (Similar Artists only)'"
-                          @click="banArtist(artist)"
-                        >
-                          <Icon :icon="faBan" class="text-sm" />
-                        </button>
                         <button
                           class="px-3 ml-2 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center text-white"
                           title="Find Similar Artists"
@@ -277,7 +256,7 @@
                         </div>
 
                         <!-- Tracks Display -->
-                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="max-w-4xl mx-auto">
+                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="max-w-[51rem] mx-auto">
                           <div
                             v-for="track in artist.spotifyTracks.slice(0, 1)"
                             :key="track.id"
@@ -402,7 +381,7 @@
             class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             @click="loadMore"
           >
-            Load More<span v-if="remainingArtistsCount > 0"> ({{ remainingArtistsCount }} left)</span>
+            Load More
           </button>
         </div>
       </div>
@@ -854,6 +833,14 @@ const saveTrack = async (track: SpotifyTrack) => {
     } catch (error) {
       // Failed to save unsaved tracks to localStorage
     }
+
+    try {
+      window.dispatchEvent(new CustomEvent('track-unsaved', {
+        detail: { track, trackKey }
+      }))
+    } catch (e) {
+      // ignore dispatch errors
+    }
   } else {
     // Save track - Update UI immediately for instant feedback
     savedTracks.value.add(trackKey)
@@ -934,6 +921,14 @@ const saveTrack = async (track: SpotifyTrack) => {
           localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
         } catch (error) {
           // Failed to update unsaved tracks in localStorage
+        }
+
+        try {
+          window.dispatchEvent(new CustomEvent('track-saved', {
+            detail: { track, trackKey }
+          }))
+        } catch (e) {
+          // ignore dispatch errors
         }
       } else {
         // Revert UI change if backend failed

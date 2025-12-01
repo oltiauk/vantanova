@@ -17,7 +17,7 @@
               <input
                 v-model="searchQuery"
                 type="text"
-                placeholder="Search for a Record Label"
+                placeholder="Type the exact record label name"
                 class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg border-0 focus:outline-none text-white text-lg search-input"
                 @keyup.enter="performSearch"
               >
@@ -118,7 +118,7 @@
         <!-- Info Message -->
         <div class="text-center mb-4">
           <p class="text-k-text-secondary text-sm">
-            Save or ban tracks to mark them. Use Load More to see additional results.
+            Find clickable label names in the Saved Tracks section
           </p>
         </div>
 
@@ -206,7 +206,7 @@
                         <!-- Blacklist Button -->
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
-                          :class="track.isBanned
+                          :class="isBanButtonActive(track)
                             ? 'bg-red-600 hover:bg-red-700 text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white'"
                           class="w-10 h-10 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center min-h-[34px]"
@@ -247,7 +247,7 @@
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
                     <td colspan="8" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative pb-8">
-                        <div class="max-w-6xl mx-auto">
+                        <div class="max-w-[72.5rem] mx-auto">
                           <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
                             <iframe
                               :key="track.is_single_track ? track.spotify_id : track.album_id"
@@ -302,7 +302,7 @@
             class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             @click="loadMore"
           >
-            Load More<span v-if="remainingTracksCount > 0"> ({{ remainingTracksCount }} left)</span>
+            Load More
           </button>
         </div>
       </div>
@@ -460,6 +460,11 @@ const formatFollowers = (followers: number): string => {
 
 const loadMore = () => {
   visibleCount.value = Math.min(tracks.value.length, visibleCount.value + LOAD_MORE_STEP)
+}
+
+const isBanButtonActive = (track: any): boolean => {
+  // Keep functionality but avoid showing red when the track is only saved
+  return !!(track && track.isBanned && !track.isSaved)
 }
 
 const performSearch = async () => {
@@ -626,6 +631,7 @@ const togglePreview = track => {
 const saveTrack = async track => {
   // Close any open preview dropdown before saving (prevents animation glitch)
   expandedTrackId.value = null
+  const trackKey = getTrackKey(track)
 
   try {
     if (track.isSaved) {
@@ -668,6 +674,13 @@ const saveTrack = async track => {
 
       // Note: We could implement a DELETE endpoint in the future if needed,
       // but for now this client-side approach works well since tracks expire anyway
+      try {
+        window.dispatchEvent(new CustomEvent('track-unsaved', {
+          detail: { track, trackKey: getTrackKey(track) }
+        }))
+      } catch (e) {
+        // ignore dispatch errors
+      }
     } else {
       // Save track - Update UI immediately for instant feedback
       track.isSaved = true
@@ -752,6 +765,13 @@ const saveTrack = async track => {
         if (response.success) {
           // Update localStorage timestamp to trigger cross-tab refresh
           localStorage.setItem('track-saved-timestamp', Date.now().toString())
+          try {
+            window.dispatchEvent(new CustomEvent('track-saved', {
+              detail: { track, trackKey }
+            }))
+          } catch (e) {
+            // ignore dispatch errors
+          }
 
           // Blacklist the track in backend (UI already updated)
           console.log('🎵 [LABEL SEARCH] Track saved successfully, blacklisting in backend...')

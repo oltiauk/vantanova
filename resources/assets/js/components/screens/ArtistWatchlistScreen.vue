@@ -780,8 +780,8 @@ const saveTrack = async (release: WatchlistRelease, index: number) => {
     let trackName: string = release.track_title
     let isrc: string | null = release.isrc || null
 
-    // For albums, fetch the first track details from the album API
-    if (isAlbum) {
+    // For albums, or when we have album_id but no track_id, fetch the first track details from the album API
+    if (release.spotify_album_id && !trackId) {
       if (!release.spotify_album_id) {
         release.isSaved = false
         showNotification('No album ID available for this release.')
@@ -829,6 +829,19 @@ const saveTrack = async (release: WatchlistRelease, index: number) => {
       }
     }
 
+    // Fallback: try embed_id when no track ID present
+    if (!trackId && release.embed_type === 'track' && release.embed_id) {
+      trackId = release.embed_id
+    }
+
+    // Must have at least a Spotify ID or ISRC for backend validation
+    if (!trackId && !isrc) {
+      release.isSaved = false
+      showNotification('Cannot save track: missing identifiers (Spotify ID/ISRC).')
+      processingRelease.value = null
+      return
+    }
+
     const payload = {
       spotify_id: trackId,
       isrc,
@@ -849,11 +862,17 @@ const saveTrack = async (release: WatchlistRelease, index: number) => {
     if (!saveResponse.success) {
       throw new Error(saveResponse.error || 'Failed to save track')
     }
+
+    // Dispatch event to update sidebar count
+    window.dispatchEvent(new CustomEvent('track-saved'))
   } catch (error: any) {
     // Revert the optimistic update on error
     release.isSaved = false
     console.error('Failed to save track:', error)
     showNotification(error.response?.data?.error || error.message || 'Unable to save track.')
+
+    // Dispatch event to revert sidebar count
+    window.dispatchEvent(new CustomEvent('track-unsaved'))
   } finally {
     processingRelease.value = null
   }
@@ -884,8 +903,8 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
     let trackName: string = release.track_title
     let isrc: string | null = release.isrc || null
 
-    // For albums, fetch the first track details from the album API
-    if (isAlbum) {
+    // For albums, or when we have album_id but no track_id, fetch the first track details from the album API
+    if (release.spotify_album_id && !trackId) {
       if (!release.spotify_album_id) {
         release.isBanned = originalBannedState
         showNotification('No album ID available for this release.')
@@ -946,6 +965,19 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
       }
     } else {
       // Was not banned, now banning
+      // Fallback: try embed_id when no track ID present
+      if (!trackId && release.embed_type === 'track' && release.embed_id) {
+        trackId = release.embed_id
+      }
+
+      // Must have at least a Spotify ID or ISRC for backend validation
+      if (!trackId && !isrc) {
+        release.isBanned = originalBannedState
+        showNotification('Cannot ban track: missing identifiers (Spotify ID/ISRC).')
+        processingRelease.value = null
+        return
+      }
+
       const response = await http.post('music-preferences/blacklist-track', {
         spotify_id: trackId,
         isrc,
