@@ -116,7 +116,7 @@
       <!-- Results Table -->
       <div v-else-if="displayTracks.length > 0" class="mt-8">
         <!-- Info Message -->
-        <div class="text-center mb-4">
+        <div class="text-center mb-6">
           <p class="text-k-text-secondary text-sm">
             Find clickable label names in the Saved Tracks section
           </p>
