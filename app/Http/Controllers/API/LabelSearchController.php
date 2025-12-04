@@ -30,6 +30,7 @@ class LabelSearchController extends Controller
         $includeNew = $request->validated('new', false);
         $includeHipster = $request->validated('hipster', false);
         $releaseYear = $request->validated('release_year');
+        $limit = max(1, min(100, (int) $request->validated('limit', 50)));
 
         try {
             // Try exact label search first
@@ -48,7 +49,7 @@ class LabelSearchController extends Controller
             }
 
             // Search for albums with increased limit
-            $searchResults = $this->searchAlbumsWithFallback($query, 50);
+            $searchResults = $this->searchAlbumsWithFallback($query, $limit);
 
             // If no results with exact label, try broader search
             if (empty($searchResults['albums']['items'])) {
@@ -67,7 +68,7 @@ class LabelSearchController extends Controller
                 }
 
                 Log::info('Trying broader search', ['broad_query' => $broadQuery]);
-                $searchResults = $this->searchAlbumsWithFallback($broadQuery, 50);
+                $searchResults = $this->searchAlbumsWithFallback($broadQuery, $limit);
             }
 
             // Debug logging - clean up available_markets to reduce log size
@@ -87,14 +88,14 @@ class LabelSearchController extends Controller
                 return response()->json(['tracks' => []]);
             }
 
-            // Sort albums by release date (most recent first) and take 50
+            // Sort albums by release date (most recent first) and take up to $limit
             $albums = $searchResults['albums']['items'];
             usort($albums, function($a, $b) {
                 return strcmp($b['release_date'] ?? '', $a['release_date'] ?? '');
             });
-            $recentAlbums = array_slice($albums, 0, 50);
+            $recentAlbums = array_slice($albums, 0, $limit);
 
-            // Extract album IDs from the 50 most recent
+            // Extract album IDs from the most recent (up to limit)
             $albumIds = array_map(fn($album) => $album['id'], $recentAlbums);
 
             // Batch get album details with tracks
@@ -107,7 +108,7 @@ class LabelSearchController extends Controller
             ]);
 
             // Extract most popular track from each album
-            $tracks = $this->extractMostPopularTracks($albumsWithTracks, $label);
+            $tracks = $this->extractMostPopularTracks($albumsWithTracks, $label, $limit);
 
             Log::info('Tracks extracted', [
                 'track_count' => count($tracks),
@@ -143,7 +144,7 @@ class LabelSearchController extends Controller
         }
     }
 
-    private function extractMostPopularTracks(array $albums, string $searchLabel): array
+    private function extractMostPopularTracks(array $albums, string $searchLabel, int $limit): array
     {
         // Collect all track IDs first for batch processing
         $allTrackIds = [];
@@ -256,7 +257,7 @@ class LabelSearchController extends Controller
 
         usort($tracks, fn($a, $b) => $b['popularity'] <=> $a['popularity']);
 
-        return array_slice($tracks, 0, 50);
+        return array_slice($tracks, 0, $limit);
     }
 
     private function filterByLabelMatch(array $tracks, string $searchLabel): array
@@ -326,6 +327,45 @@ class LabelSearchController extends Controller
      */
     private function searchAlbumsWithFallback(string $query, int $limit = 50): array
     {
+        // If more than 50 requested, fetch multiple pages directly via Spotify (RapidAPI caps at 50)
+        if ($limit > 50) {
+            Log::info('🔍 [LABEL SEARCH] Performing multi-page Spotify album search', [
+                'query' => $query,
+                'limit' => $limit
+            ]);
+
+            $items = [];
+            $remaining = $limit;
+            $offset = 0;
+
+            while ($remaining > 0) {
+                $chunk = min(50, $remaining);
+                $result = $this->spotifyService->searchAlbums($query, $chunk, $offset);
+                $chunkItems = $result['albums']['items'] ?? [];
+
+                if (empty($chunkItems)) {
+                    break;
+                }
+
+                $items = array_merge($items, $chunkItems);
+                $count = count($chunkItems);
+                $remaining -= $count;
+                $offset += $count;
+
+                // Stop if fewer than requested returned (no more pages)
+                if ($count < $chunk) {
+                    break;
+                }
+            }
+
+            return [
+                'albums' => [
+                    'items' => $items,
+                    'total' => count($items),
+                ],
+            ];
+        }
+
         if (RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
             Log::info('🔍 [LABEL SEARCH] Attempting RapidAPI album search', [
                 'query' => $query,

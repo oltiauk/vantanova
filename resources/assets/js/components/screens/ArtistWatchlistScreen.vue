@@ -92,7 +92,7 @@
       <!-- Info Message -->
       <div class="text-center mt-6">
         <p class="text-k-text-secondary text-sm">
-          Follow artists in the Saved Tracks section.
+          Follow artists from the Saved Tracks section, or add them here
         </p>
       </div>
 
@@ -125,8 +125,21 @@
 
         <div class="flex-1 bg-white/5 rounded-xl">
           <div class="flex items-center justify-between px-6 pt-6 pb-4">
-            <div>
+            <div class="flex items-center gap-4">
               <h3 class="text-lg font-semibold text-white">Released this month</h3>
+              <div class="flex items-center gap-3">
+                <span class="text-sm text-white/80">Ban listened tracks</span>
+                <button
+                  class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                  :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
+                  @click="banListenedTracks = !banListenedTracks"
+                >
+                  <span
+                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                    :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+                  />
+                </button>
+              </div>
             </div>
             <button
               class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -140,9 +153,9 @@
           </div>
 
           <div class="overflow-x-auto scrollbar-hide">
-            <table class="w-full text-sm">
+            <table class="w-full">
               <thead>
-                <tr class="border-b border-white/10 text-white/70 text-xs uppercase tracking-wider">
+                <tr class="border-b border-white/10 text-white/80">
                   <th class="text-left px-4 py-4 font-medium w-12">#</th>
                   <th class="text-left px-4 py-4 font-medium">Artist</th>
                   <th class="text-left px-8 py-4 font-medium">Title</th>
@@ -208,15 +221,17 @@
                           <button
                             :disabled="processingRelease === getReleaseKey(release, index)"
                             class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                            :class="expandedReleaseKey === getReleaseKey(release, index)
-                              ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : 'Preview release'"
+                            :class="[
+                              (expandedReleaseKey === getReleaseKey(release, index) || isReleaseListened(release))
+                                ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
+                                : 'bg-[#484948] hover:bg-gray-500 text-white'
+                            ]"
+                            :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : (isReleaseListened(release) ? 'Tracks have been listened to' : 'Preview release')"
                             @click="togglePreview(release, index)"
                           >
                             <img v-if="expandedReleaseKey !== getReleaseKey(release, index)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                             <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                            <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : 'Preview' }}</span>
+                            <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : (isReleaseListened(release) ? 'Listened' : 'Preview') }}</span>
                           </button>
                         </div>
                       </td>
@@ -224,14 +239,20 @@
                     <tr v-if="expandedReleaseKey === getReleaseKey(release, index)" class="bg-white/5 border-b border-white/5">
                       <td colspan="5" class="p-0">
                         <div class="spotify-player-container p-6 bg-white/3 relative">
-                          <div v-if="release.spotify_album_id || release.spotify_track_id" class="flex items-center justify-center min-h-[152px]">
+                          <div
+                            v-if="release.spotify_album_id || release.spotify_track_id"
+                            class="flex items-center justify-center"
+                            :style="release.is_single_track ? 'min-height:80px;' : 'min-height:152px;'"
+                          >
                             <iframe
                               :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
                               class="w-full max-w-6xl rounded-xl spotify-embed"
                               :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
                                 ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
                                 : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
-                              style="height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                              :style="release.is_single_track
+                                ? 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
+                                : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
                               frameborder="0"
                               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                               loading="lazy"
@@ -336,6 +357,8 @@ interface WatchlistRelease {
   spotify_artist_id?: string
   embed_id?: string | null
   embed_type: 'track' | 'album'
+  is_listened?: boolean
+  isListened?: boolean
 }
 
 type WatchlistMutationAction = 'added' | 'removed'
@@ -358,6 +381,10 @@ const isFetchingReleases = ref(false)
 const cooldownSeconds = ref(0)
 const lastUpdated = ref<string | null>(null)
 const expandedReleaseKey = ref<string | null>(null)
+const listenedTracks = ref(new Set<string>())
+const banListenedTracks = ref(false)
+const pendingAutoBannedTracks = ref(new Set<string>())
+const sessionBannedReleases = ref(new Set<string>())
 const notification = ref<string | null>(null)
 const autoRefreshRequested = ref(false)
 const currentPage = ref(1)
@@ -489,6 +516,24 @@ const loadWatchlist = async () => {
   }
 }
 
+const loadListenedTracks = async () => {
+  try {
+    const resp: any = await http.get('music-preferences/listened-tracks')
+    if (resp?.success && Array.isArray(resp.data)) {
+      listenedTracks.value = new Set(resp.data as string[])
+      return
+    }
+  } catch {}
+
+  try {
+    const stored = localStorage.getItem('koel-artist-watchlist-listened-tracks')
+    if (stored) {
+      const keys: string[] = JSON.parse(stored)
+      listenedTracks.value = new Set(keys)
+    }
+  } catch {}
+}
+
 const searchArtists = async (query: string) => {
   isSearching.value = true
   try {
@@ -557,24 +602,65 @@ const fetchReleases = async (force = false) => {
     })
 
     if (response.success) {
-      const previousStates = new Map<string, { isSaved?: boolean, isBanned?: boolean }>()
+      // Build a map of previous states using the same identifier logic
+      const previousStates = new Map<string, { isSaved?: boolean, isBanned?: boolean, isListened?: boolean }>()
       releases.value.forEach(rel => {
-        const key = rel.spotify_track_id || rel.isrc || rel.track_title
-        previousStates.set(key, { isSaved: rel.isSaved, isBanned: rel.isBanned })
+        const key = getReleaseIdentifier(rel)
+        previousStates.set(key, { isSaved: rel.isSaved, isBanned: rel.isBanned, isListened: rel.isListened ?? rel.is_listened })
       })
 
       releases.value = (response.data ?? []).map(item => {
-        const stateKey = item.spotify_track_id || item.isrc || item.track_title
+        const stateKey = getReleaseIdentifier(item as WatchlistRelease)
         const previous = previousStates.get(stateKey) || {}
+
+        // Backend now provides is_banned, is_saved, and is_listened flags
+        // Priority: previous UI state > backend state > session state
+        // This ensures that UI changes persist across refreshes
+        const backendBanned = (item as any).is_banned ?? false
+        const sessionBanned = sessionBannedReleases.value.has(stateKey)
+        const isBanned = previous.isBanned !== undefined
+          ? previous.isBanned
+          : (backendBanned || sessionBanned || false)
+
+        const backendSaved = (item as any).is_saved ?? false
+        const isSaved = previous.isSaved !== undefined
+          ? previous.isSaved
+          : backendSaved
+
+        const backendListened = (item as any).is_listened ?? false
+        const isListened = previous.isListened !== undefined
+          ? previous.isListened
+          : backendListened
+
+        // Update listened tracks from backend
+        if (isListened) {
+          listenedTracks.value.add(stateKey)
+        }
+
+        const trackCountRaw = item.track_count ?? 1
+        const trackCount = Number.isFinite(Number(trackCountRaw)) ? Number(trackCountRaw) : 1
+        const isSingleTrack = item.is_single_track ?? (trackCount === 1 || (!!item.spotify_track_id && !item.spotify_album_id))
 
         return {
           ...item,
-          track_count: item.track_count ?? 1,
-          is_single_track: item.is_single_track ?? (item.track_count ?? 1) === 1,
-          isSaved: previous.isSaved ?? item.isSaved ?? false,
-          isBanned: previous.isBanned ?? item.isBanned ?? false,
+          track_count: trackCount,
+          is_single_track: isSingleTrack,
+          isSaved,
+          isBanned,
+          isListened,
+          is_listened: isListened,
         }
       })
+      console.log('🎨 [WATCHLIST] Releases normalized:', releases.value.slice(0, 5).map(rel => ({
+        id: getReleaseIdentifier(rel),
+        banned: rel.isBanned,
+        saved: rel.isSaved,
+        backendFlags: {
+          is_banned: (rel as any).is_banned,
+          is_saved: (rel as any).is_saved,
+          is_listened: (rel as any).is_listened
+        }
+      })))
       cooldownSeconds.value = response.cooldown_seconds ?? 0
       lastUpdated.value = response.last_executed_at ?? null
 
@@ -644,6 +730,33 @@ const getReleaseKey = (release: WatchlistRelease, index: number): string => {
   )
 }
 
+const getReleaseIdentifier = (release: WatchlistRelease): string => {
+  return release.spotify_track_id
+    || release.isrc
+    || release.spotify_album_id
+    || `${release.artist_id}-${release.track_title}-${release.release_date}`
+}
+
+const isReleaseListened = (release: WatchlistRelease): boolean => {
+  const identifier = getReleaseIdentifier(release)
+  return !!release.isListened || !!release.is_listened || listenedTracks.value.has(identifier)
+}
+
+const loadSessionBanned = () => {
+  try {
+    const stored = localStorage.getItem('koel-artist-watchlist-banned')
+    if (stored) {
+      sessionBannedReleases.value = new Set(JSON.parse(stored) as string[])
+    }
+  } catch {}
+}
+
+const persistSessionBanned = () => {
+  try {
+    localStorage.setItem('koel-artist-watchlist-banned', JSON.stringify(Array.from(sessionBannedReleases.value)))
+  } catch {}
+}
+
 const togglePreview = (release: WatchlistRelease, index: number) => {
   const key = getReleaseKey(release, index)
   const hasAlbum = !!release.spotify_album_id
@@ -662,7 +775,72 @@ const togglePreview = (release: WatchlistRelease, index: number) => {
     return
   }
 
+  const isOpening = expandedReleaseKey.value !== key
   expandedReleaseKey.value = expandedReleaseKey.value === key ? null : key
+
+  if (isOpening) {
+    markReleaseAsListened(release)
+  }
+}
+
+const markReleaseAsListened = async (release: WatchlistRelease) => {
+  const identifier = getReleaseIdentifier(release)
+  release.isListened = true
+  release.is_listened = true
+  listenedTracks.value.add(identifier)
+  listenedTracks.value = new Set(listenedTracks.value)
+
+  try {
+    await http.post('music-preferences/listened-track', {
+      track_key: identifier,
+      track_name: release.track_title,
+      artist_name: release.artist_name,
+      spotify_id: release.spotify_track_id,
+      isrc: release.isrc
+    })
+  } catch (e) {
+    try {
+      localStorage.setItem('koel-artist-watchlist-listened-tracks', JSON.stringify(Array.from(listenedTracks.value)))
+    } catch {}
+  }
+
+  if (banListenedTracks.value) {
+    autoBlacklistListenedRelease(release)
+  }
+}
+
+const autoBlacklistListenedRelease = async (release: WatchlistRelease) => {
+  const identifier = getReleaseIdentifier(release)
+
+  if (release.isBanned || pendingAutoBannedTracks.value.has(identifier)) {
+    return
+  }
+
+  pendingAutoBannedTracks.value.add(identifier)
+  pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+
+  try {
+    const isrcValue = release.isrc || release.spotify_track_id || release.spotify_album_id || identifier
+
+    const response = await http.post('music-preferences/blacklist-track', {
+      spotify_id: release.spotify_track_id || release.spotify_album_id,
+      isrc: isrcValue,
+      track_name: release.track_title,
+      artist_name: release.artist_name
+    })
+
+    if (response.success) {
+      release.isBanned = true
+      try {
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch {}
+    }
+  } catch (error) {
+    console.warn('Failed to auto-ban listened release:', error)
+  } finally {
+    pendingAutoBannedTracks.value.delete(identifier)
+    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+  }
 }
 
 const isValidSpotifyId = (id: string | null | undefined): boolean => {
@@ -878,14 +1056,27 @@ const saveTrack = async (release: WatchlistRelease, index: number) => {
 const banTrack = async (release: WatchlistRelease, index: number) => {
   // Store the original state for potential rollback
   const originalBannedState = release.isBanned
+  const identifier = getReleaseIdentifier(release)
+  console.log('🎨 [WATCHLIST] Ban toggle clicked', {
+    identifier,
+    previous: originalBannedState,
+    releaseBanned: release.isBanned,
+    backendFlag: (release as any).is_banned
+  })
 
   // Optimistically update the UI immediately
   release.isBanned = !release.isBanned
   const timestamp = Date.now().toString()
   if (release.isBanned) {
     localStorage.setItem('track-blacklisted-timestamp', timestamp)
+    sessionBannedReleases.value.add(identifier)
+    persistSessionBanned()
   } else {
     localStorage.setItem('track-unblacklisted-timestamp', timestamp)
+    pendingAutoBannedTracks.value.delete(identifier)
+    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+    sessionBannedReleases.value.delete(identifier)
+    persistSessionBanned()
   }
 
   // Process in the background
@@ -960,6 +1151,10 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
       if (!response.success) {
         throw new Error(response.error || 'Failed to unban track')
       }
+      pendingAutoBannedTracks.value.delete(identifier)
+      pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+      sessionBannedReleases.value.delete(identifier)
+      persistSessionBanned()
     } else {
       // Was not banned, now banning
       // Fallback: try embed_id when no track ID present
@@ -985,6 +1180,12 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
       if (!response.success) {
         throw new Error(response.error || 'Failed to ban track')
       }
+
+      pendingAutoBannedTracks.value.delete(identifier)
+      pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+      sessionBannedReleases.value.add(identifier)
+      persistSessionBanned()
+      console.log('🎨 [WATCHLIST] Ban applied', { identifier, isBanned: release.isBanned })
     }
   } catch (error: any) {
     // Revert the optimistic update on error
@@ -993,6 +1194,7 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
     showNotification(error.response?.data?.error || error.message || 'Unable to update ban status.')
   } finally {
     processingRelease.value = null
+    console.log('🎨 [WATCHLIST] Ban toggle final state', { identifier, isBanned: release.isBanned })
   }
 }
 
@@ -1088,6 +1290,19 @@ watch(releases, () => {
   currentPage.value = 1
 })
 
+watch(banListenedTracks, async (newValue, oldValue) => {
+  if (newValue && !oldValue) {
+    const targets = paginatedReleases.value.filter(release => {
+      const identifier = getReleaseIdentifier(release)
+      return listenedTracks.value.has(identifier) && !release.isBanned
+    })
+
+    for (const release of targets) {
+      await autoBlacklistListenedRelease(release)
+    }
+  }
+})
+
 watch(isFetchingReleases, value => {
   if (!value && autoRefreshRequested.value) {
     attemptReleaseRefresh(true)
@@ -1097,6 +1312,8 @@ watch(isFetchingReleases, value => {
 onMounted(async () => {
   window.addEventListener(WATCHLIST_EVENT, handleWatchlistUpdated as EventListener)
   await loadWatchlist()
+  loadSessionBanned()
+  await loadListenedTracks()
   await fetchReleases()
 })
 

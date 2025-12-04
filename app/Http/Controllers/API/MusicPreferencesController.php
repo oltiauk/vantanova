@@ -7,6 +7,7 @@ use App\Models\BlacklistedTrack;
 use App\Models\SavedTrack;
 use App\Models\BlacklistedArtist;
 use App\Models\SavedArtist;
+use App\Models\ArtistWatchlist;
 use App\Models\SpotifyCache;
 use App\Services\SpotifyService;
 use App\Services\RapidApiSpotifyService;
@@ -607,6 +608,19 @@ class MusicPreferencesController extends Controller
             ->where('expires_at', '>', now())
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // Determine which artists are already in the user's watchlist
+        $watchlist = ArtistWatchlist::where('user_id', $userId)->get();
+        $watchlistArtistIds = $watchlist->pluck('artist_id')->filter()->values()->toArray();
+        $watchlistArtistNames = $watchlist->pluck('artist_name')->filter()->map(fn ($name) => mb_strtolower($name))->values()->toArray();
+
+        // Append artist_followed flag for frontend
+        $tracks->transform(function ($track) use ($watchlistArtistIds, $watchlistArtistNames) {
+            $byId = $track->spotify_artist_id && in_array($track->spotify_artist_id, $watchlistArtistIds, true);
+            $byName = in_array(mb_strtolower($track->artist_name), $watchlistArtistNames, true);
+            $track->artist_followed = $byId || $byName;
+            return $track;
+        });
 
         return response()->json([
             'success' => true,

@@ -158,14 +158,17 @@ class SpotifyService
     /**
      * Search for albums on Spotify
      */
-    public function searchAlbums(string $query, int $limit = 20): array
+    public function searchAlbums(string $query, int $limit = 20, int $offset = 0): array
     {
         if (!static::enabled()) {
             return ['albums' => ['items' => []]];
         }
 
         try {
-            return $this->client->search($query, 'album', ['limit' => $limit]);
+            return $this->client->search($query, 'album', [
+                'limit' => $limit,
+                'offset' => $offset
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Spotify album search error', [

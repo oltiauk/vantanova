@@ -13,6 +13,7 @@ class LabelSearchRequest extends Request
             'new' => 'sometimes|in:true,false,1,0',
             'hipster' => 'sometimes|in:true,false,1,0', 
             'release_year' => 'sometimes|string|digits:4',
+            'limit' => 'sometimes|integer|min:1|max:100',
         ];
     }
 

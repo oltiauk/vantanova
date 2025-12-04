@@ -7,6 +7,8 @@ use App\Models\ArtistWatchlist;
 use App\Models\ArtistWatchlistSearch;
 use App\Models\BlacklistedArtist;
 use App\Models\BlacklistedTrack;
+use App\Models\SavedTrack;
+use App\Models\ListenedTrack;
 use App\Services\RealTimeSpotifyDataService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -199,12 +201,91 @@ class ArtistWatchlistController extends Controller
         $forceRefresh = $request->boolean('force_refresh', false);
 
         if (!$forceRefresh && $cache->last_executed_at && $cache->last_executed_at->gt(now()->subDay())) {
+            // Refresh ban/saved/listened flags even when using cached releases
+            $blacklistedIsrcs = BlacklistedTrack::where('user_id', $userId)
+                ->pluck('isrc')
+                ->toArray();
+
+            $blacklistedSpotifyIds = BlacklistedTrack::where('user_id', $userId)
+                ->pluck('spotify_id')
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $blacklistedArtistIds = BlacklistedArtist::where('user_id', $userId)
+                ->pluck('spotify_artist_id')
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $blacklistedArtistNames = BlacklistedArtist::where('user_id', $userId)
+                ->pluck('artist_name')
+                ->filter()
+                ->map(fn ($name) => mb_strtolower($name))
+                ->values()
+                ->toArray();
+
+            $savedTrackSpotifyIds = SavedTrack::where('user_id', $userId)
+                ->pluck('spotify_id')
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $savedTrackIsrcs = SavedTrack::where('user_id', $userId)
+                ->pluck('isrc')
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $listenedTrackKeys = ListenedTrack::where('user_id', $userId)
+                ->pluck('track_key')
+                ->toArray();
+
+            $cachedResults = collect($cache->results ?? [])->map(function ($entry) use (
+                $blacklistedIsrcs,
+                $blacklistedSpotifyIds,
+                $blacklistedArtistIds,
+                $blacklistedArtistNames,
+                $savedTrackSpotifyIds,
+                $savedTrackIsrcs,
+                $listenedTrackKeys
+            ) {
+                $spotifyTrackId = $entry['spotify_track_id'] ?? null;
+                $spotifyAlbumId = $entry['spotify_album_id'] ?? null;
+                $isrc = $entry['isrc'] ?? null;
+
+                $isBanned = ($isrc && in_array($isrc, $blacklistedIsrcs))
+                    || ($spotifyTrackId && in_array($spotifyTrackId, $blacklistedSpotifyIds))
+                    || ($spotifyAlbumId && in_array($spotifyAlbumId, $blacklistedSpotifyIds))
+                    || (!empty($entry['spotify_artist_id']) && in_array($entry['spotify_artist_id'], $blacklistedArtistIds))
+                    || (isset($entry['artist_name']) && in_array(mb_strtolower($entry['artist_name']), $blacklistedArtistNames));
+
+                $isSaved = ($spotifyTrackId && in_array($spotifyTrackId, $savedTrackSpotifyIds))
+                    || ($isrc && in_array($isrc, $savedTrackIsrcs));
+
+                $identifier = $spotifyTrackId
+                    ?: $isrc
+                    ?: $spotifyAlbumId
+                    ?: (($entry['artist_id'] ?? $entry['spotify_artist_id'] ?? 'unknown') . '-' . ($entry['track_title'] ?? $entry['release_title'] ?? '') . '-' . ($entry['release_date'] ?? ''));
+
+                $isListened = in_array($identifier, $listenedTrackKeys)
+                    || ($spotifyTrackId && in_array($spotifyTrackId, $listenedTrackKeys))
+                    || ($isrc && in_array($isrc, $listenedTrackKeys))
+                    || ($spotifyAlbumId && in_array($spotifyAlbumId, $listenedTrackKeys));
+
+                $entry['is_banned'] = $isBanned;
+                $entry['is_saved'] = $isSaved;
+                $entry['is_listened'] = $isListened;
+
+                return $entry;
+            })->toArray();
+
             $secondsSinceLast = now()->diffInSeconds($cache->last_executed_at);
             $remaining = max(0, 86400 - $secondsSinceLast);
 
             return response()->json([
                 'success' => true,
-                'data' => $cache->results ?? [],
+                'data' => $cachedResults,
                 'cached' => true,
                 'artist_count' => $cache->artist_count ?? 0,
                 'track_count' => $cache->track_count ?? 0,
@@ -231,6 +312,36 @@ class ArtistWatchlistController extends Controller
             ->map(fn ($name) => mb_strtolower($name))
             ->toArray();
 
+        // Fetch all blacklisted track spotify IDs (in addition to ISRCs)
+        $blacklistedSpotifyIds = BlacklistedTrack::where('user_id', $userId)
+            ->whereNotNull('spotify_id')
+            ->pluck('spotify_id')
+            ->toArray();
+
+        // Fetch all saved track spotify IDs and ISRCs for this user
+        $savedTrackSpotifyIds = SavedTrack::where('user_id', $userId)
+            ->whereNotNull('spotify_id')
+            ->pluck('spotify_id')
+            ->toArray();
+        $savedTrackIsrcs = SavedTrack::where('user_id', $userId)
+            ->whereNotNull('isrc')
+            ->pluck('isrc')
+            ->toArray();
+
+        // Fetch all listened track keys for this user
+        $listenedTrackKeys = ListenedTrack::where('user_id', $userId)
+            ->pluck('track_key')
+            ->toArray();
+
+        Log::debug('🎨 [WATCHLIST] Status arrays loaded', [
+            'blacklisted_isrcs_count' => count($blacklistedIsrcs),
+            'blacklisted_spotify_ids_count' => count($blacklistedSpotifyIds),
+            'saved_spotify_ids_count' => count($savedTrackSpotifyIds),
+            'saved_isrcs_count' => count($savedTrackIsrcs),
+            'listened_keys_count' => count($listenedTrackKeys),
+            'listened_keys_sample' => array_slice($listenedTrackKeys, 0, 5),
+        ]);
+
         foreach ($watchlist as $artist) {
             $overview = $this->spotifyDataService->getArtistOverview($artist->artist_id);
             if (!$overview['success']) {
@@ -249,8 +360,8 @@ class ArtistWatchlistController extends Controller
             $albums = Arr::get($overview, 'data.data.artist.discography.albums.items', []);
 
             $releases = array_merge(
-                $this->formatReleases($singles, $artist, $artistFollowers, 'single', $thirtyDaysAgo),
-                $this->formatReleases($albums, $artist, $artistFollowers, 'album', $thirtyDaysAgo)
+                $this->formatReleases($singles, $artist, $artistFollowers, 'single', $thirtyDaysAgo, $blacklistedIsrcs, $blacklistedSpotifyIds, $savedTrackSpotifyIds, $savedTrackIsrcs, $listenedTrackKeys),
+                $this->formatReleases($albums, $artist, $artistFollowers, 'album', $thirtyDaysAgo, $blacklistedIsrcs, $blacklistedSpotifyIds, $savedTrackSpotifyIds, $savedTrackIsrcs, $listenedTrackKeys)
             );
 
             $results = array_merge($results, $releases);
@@ -323,8 +434,18 @@ class ArtistWatchlistController extends Controller
         ]);
     }
 
-    private function formatReleases(array $items, ArtistWatchlist $artist, ?int $followers, string $type, Carbon $threshold): array
-    {
+    private function formatReleases(
+        array $items,
+        ArtistWatchlist $artist,
+        ?int $followers,
+        string $type,
+        Carbon $threshold,
+        array $blacklistedIsrcs,
+        array $blacklistedSpotifyIds,
+        array $savedTrackSpotifyIds,
+        array $savedTrackIsrcs,
+        array $listenedTrackKeys
+    ): array {
         $results = [];
 
         foreach ($items as $item) {
@@ -353,15 +474,26 @@ class ArtistWatchlistController extends Controller
                 $firstTrack = $tracks[0]['track'] ?? $tracks[0] ?? null;
                 $release['tracks']['totalCount'] = Arr::get($release, 'tracks.totalCount') ?: (is_array($tracks) ? count($tracks) : null);
 
-                $results[] = $this->buildReleaseEntry($artist, $release, $firstTrack, $followers, $type, $releaseDate);
+                $results[] = $this->buildReleaseEntry($artist, $release, $firstTrack, $followers, $type, $releaseDate, $blacklistedIsrcs, $blacklistedSpotifyIds, $savedTrackSpotifyIds, $savedTrackIsrcs, $listenedTrackKeys);
             }
         }
 
         return $results;
     }
 
-    private function buildReleaseEntry(ArtistWatchlist $artist, array $release, ?array $track, ?int $followers, string $type, Carbon $releaseDate): array
-    {
+    private function buildReleaseEntry(
+        ArtistWatchlist $artist,
+        array $release,
+        ?array $track,
+        ?int $followers,
+        string $type,
+        Carbon $releaseDate,
+        array $blacklistedIsrcs,
+        array $blacklistedSpotifyIds,
+        array $savedTrackSpotifyIds,
+        array $savedTrackIsrcs,
+        array $listenedTrackKeys
+    ): array {
         $shareUrl = Arr::get($release, 'sharingInfo.shareUrl')
             ?: Arr::get($track, 'sharingInfo.shareUrl');
         $spotifyTrackId = $this->extractFirstTrackId($release, $track);
@@ -393,7 +525,29 @@ class ArtistWatchlistController extends Controller
             $embedType = 'track';
         }
 
-        return [
+        // Calculate ban status - check if this track is blacklisted by ISRC or Spotify ID
+        $isBanned = ($isrc && in_array($isrc, $blacklistedIsrcs))
+            || ($spotifyTrackId && in_array($spotifyTrackId, $blacklistedSpotifyIds))
+            || ($spotifyAlbumId && in_array($spotifyAlbumId, $blacklistedSpotifyIds));
+
+        // Calculate saved status - check if this track is saved
+        $isSaved = ($spotifyTrackId && in_array($spotifyTrackId, $savedTrackSpotifyIds))
+            || ($isrc && in_array($isrc, $savedTrackIsrcs));
+
+        // Calculate listened status - check if this track/album has been listened to
+        // Use the same identifier logic as the frontend
+        $releaseIdentifier = $spotifyTrackId
+            ?: $isrc
+            ?: $spotifyAlbumId
+            ?: "{$artist->artist_id}-" . Arr::get($track, 'name', Arr::get($release, 'name')) . "-{$releaseDate->toDateString()}";
+
+        // Check both the primary identifier and alternative identifiers
+        $isListened = in_array($releaseIdentifier, $listenedTrackKeys)
+            || ($spotifyTrackId && in_array($spotifyTrackId, $listenedTrackKeys))
+            || ($isrc && in_array($isrc, $listenedTrackKeys))
+            || ($spotifyAlbumId && in_array($spotifyAlbumId, $listenedTrackKeys));
+
+        $entry = [
             'artist_id' => $artist->artist_id,
             'artist_name' => $artist->artist_name,
             'artist_image_url' => $artist->artist_image_url,
@@ -416,7 +570,29 @@ class ArtistWatchlistController extends Controller
             'embed_type' => $embedType,
             'track_count' => $trackCount,
             'is_single_track' => !$isAlbum,
+            'is_banned' => $isBanned,
+            'is_saved' => $isSaved,
+            'is_listened' => $isListened,
         ];
+
+        // Debug log for first few releases
+        static $debugCount = 0;
+        if ($debugCount < 3) {
+            Log::debug('🎨 [WATCHLIST] Release entry built', [
+                'title' => $entry['track_title'],
+                'identifier' => $releaseIdentifier,
+                'spotify_track_id' => $spotifyTrackId,
+                'spotify_album_id' => $spotifyAlbumId,
+                'isrc' => $isrc,
+                'is_banned' => $isBanned,
+                'is_saved' => $isSaved,
+                'is_listened' => $isListened,
+                'listened_track_keys_sample' => array_slice($listenedTrackKeys, 0, 5),
+            ]);
+            $debugCount++;
+        }
+
+        return $entry;
     }
 
     private function extractFirstTrackId(array $release, ?array $track): ?string

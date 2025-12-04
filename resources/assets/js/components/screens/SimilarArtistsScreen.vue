@@ -142,7 +142,22 @@
 
       <div v-else-if="displayedArtists.length > 0" class="results-section">
 
-        <div class="flex items-center justify-end max-w-4xl mx-auto mb-4 px-1">
+        <div class="flex items-center justify-between max-w-4xl mx-auto mb-4 px-1">
+          <!-- Ban listened tracks toggle -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-white/80">Ban listened tracks</span>
+            <button
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
+              @click="banListenedTracks = !banListenedTracks"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
+
           <!-- Sort by Dropdown -->
           <div class="relative">
             <button
@@ -478,6 +493,8 @@ const loadingPreviewArtist = ref<string | null>(null)
 
 // Track which tracks have been listened to (previewed)
 const listenedTracks = ref(new Set<string>())
+const banListenedTracks = ref(false)
+const pendingAutoBannedTracks = ref(new Set<string>())
 
 // Track locally hidden artists (session-only, not global ban)
 const locallyHiddenArtists = ref(new Set<string>())
@@ -486,6 +503,20 @@ const locallyHiddenArtists = ref(new Set<string>())
 const getTrackKey = (track: SpotifyTrack): string => {
   const artist = track.artists?.[0]?.name || 'Unknown'
   return `${artist}-${track.name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+// Gather all known tracks (visible and cached) for bulk operations
+const getKnownTracks = (): SpotifyTrack[] => {
+  const tracks: SpotifyTrack[] = []
+  displayedArtists.value.forEach(artist => {
+    if (artist.allSpotifyTracks) {
+      tracks.push(...artist.allSpotifyTracks)
+    }
+    if (artist.spotifyTracks) {
+      tracks.push(...artist.spotifyTracks)
+    }
+  })
+  return tracks
 }
 
 const hasListenedTracks = (artist: LastfmArtist): boolean => {
@@ -521,7 +552,6 @@ const isArtistBanned = (artist: LastfmArtist): boolean => {
 
 // Sort options
 const sortOptions = [
-  { value: 'match', label: 'Best Matches' },
   { value: 'listeners-desc', label: 'Most Followers' },
   { value: 'listeners-asc', label: 'Least Followers' },
 ]
@@ -581,6 +611,20 @@ const loadMore = () => {
 }
 
 watch([sortedArtists, visibleCount], applyDisplayedArtists, { immediate: true })
+
+// Auto-ban already listened tracks when the toggle is turned on
+watch(banListenedTracks, async (newValue, oldValue) => {
+  if (newValue && !oldValue) {
+    const tracksToBan = getKnownTracks().filter(track => {
+      const trackKey = getTrackKey(track)
+      return listenedTracks.value.has(trackKey) && !isTrackBanned(track)
+    })
+
+    for (const track of tracksToBan) {
+      await autoBlacklistListenedTrack(track)
+    }
+  }
+})
 
 // Clear dropdown when user types
 const onSearchInput = () => {
@@ -948,15 +992,51 @@ const saveTrack = async (track: SpotifyTrack) => {
 const refreshCurrentPreview = () => {
   // Do nothing - tracks should remain visible during current session even when blacklisted
   // Filtering will only happen when preview is closed and reopened
+}
 
+// Auto-blacklist a track when the ban listened toggle is enabled
+const autoBlacklistListenedTrack = async (track: SpotifyTrack) => {
+  const trackKey = getTrackKey(track)
+  const identifier = track.id || trackKey
+
+  if (isTrackBanned(track) || pendingAutoBannedTracks.value.has(identifier)) {
+    return
+  }
+
+  pendingAutoBannedTracks.value.add(identifier)
+  pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+
+  try {
+    const response = await http.post('music-preferences/blacklist-track', {
+      isrc: track.id,
+      track_name: track.name,
+      artist_name: track.artists?.[0]?.name || 'Unknown'
+    })
+
+    if (response.success) {
+      blacklistedTracks.value.add(trackKey)
+      refreshCurrentPreview()
+      try {
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch {}
+    }
+  } catch (error) {
+    console.warn('Failed to auto-ban listened track:', error)
+  } finally {
+    pendingAutoBannedTracks.value.delete(identifier)
+    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+  }
 }
 
 const banTrack = async (track: SpotifyTrack) => {
   const trackKey = getTrackKey(track)
+  const trackIdentifier = track.id || trackKey
 
   if (isTrackBanned(track)) {
     // Update UI immediately for better UX
     blacklistedTracks.value.delete(trackKey)
+    pendingAutoBannedTracks.value.delete(trackIdentifier)
+    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
     // Re-filter any currently open Spotify previews to include the newly unbanned track
     refreshCurrentPreview()
@@ -994,6 +1074,8 @@ const banTrack = async (track: SpotifyTrack) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
+        pendingAutoBannedTracks.value.delete(trackIdentifier)
+        pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
         // Re-filter any currently open Spotify previews to remove the newly banned track
         refreshCurrentPreview()
@@ -1333,6 +1415,10 @@ const markTrackAsListened = async (track: SpotifyTrack) => {
       localStorage.setItem('koel-listened-tracks', JSON.stringify(keys))
     } catch {}
   }
+
+  if (banListenedTracks.value) {
+    autoBlacklistListenedTrack(track)
+  }
 }
 
 const stopAllSpotifyPlayers = () => {
@@ -1465,7 +1551,7 @@ const onSortChange = async () => {
 // Helper functions for dropdown
 const getSortLabel = (value: string): string => {
   const option = sortOptions.find(opt => opt.value === value)
-  return option ? option.label : 'Best Matches'
+  return option ? option.label : ''
 }
 
 const selectSort = (value: string) => {
@@ -1505,7 +1591,7 @@ const getSortText = () => {
   switch (sortBy.value) {
     case 'listeners-desc': return 'Most Followers'
     case 'listeners-asc': return 'Least Followers'
-    default: return 'Best Matches'
+    default: return ''
   }
 }
 

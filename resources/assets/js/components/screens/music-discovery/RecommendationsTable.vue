@@ -1,8 +1,5 @@
 <template>
   <div class="recommendations-table">
-    <!-- Header -->
-    <div v-if="recommendations.length > 0 || isDiscovering" class="mb-6" />
-
     <!-- Loading State -->
     <div v-if="isDiscovering" class="text-center p-12">
       <div class="inline-flex flex-col items-center">
@@ -32,7 +29,21 @@
 
     <!-- Recommendations Table -->
     <div v-if="recommendations.length > 0 && !isDiscovering">
-      <div class="flex items-center justify-end max-w-7xl mx-auto mb-4 px-1">
+      <div class="flex items-center justify-between max-w-7xl mx-auto mb-4 px-1">
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-white/80">Ban listened tracks</span>
+          <button
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
+            @click="banListenedTracks = !banListenedTracks"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
         <!-- Sort by Dropdown -->
         <div class="relative">
           <button
@@ -73,7 +84,6 @@
                 <th class="text-left pl-3 py-7 font-medium w-10"></th>
                 <th class="text-left p-3 py-7 font-medium w-auto min-w-64">Artist(s)</th>
                 <th class="text-left p-3 font-medium min-w-60">Title</th>
-                <th class="text-center p-3 font-medium whitespace-nowrap">Popularity</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Followers</th>
                 <th class="text-center p-3 font-medium whitespace-nowrap">Release Date</th>
                 <th class="text-center pl-3 font-medium whitespace-nowrap"></th>
@@ -107,15 +117,6 @@
                   <td class="p-3 align-middle">
                     <div class="flex items-center gap-2">
                       <span class="text-white/80">{{ track.name }}</span>
-                    </div>
-                  </td>
-
-                  <!-- Popularity -->
-                  <td class="p-3 align-middle text-center">
-                    <div class="flex items-center justify-center">
-                      <span class="text-white/80 text-sm font-medium">
-                        {{ track.popularity !== undefined && track.popularity !== null ? `${track.popularity}%` : 'N/A' }}
-                      </span>
                     </div>
                   </td>
 
@@ -333,6 +334,9 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'clearError': []
   'related-tracks': [track: Track]
+  'user-banned-item': []
+  'current-batch-banned-item': []
+  'pending-auto-bans-cleared': []
 }>()
 
 // State
@@ -355,6 +359,10 @@ const allowAnimations = ref(true)
 
 // Track which tracks have been listened to (previewed)
 const listenedTracks = ref(new Set<string>())
+const banListenedTracks = ref(false)
+
+// Store track IDs that were auto-banned but should remain visible until flushed
+const pendingAutoBannedTracks = ref(new Set<string>())
 
 // Stats fetching tracking - to avoid duplicate API calls
 const tracksWithStatsFetched = ref(new Set<string>()) // Track keys that have had stats fetched
@@ -374,8 +382,8 @@ const { onRouteChanged } = useRouter()
 // Sort options for the custom dropdown
 const sortOptions = [
   { value: 'release', label: 'Most Recent' },
-  { value: 'popularity', label: 'Most Popular' },
-  { value: 'followers', label: 'Most Followers' }
+  { value: 'followers', label: 'Most Followers' },
+  { value: 'followers-asc', label: 'Least Followers' }
 ]
 
 const INITIAL_VISIBLE_COUNT = 20
@@ -531,8 +539,8 @@ const setLikesRatioFilter = (type: string) => {
 const getSortIcon = () => {
   switch (sortBy.value) {
     case 'release': return faClock
-    case 'popularity': return faArrowUp
     case 'followers': return faArrowUp
+    case 'followers-asc': return faArrowUp
     default: return faClock
   }
 }
@@ -540,8 +548,8 @@ const getSortIcon = () => {
 const getSortText = () => {
   switch (sortBy.value) {
     case 'release': return 'Sort by: Most Recent'
-    case 'popularity': return 'Sort by: Most Popular'
     case 'followers': return 'Sort by: Most Followers'
+    case 'followers-asc': return 'Sort by: Least Followers'
     default: return 'Sort by: Most Recent'
   }
 }
@@ -596,19 +604,19 @@ const sortedRecommendations = computed(() => {
     })
   }
 
-  if (sortBy.value === 'popularity') {
-    return [...tracks].sort((a, b) => {
-      const popularityA = a.popularity ?? 0
-      const popularityB = b.popularity ?? 0
-      return popularityB - popularityA
-    })
-  }
-
   if (sortBy.value === 'followers') {
     return [...tracks].sort((a, b) => {
       const followersA = a.followers ?? 0
       const followersB = b.followers ?? 0
       return followersB - followersA
+    })
+  }
+
+  if (sortBy.value === 'followers-asc') {
+    return [...tracks].sort((a, b) => {
+      const followersA = a.followers ?? 0
+      const followersB = b.followers ?? 0
+      return followersA - followersB
     })
   }
 
@@ -856,6 +864,7 @@ const saveTrack = async (track: Track) => {
 
 const blacklistTrack = async (track: Track) => {
   const trackKey = getTrackKey(track)
+  const trackIdentifier = track.id || trackKey
   
   // Close any open preview dropdown when blacklisting tracks
   if (expandedTrackId.value !== trackKey) {
@@ -866,7 +875,14 @@ const blacklistTrack = async (track: Track) => {
     // UNBAN TRACK - Update UI immediately for better UX
     blacklistedTracks.value.delete(trackKey)
 
-    // Auto-ban pending removal no longer applicable
+    const wasPending = pendingAutoBannedTracks.value.has(trackIdentifier)
+    if (wasPending) {
+      pendingAutoBannedTracks.value.delete(trackIdentifier)
+      pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+      if (pendingAutoBannedTracks.value.size === 0) {
+        emit('pending-auto-bans-cleared')
+      }
+    }
 
     // Clear the pending blacklist flag if it was set
     if (track.isPendingBlacklist) {
@@ -890,6 +906,10 @@ const blacklistTrack = async (track: Track) => {
       if (!response.success) {
         // Revert UI change if backend failed
         blacklistedTracks.value.add(trackKey)
+        if (wasPending) {
+          pendingAutoBannedTracks.value.add(trackIdentifier)
+          pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+        }
         if (track.isPendingBlacklist !== undefined) {
           track.isPendingBlacklist = true
         }
@@ -898,6 +918,10 @@ const blacklistTrack = async (track: Track) => {
     } catch (error: any) {
       // Revert UI change if request failed
       blacklistedTracks.value.add(trackKey)
+      if (wasPending) {
+        pendingAutoBannedTracks.value.add(trackIdentifier)
+        pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+      }
       if (track.isPendingBlacklist !== undefined) {
         track.isPendingBlacklist = true
       }
@@ -1055,6 +1079,45 @@ const handlePreviewClick = (track: Track) => {
   }
 }
 
+// Auto-blacklist a track that has been listened to (when toggle is enabled)
+const autoBlacklistListenedTrack = async (track: Track) => {
+  const trackKey = getTrackKey(track)
+
+  if (isTrackBlacklisted(track)) {
+    return
+  }
+
+  try {
+    const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    const response = await http.post('music-preferences/blacklist-track', {
+      isrc: isrcValue,
+      track_name: track.name,
+      artist_name: track.artist
+    })
+
+    if (response.success) {
+      blacklistedTracks.value.add(trackKey)
+      addTrackToBlacklist(track)
+
+      const trackIdentifier = track.id || trackKey
+      pendingAutoBannedTracks.value.add(trackIdentifier)
+      pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+
+      emit('user-banned-item')
+      emit('current-batch-banned-item')
+
+      try {
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch (e) {
+        // Ignore storage failures
+      }
+    }
+  } catch (error: any) {
+    console.warn('Failed to auto-ban listened track:', error)
+  }
+}
+
 // Mark track as listened and potentially ban it
 const markTrackAsListened = async (track: Track) => {
   const trackKey = getTrackKey(track)
@@ -1081,11 +1144,31 @@ const markTrackAsListened = async (track: Track) => {
     } catch {}
   }
 
-  // Auto-ban listened tracks feature removed
+  if (banListenedTracks.value) {
+    autoBlacklistListenedTrack(track)
+  }
 }
 
-// Kept for compatibility with parent, now a no-op
-const flushPendingAutoBans = () => {}
+// Remove auto-banned tracks from the current list (used by parent when refreshing results)
+const flushPendingAutoBans = () => {
+  if (pendingAutoBannedTracks.value.size === 0) {
+    return
+  }
+
+  const identifiers = new Set(pendingAutoBannedTracks.value)
+  const filtered = baseRecommendations.value.filter(track => {
+    const identifier = track.id || getTrackKey(track)
+    return !identifiers.has(identifier)
+  })
+
+  originalRecommendations.value = filtered
+  visibleCount.value = Math.min(visibleCount.value, filtered.length)
+
+  pendingAutoBannedTracks.value.clear()
+  pendingAutoBannedTracks.value = new Set<string>()
+
+  emit('pending-auto-bans-cleared')
+}
 
 const getRelatedTracks = (track: Track) => {
   // Close any open preview dropdown when getting related tracks
@@ -1820,7 +1903,19 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
   }
 }, { immediate: true })
 
-// Removed auto-ban listened tracks watcher
+// Auto-ban already-listened tracks when toggle is turned on
+watch(banListenedTracks, async (newValue, oldValue) => {
+  if (newValue && !oldValue) {
+    const tracksToBan = displayRecommendations.value.filter(track => {
+      const trackKey = getTrackKey(track)
+      return listenedTracks.value.has(trackKey) && !isTrackBlacklisted(track)
+    })
+
+    for (const track of tracksToBan) {
+      await autoBlacklistListenedTrack(track)
+    }
+  }
+})
 
 // Load user's saved tracks and blacklisted items
 const loadUserPreferences = async () => {

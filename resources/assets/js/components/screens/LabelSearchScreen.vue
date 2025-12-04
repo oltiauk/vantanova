@@ -42,7 +42,7 @@
             </div>
             <button
               class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none" :class="[
-                freshDropsFilter ? 'bg-k-accent' : 'bg-gray-600',
+                freshDropsFilter ? 'bg-green-500' : 'bg-gray-600',
               ]"
               @click="handleFreshDropsToggle"
             >
@@ -69,11 +69,11 @@
           <!-- Hidden Gems Toggle -->
           <div class="flex items-center gap-x-3">
             <div class="flex flex-col items-center ">
-              <span class="text-base font-medium text-white whitespace-nowrap">Hidden Gems</span>
+              <span class="text-base font-medium text-white whitespace-nowrap">Unpopular tracks</span>
             </div>
             <button
               class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none" :class="[
-                popularityFilter ? 'bg-k-accent' : 'bg-gray-600',
+                popularityFilter ? 'bg-green-500' : 'bg-gray-600',
               ]"
               @click="popularityFilter = !popularityFilter"
             >
@@ -117,9 +117,24 @@
       <div v-else-if="displayTracks.length > 0" class="mt-8">
         <!-- Info Message -->
         <div class="text-center mb-6">
-          <p class="text-k-text-secondary text-sm">
-            Find clickable label names in the Saved Tracks section
-          </p>
+          <div class="relative">
+            <div class="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-3">
+              <span class="text-sm text-white/80">Ban listened tracks</span>
+              <button
+                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
+                @click="banListenedTracks = !banListenedTracks"
+              >
+                <span
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+                />
+              </button>
+            </div>
+            <p class="text-k-text-secondary text-sm text-center">
+              Find clickable label names in the Saved Tracks section, or type them here&nbsp;
+            </p>
+          </div>
         </div>
 
         <div class="bg-white/5 rounded-lg overflow-hidden">
@@ -130,7 +145,6 @@
                   <th class="text-left py-7 px-3 font-medium" />
                   <th class="text-left px-3 py-7 font-medium w-auto min-w-48">Artist(s)</th>
                   <th class="text-left px-3 font-medium">Title</th>
-                  <th class="text-center px-3 font-medium">Popularity</th>
                   <th class="text-center px-3 font-medium whitespace-nowrap">Followers</th>
                   <th class="text-center px-3 font-medium whitespace-nowrap">Release Date</th>
                   <th class="text-center px-3 font-medium" />
@@ -170,11 +184,6 @@
                         {{ track.release_name || track.track_name }}
                         <span v-if="!track.is_single_track && track.track_count > 1" class="text-white/50 text-xs ml-1">({{ track.track_count }} tracks)</span>
                       </button>
-                    </td>
-
-                    <!-- Popularity -->
-                    <td class="p-3 align-middle text-center">
-                      <span class="text-white/80 font-medium">{{ track.popularity }}%</span>
                     </td>
 
                     <!-- Followers -->
@@ -259,7 +268,7 @@
                                 : `${track.artist_name} - ${track.release_name || track.album_name} (${track.track_count} tracks)`"
                               class="w-full spotify-embed"
                               :style="track.is_single_track
-                                ? 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
+                                ? 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
                                 : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
                               frameBorder="0"
                               scrolling="no"
@@ -350,6 +359,8 @@ const LOAD_MORE_STEP = 20
 // Listened tracks tracking (UI only)
 const listenedTracks = ref(new Set<string>())
 const blacklistedTracks = ref(new Set<string>())
+const banListenedTracks = ref(false)
+const pendingAutoBannedTracks = ref(new Set<string>())
 
 // Audio for previews
 let currentAudio: HTMLAudioElement | null = null
@@ -358,6 +369,20 @@ const filteredTracks = computed(() => tracks.value)
 const displayTracks = computed(() => tracks.value.slice(0, visibleCount.value))
 const hasMoreTracks = computed(() => visibleCount.value < tracks.value.length)
 const remainingTracksCount = computed(() => Math.max(tracks.value.length - visibleCount.value, 0))
+
+// Auto-ban already listened tracks when toggle is turned on
+watch(banListenedTracks, async (newValue, oldValue) => {
+  if (newValue && !oldValue) {
+    const targets = displayTracks.value.filter(track => {
+      const trackKey = getTrackKey(track)
+      return listenedTracks.value.has(trackKey) && !blacklistedTracks.value.has(trackKey)
+    })
+
+    for (const track of targets) {
+      await autoBlacklistListenedTrack(track)
+    }
+  }
+})
 
 // Handler functions for mutually exclusive filters
 const handleFreshDropsToggle = () => {
@@ -462,6 +487,10 @@ const loadMore = () => {
   visibleCount.value = Math.min(tracks.value.length, visibleCount.value + LOAD_MORE_STEP)
 }
 
+const getTrackIdentifier = (track: any): string => {
+  return track.spotify_id || track.isrc || getTrackKey(track)
+}
+
 const isBanButtonActive = (track: any): boolean => {
   // Keep functionality but avoid showing red when the track is only saved
   return !!(track && track.isBanned && !track.isSaved)
@@ -498,7 +527,10 @@ const performSearch = async () => {
       params.release_year = releaseYearFilter.value
     }
 
-    const queryString = new URLSearchParams(params).toString()
+    const queryString = new URLSearchParams({
+      ...params,
+      limit: '100'
+    }).toString()
 
     console.log('Making request to:', `label-search?${queryString}`)
     console.log('Parameters:', params)
@@ -598,10 +630,47 @@ const markTrackAsListened = async (track: any) => {
     } catch {}
   }
 
-  // Auto-ban removed
+  if (banListenedTracks.value) {
+    autoBlacklistListenedTrack(track)
+  }
 }
 
-// No-op (auto-ban removed)
+// Auto-blacklist a track when "Ban listened tracks" is enabled
+const autoBlacklistListenedTrack = async (track: any) => {
+  const trackKey = getTrackKey(track)
+  const identifier = getTrackIdentifier(track)
+
+  if (blacklistedTracks.value.has(trackKey) || pendingAutoBannedTracks.value.has(identifier)) {
+    return
+  }
+
+  pendingAutoBannedTracks.value.add(identifier)
+  pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+
+  try {
+    const response = await http.post('music-preferences/blacklist-track', {
+      spotify_id: track.spotify_id,
+      isrc: track.isrc,
+      track_name: track.track_name,
+      artist_name: track.artist_name,
+    })
+
+    if (response.success) {
+      track.isBanned = true
+      blacklistedTracks.value.add(trackKey)
+      try {
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch {}
+    }
+  } catch (error) {
+    logger.warn('Failed to auto-ban listened track:', error)
+  } finally {
+    pendingAutoBannedTracks.value.delete(identifier)
+    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+  }
+}
+
+// No-op (auto-ban legacy placeholder)
 const flushPendingAutoBans = () => {}
 
 const togglePreview = track => {
@@ -819,6 +888,7 @@ const saveTrack = async track => {
 
 const banTrack = async track => {
   const trackKey = getTrackKey(track)
+  const identifier = getTrackIdentifier(track)
 
   // Close any open preview dropdown
   expandedTrackId.value = null
@@ -828,8 +898,8 @@ const banTrack = async track => {
       // UNBAN TRACK
       track.isBanned = false
       blacklistedTracks.value.delete(trackKey)
-
-      // Pending auto-ban logic removed
+      pendingAutoBannedTracks.value.delete(identifier)
+      pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
       // Backend API call to remove
       const deleteData = {
@@ -858,6 +928,8 @@ const banTrack = async track => {
       if (response.success) {
         track.isBanned = true
         blacklistedTracks.value.add(trackKey)
+        pendingAutoBannedTracks.value.delete(identifier)
+        pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
@@ -911,11 +983,11 @@ const toggleSpotifyPlayer = async track => {
         // Now expand the player
         expandedTrackId.value = trackKey
       } else {
-        // Show notification that preview is not available
-        showTrackNotFoundNotification(track)
-      }
-    } catch (error: any) {
-      showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
+      // Show notification that preview is not available
+      showTrackNotFoundNotification(track)
+    }
+  } catch (error: any) {
+    showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
     } finally {
       processingTrack.value = null
       isPreviewProcessing.value = false

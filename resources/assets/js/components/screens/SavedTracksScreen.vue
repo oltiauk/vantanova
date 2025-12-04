@@ -85,8 +85,8 @@
             Saved tracks remain in the list for 24h only.
           </p>
         </div>
-        <div class="bg-white/5 rounded-lg overflow-visible">
-          <div class="overflow-x-auto scrollbar-hide">
+        <div class="bg-white/5 rounded-lg overflow-visible relative z-20">
+          <div class="overflow-x-auto overflow-y-visible scrollbar-hide" style="overflow-y: visible !important;">
             <table class="w-full">
               <thead>
                 <tr class="border-b border-white/10">
@@ -96,7 +96,6 @@
                   <th class="text-left px-2 py-7 font-medium w-auto min-w-48">Artist(s)</th>
                   <th class="text-left px-2 font-medium">Title</th>
                   <th class="text-center px-2 font-medium">Record Label</th>
-                  <th class="text-center px-2 font-medium">Popularity</th>
                   <th class="text-center px-2 font-medium">Followers</th>
                   <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
                   <th class="text-center px-2 font-medium whitespace-nowrap" />
@@ -135,6 +134,9 @@
                       <button
                         :disabled="followInProgress === getTrackKey(track)"
                         class="watchlist-btn"
+                        :class="track.artist_followed
+                          ? 'bg-green-600 hover:bg-green-700 rounded-md'
+                          : 'bg-[#484948] hover:bg-gray-500 rounded-md'"
                         title="Add the artist to the watchlist"
                         aria-label="Add the artist to the watchlist"
                         @click="followArtist(track)"
@@ -153,7 +155,7 @@
                           v-else
                           src="/public/icons/FollowArtist.svg"
                           alt="Add artist"
-                          class="watchlist-icon"
+                          :class="['watchlist-icon', track.artist_followed ? 'watchlist-icon-active' : '']"
                         >
                       </button>
                     </td>
@@ -190,11 +192,6 @@
                       <span v-else class="text-white/80 text-sm">{{ track.label || '-' }}</span>
                     </td>
 
-                    <!-- Popularity -->
-                    <td class="p-3 align-middle text-center">
-                      <span class="text-white/80 font-medium">{{ track.popularity ? `${track.popularity}%` : '-' }}</span>
-                    </td>
-
                     <!-- Followers -->
                     <td class="p-3 align-middle text-center">
                       <span class="text-white/80 font-medium">{{ track.followers ? formatNumber(track.followers) : '-' }}</span>
@@ -225,30 +222,35 @@
                           @click="toggleActionsDropdown(track.id)"
                           @blur="hideActionsDropdown(track.id)"
                         >
-                          <span>Actions</span>
+                          <span>Searches</span>
                           <Icon :icon="faChevronDown" class="text-xs ml-1" />
                         </button>
 
                         <!-- Dropdown Menu -->
                         <div
                           v-if="openActionsDropdown === track.id"
-                          class="absolute right-0 w-48 rounded-lg shadow-lg z-[9999]" :class="[
-                            index >= paginatedTracks.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1',
-                          ]"
+                          class="absolute right-0 w-48 rounded-lg shadow-lg z-[9999] bottom-full mb-1"
                           style="background-color: rgb(67,67,67,255);"
                         >
                           <button
-                            v-if="!track.track_count || track.track_count === 1 || track.is_single_track !== false"
                             class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-                            :class="track.track_count && track.track_count > 1 ? 'rounded-b-lg' : 'rounded-t-lg'"
+                            :class="hasLabel(track) ? 'rounded-t-lg' : 'rounded-t-lg'"
                             @mousedown.prevent="viewRelatedTracks(track)"
                           >
                             <Icon :icon="faSearch" class="w-4 h-4" />
                             Related Tracks
                           </button>
                           <button
+                            v-if="hasLabel(track)"
                             class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-                            :class="!track.track_count || track.track_count === 1 || track.is_single_track !== false ? 'rounded-b-lg' : 'rounded-t-lg rounded-b-lg'"
+                            @mousedown.prevent="searchByLabel((track.label || '').split('/')[0].trim())"
+                          >
+                            <Icon :icon="faSearch" class="w-4 h-4" />
+                            Label Search
+                          </button>
+                          <button
+                            class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
+                            :class="hasLabel(track) ? 'rounded-b-lg' : 'rounded-b-lg'"
                             @mousedown.prevent="viewSimilarArtists(track)"
                           >
                             <Icon :icon="faSearch" class="w-4 h-4" />
@@ -295,7 +297,7 @@
                   <!-- Spotify Player Dropdown Row with Animation -->
                   <Transition name="spotify-dropdown" mode="out-in">
                     <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                      <td colspan="11" class="p-0 overflow-hidden">
+                      <td colspan="12" class="p-0 overflow-hidden">
                         <div class="p-4 bg-white/5 relative">
                           <div class="max-w-4xl mx-auto">
                             <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
@@ -413,6 +415,7 @@ interface SavedTrack {
   isrc: string
   track_name: string
   artist_name: string
+  artist_followed?: boolean
   spotify_id: string | null
   spotify_artist_id?: string | null
   created_at: string
@@ -471,7 +474,6 @@ const openActionsDropdown = ref<number | null>(null)
 const sortOptions = [
   { value: 'most_recent', label: 'Recently saved' },
   { value: 'latest_releases', label: 'Latest Releases' },
-  { value: 'highest_popularity', label: 'Highest Popularity' },
   { value: 'most_followers', label: 'Most Followers' },
 ]
 
@@ -498,8 +500,6 @@ const sortedTracks = computed(() => {
         const dateB = b.release_date && b.release_date !== 'Unknown' ? new Date(b.release_date).getTime() : 0
         return dateB - dateA
       })
-    case 'highest_popularity':
-      return tracksToSort.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
     case 'most_followers':
       return tracksToSort.sort((a, b) => (b.followers || 0) - (a.followers || 0))
     case 'most_recent':
@@ -675,6 +675,10 @@ const getSortText = () => {
   return option ? `Sort by: ${option.label}` : 'Sort by: Recently saved'
 }
 
+const hasLabel = (track: SavedTrack): boolean => {
+  return !!track.label && track.label !== 'Unknown Label'
+}
+
 // Load client-side unsaved tracks from localStorage
 const loadClientUnsavedTracks = () => {
   try {
@@ -708,6 +712,7 @@ const loadTracks = async () => {
 
       // Set default values for tracks that don't have additional data
       tracks.value.forEach(track => {
+        track.artist_followed = !!track.artist_followed
         if (!track.label) {
           track.label = 'Unknown Label'
         }
@@ -936,34 +941,61 @@ const togglePreview = async (track: SavedTrack) => {
   }
 }
 
-const viewRelatedTracks = (track: SavedTrack) => {
+const fetchFirstTrackFromAlbum = async (albumId: string | undefined | null): Promise<string | null> => {
+  if (!albumId || !isValidSpotifyId(albumId)) {
+    return null
+  }
+
+  try {
+    const response = await http.get(`music-preferences/spotify/album/${albumId}`)
+    if (response.success && response.data?.tracks?.items?.length) {
+      const firstTrack = response.data.tracks.items[0]
+      return firstTrack.id || (firstTrack.uri?.match(/spotify:track:([a-zA-Z0-9]+)/)?.[1] ?? null)
+    }
+  } catch (error) {
+    console.warn('🔍 [SAVED TRACKS] Failed to fetch first track from album:', error)
+  }
+
+  return null
+}
+
+const viewRelatedTracks = async (track: SavedTrack) => {
   console.log('🔍 [SAVED TRACKS] viewRelatedTracks called with track:', track)
 
   // Close the actions dropdown
   openActionsDropdown.value = null
 
   // Store seed track data in localStorage for MusicDiscoveryScreen to pick up
+  let seedTrackId: string | null = null
+
   if (track.spotify_id && isValidSpotifyId(track.spotify_id)) {
-    console.log('🔍 [SAVED TRACKS] Setting up seed track data for music discovery')
-
-    const seedTrackData = {
-      id: track.spotify_id,
-      name: track.track_name,
-      artist: track.artist_name,
-      source: 'savedTracks',
-      timestamp: Date.now(),
-    }
-
-    localStorage.setItem('koel-music-discovery-seed-track', JSON.stringify(seedTrackData))
-    console.log('🔍 [SAVED TRACKS] Stored seed track data:', seedTrackData)
-
-    // Try direct hash navigation as a fallback
-    console.log('🔍 [SAVED TRACKS] Trying direct hash navigation to /discover')
-    window.location.hash = '#/discover'
-  } else {
-    console.log('🔍 [SAVED TRACKS] No valid Spotify ID, cannot get related tracks')
-    // Could show an error message or fallback behavior
+    seedTrackId = track.spotify_id
+  } else if (track.track_count && track.track_count > 1) {
+    // Album: get the first track
+    seedTrackId = await fetchFirstTrackFromAlbum(track.album_id || track.spotify_id)
   }
+
+  if (!seedTrackId) {
+    console.log('🔍 [SAVED TRACKS] No valid Spotify track ID available for related search')
+    return
+  }
+
+  console.log('🔍 [SAVED TRACKS] Setting up seed track data for music discovery')
+
+  const seedTrackData = {
+    id: seedTrackId,
+    name: track.track_name,
+    artist: track.artist_name,
+    source: 'savedTracks',
+    timestamp: Date.now(),
+  }
+
+  localStorage.setItem('koel-music-discovery-seed-track', JSON.stringify(seedTrackData))
+  console.log('🔍 [SAVED TRACKS] Stored seed track data:', seedTrackData)
+
+  // Try direct hash navigation as a fallback
+  console.log('🔍 [SAVED TRACKS] Trying direct hash navigation to /discover')
+  window.location.hash = '#/discover'
 }
 
 const viewSimilarArtists = (track: SavedTrack) => {
@@ -1253,6 +1285,10 @@ const emitWatchlistAddition = (artist: WatchlistEventArtist) => {
 }
 
 const followArtist = async (track: SavedTrack) => {
+  if (track.artist_followed) {
+    return
+  }
+
   const trackKey = getTrackKey(track)
   followInProgress.value = trackKey
 
@@ -1286,6 +1322,11 @@ const followArtist = async (track: SavedTrack) => {
 
     if (watchlistResponse.success && watchlistResponse.data) {
       emitWatchlistAddition(watchlistResponse.data)
+      track.artist_followed = true
+      // Persist artist ID locally for future refreshes
+      if (watchlistResponse.data.artist_id) {
+        track.spotify_artist_id = watchlistResponse.data.artist_id
+      }
     }
   } catch (error: any) {
     console.error('Failed to follow artist:', error)
@@ -1444,7 +1485,7 @@ iframe {
 }
 
 .watchlist-btn {
-  @apply inline-flex items-center justify-center w-8 h-8 rounded bg-[#484948] hover:bg-gray-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed;
+  @apply inline-flex items-center justify-center w-8 h-8 text-white transition disabled:opacity-40 disabled:cursor-not-allowed;
 }
 
 .watchlist-icon {
@@ -1456,6 +1497,11 @@ iframe {
   transition:
     opacity 0.2s ease,
     filter 0.2s ease;
+}
+
+.watchlist-icon-active {
+  filter: brightness(0) saturate(100%) invert(100%);
+  opacity: 1;
 }
 
 .watchlist-btn:hover .watchlist-icon {
