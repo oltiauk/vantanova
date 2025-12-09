@@ -36,7 +36,10 @@ const current = ref(false)
 
 const { onRouteChanged, getCurrentScreen } = useRouter()
 
+const emit = defineEmits(['click'])
+
 const onClick = () => {
+  emit('click')
   eventBus.emit('TOGGLE_SIDEBAR')
 
   // Scroll to top immediately

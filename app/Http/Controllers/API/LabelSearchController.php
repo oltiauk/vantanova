@@ -432,6 +432,23 @@ class LabelSearchController extends Controller
             }
         }
 
+        // Fallback to Spotify API if RapidAPI is disabled/unavailable
+        if (empty($followersData) && SpotifyService::enabled()) {
+            foreach ($artistIds as $artistId) {
+                $artist = $this->spotifyService->getArtist($artistId);
+                if ($artist && isset($artist['followers']['total'])) {
+                    $followersData[$artistId] = [
+                        'followers' => (int) $artist['followers']['total'],
+                    ];
+                }
+            }
+
+            Log::info('📊 [LABEL SEARCH] Fallback Spotify followers fetch', [
+                'fetched' => count($followersData),
+                'requested' => count($artistIds)
+            ]);
+        }
+
         // Add followers to each track
         return array_map(function ($track) use ($followersData) {
             $artistId = $track['artist_id'] ?? null;

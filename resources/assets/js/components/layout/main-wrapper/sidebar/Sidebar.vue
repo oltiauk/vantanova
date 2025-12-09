@@ -27,14 +27,14 @@
         <ul class="menu">
           <SidebarItem :href="url('music-discovery')" screen="MusicDiscovery">
             <template #icon>
-              <img src="/public/icons/RelatedTracks-Icon.svg" alt="Related Tracks" class="w-4 h-4 object-contain sidebar-icon-svg">
+              <img src="/public/icons/RelatedTracks-Icon.svg" alt="Related Tracks" class="w-5 h-5 object-contain sidebar-icon-svg">
             </template>
             Related Tracks
           </SidebarItem>
 
           <SidebarItem :href="url('similar-artists')" screen="SimilarArtists">
             <template #icon>
-              <img src="/public/icons/SimilarArtists-Icon.svg" alt="Similar Artists" class="w-4 h-4 object-contain sidebar-icon-svg">
+              <img src="/public/icons/SimilarArtists-Icon.svg" alt="Similar Artists" class="w-5 h-5 object-contain sidebar-icon-svg">
             </template>
             Similar Artists
           </SidebarItem>
@@ -52,14 +52,14 @@
 
           <SidebarItem :href="url('label-search')" screen="LabelSearch">
             <template #icon>
-              <img src="/public/icons/LabelSearch-icon.svg" alt="Label Search" class="w-4 h-4 object-contain sidebar-icon-svg">
+              <img src="/public/icons/LabelSearch-icon.svg" alt="Label Search" class="w-5 h-5 object-contain sidebar-icon-svg">
             </template>
             Label Search
           </SidebarItem>
 
-          <SidebarItem :href="url('artist-watchlist')" screen="ArtistWatchlist">
+          <SidebarItem :href="url('artist-watchlist')" screen="ArtistWatchlist" @click="handleArtistWatchlistClick">
             <template #icon>
-              <Icon :icon="faEye" fixed-width />
+              <img src="/public/icons/ArtistWatchlist.svg" alt="Artists Watchlist" class="w-5 h-5 object-contain sidebar-icon-svg">
             </template>
             Artists Watchlist
           </SidebarItem>
@@ -147,6 +147,25 @@ const onMouseLeave = (e: MouseEvent) => {
 onRouteChanged(_ => (mobileShowing.value = false))
 
 const collapseSidebar = () => (mobileShowing.value = false)
+
+const ARTIST_WATCHLIST_REFRESH_KEY = 'koel-artist-watchlist-refresh-request'
+const ARTIST_WATCHLIST_LAST_REFRESH_KEY = 'koel-artist-watchlist-last-refresh'
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+
+const handleArtistWatchlistClick = () => {
+  try {
+    const lastRefreshRaw = localStorage.getItem(ARTIST_WATCHLIST_LAST_REFRESH_KEY)
+    const lastRefresh = lastRefreshRaw ? Number.parseInt(lastRefreshRaw, 10) : 0
+    const stale = Number.isFinite(lastRefresh) ? Date.now() - lastRefresh > TWENTY_FOUR_HOURS : true
+
+    if (stale) {
+      localStorage.setItem(ARTIST_WATCHLIST_REFRESH_KEY, Date.now().toString())
+      window.dispatchEvent(new Event('artist-watchlist-sidebar-click'))
+    }
+  } catch (error) {
+    console.warn('Failed to prepare artist watchlist refresh request:', error)
+  }
+}
 
 /**
  * Listen to toggle sidebar event to show or hide the sidebar.

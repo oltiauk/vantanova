@@ -10,6 +10,11 @@
 
     <div class="wrapper">
       <div class="search-form max-w-[67rem] mx-auto space-y-6">
+        <div class="text-center">
+          <p class="text-k-text-secondary text-sm">
+            Find clickable label names in the Saved Tracks section, or type them here
+          </p>
+        </div>
         <!-- Search Input -->
         <div class="relative">
           <div class="flex justify-center">
@@ -115,25 +120,18 @@
 
       <!-- Results Table -->
       <div v-else-if="displayTracks.length > 0" class="mt-8">
-        <!-- Info Message -->
-        <div class="text-center mb-6">
-          <div class="relative">
-            <div class="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-3">
-              <span class="text-sm text-white/80">Ban listened tracks</span>
-              <button
-                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
-                @click="banListenedTracks = !banListenedTracks"
-              >
-                <span
-                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                  :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
-                />
-              </button>
-            </div>
-            <p class="text-k-text-secondary text-sm text-center">
-              Find clickable label names in the Saved Tracks section, or type them here&nbsp;
-            </p>
+        <div class="flex justify-between items-center mb-6 px-3">
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-white/80">Ban listened tracks</span>
+            <button
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="banListenedTracks ? 'bg-green-500' : 'bg-gray-600'"
+              @click="banListenedTracks = !banListenedTracks"
+            >
+              <span
+                :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
           </div>
         </div>
 
@@ -165,25 +163,15 @@
 
                     <!-- Artist -->
                     <td class="p-3 align-middle">
-                      <button
-                        class="font-medium text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left leading-none"
-                        :title="`View ${track.artist_name} on Spotify`"
-                        @click="openSpotifyArtistPage(track)"
-                      >
-                        {{ track.artist_name }}
-                      </button>
+                      <span class="font-medium text-gray-300 leading-none">{{ track.artist_name }}</span>
                     </td>
 
                     <!-- Release Title -->
                     <td class="p-3 align-middle">
-                      <button
-                        class="text-gray-300 hover:text-gray-100 transition-colors cursor-pointer text-left"
-                        :title="track.is_single_track ? `View '${track.track_name}' on Spotify` : `View '${track.release_name}' album on Spotify`"
-                        @click="openSpotifyReleasePage(track)"
-                      >
+                      <span class="text-gray-300 text-left">
                         {{ track.release_name || track.track_name }}
                         <span v-if="!track.is_single_track && track.track_count > 1" class="text-white/50 text-xs ml-1">({{ track.track_count }} tracks)</span>
-                      </button>
+                      </span>
                     </td>
 
                     <!-- Followers -->
@@ -257,19 +245,19 @@
                     <td colspan="8" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative pb-8">
                         <div class="max-w-[72.5rem] mx-auto">
-                          <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
+                          <div v-if="(track.album_id || track.spotify_id) && (track.album_id || track.spotify_id) !== 'NO_TRACK_FOUND'">
                             <iframe
-                              :key="track.is_single_track ? track.spotify_id : track.album_id"
+                              :key="track.is_single_track
+                                ? track.spotify_id
+                                : (track.album_id || track.spotify_id)"
                               :src="track.is_single_track
                                 ? `https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`
-                                : `https://open.spotify.com/embed/album/${track.album_id}?utm_source=generator&theme=0`"
+                                : `https://open.spotify.com/embed/album/${track.album_id || track.spotify_id}?utm_source=generator&theme=0`"
                               :title="track.is_single_track
                                 ? `${track.artist_name} - ${track.track_name}`
-                                : `${track.artist_name} - ${track.release_name || track.album_name} (${track.track_count} tracks)`"
+                                : `${track.artist_name} - ${track.release_name || track.album_name || track.track_name} (${track.track_count} tracks)`"
                               class="w-full spotify-embed"
-                              :style="track.is_single_track
-                                ? 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
-                                : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
+                              style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
                               frameBorder="0"
                               scrolling="no"
                               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -327,7 +315,7 @@
 
 <script lang="ts" setup>
 import { faBan, faCheck, faChevronDown, faHeart, faPause, faPlay, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { http } from '@/services/http'
 import { logger } from '@/utils/logger'
 import { useRouter } from '@/composables/useRouter'
@@ -925,7 +913,7 @@ const banTrack = async track => {
         artist_name: track.artist_name,
       })
 
-      if (response.success) {
+    if (response.success) {
         track.isBanned = true
         blacklistedTracks.value.add(trackKey)
         pendingAutoBannedTracks.value.delete(identifier)
@@ -962,8 +950,15 @@ const toggleSpotifyPlayer = async track => {
   // Mark as listened when opening preview
   markTrackAsListened(track)
 
-  // If track doesn't have a valid Spotify ID, try to find one
-  if (!track.spotify_id || !isValidSpotifyId(track.spotify_id)) {
+  // Prefer album embed when available for multi-track releases, else track embed
+  const hasAlbumId = !!(track.album_id && isValidSpotifyId(track.album_id))
+  const hasTrackId = !!(track.spotify_id && isValidSpotifyId(track.spotify_id))
+  let previewId: string | null = (!track.is_single_track && hasAlbumId)
+    ? track.album_id
+    : (hasTrackId ? track.spotify_id : null)
+
+  // If we still don't have an ID, try to find one
+  if (!previewId) {
     processingTrack.value = trackKey
     isPreviewProcessing.value = true
 
@@ -980,6 +975,7 @@ const toggleSpotifyPlayer = async track => {
       if (response.success && response.data && response.data.spotify_track_id) {
         // Update track with Spotify ID
         track.spotify_id = response.data.spotify_track_id
+        previewId = track.spotify_id
         // Now expand the player
         expandedTrackId.value = trackKey
       } else {
@@ -993,7 +989,7 @@ const toggleSpotifyPlayer = async track => {
       isPreviewProcessing.value = false
     }
   } else {
-    // Track has valid Spotify ID, show player immediately
+    // Track has valid ID, show player immediately
     expandedTrackId.value = trackKey
   }
 }
@@ -1117,11 +1113,12 @@ const clearSearchState = () => {
 }
 
 // Check for label search query from other screens
-const checkForStoredLabelQuery = () => {
+const checkForStoredLabelQuery = async () => {
   try {
     const storedData = localStorage.getItem('koel-label-search-query')
     if (storedData) {
       const labelSearchData = JSON.parse(storedData)
+      const shouldAutoSearch = !!labelSearchData.autoSearch
 
       // Only use if it's recent (within last 5 seconds)
       if (Date.now() - labelSearchData.timestamp < 5000) {
@@ -1137,8 +1134,17 @@ const checkForStoredLabelQuery = () => {
         popularityFilter.value = false
         releaseYearFilter.value = ''
 
-        // Only populate the search bar, don't auto-perform search
-        // This allows users to select options before searching
+        // Clear any pending delayed search and optionally trigger immediately
+        if (searchSuggestionTimer.value) {
+          clearTimeout(searchSuggestionTimer.value)
+          searchSuggestionTimer.value = null
+        }
+
+        if (shouldAutoSearch) {
+          await nextTick()
+          performSearch()
+        }
+
         console.log('🏷️ [LABEL SEARCH] Search query populated, previous results cleared, and filters reset')
 
         // Clear the stored data after using it

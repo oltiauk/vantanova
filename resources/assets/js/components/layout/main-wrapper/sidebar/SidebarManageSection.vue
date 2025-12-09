@@ -7,14 +7,14 @@
     <ul class="menu">
       <SidebarItem :href="url('saved-tracks')" screen="SavedTracks">
         <template #icon>
-          <Icon :icon="faHeart" fixed-width />
+          <Icon :icon="faHeart" fixed-width class="text-[1.2em]" />
         </template>
         Saved Tracks
         <span v-if="savedTrackCount !== null" class="ml-1 text-sm text-white/70">({{ savedTrackCount }})</span>
       </SidebarItem>
       <SidebarItem :href="url('banned-tracks')" screen="BannedTracks">
         <template #icon>
-          <Icon :icon="faBan" fixed-width />
+          <Icon :icon="faBan" fixed-width class="text-[1.2em]" />
         </template>
         Banned Tracks
       </SidebarItem>
@@ -29,19 +29,19 @@
       <template v-if="isAdmin">
         <SidebarItem :href="url('users.index')" screen="Users">
           <template #icon>
-            <Icon :icon="faUsers" fixed-width />
+            <Icon :icon="faUsers" fixed-width class="text-[1.2em]" />
           </template>
           Users
         </SidebarItem>
         <SidebarItem :href="url('upload')" screen="Upload">
           <template #icon>
-            <Icon :icon="faUpload" fixed-width />
+            <Icon :icon="faUpload" fixed-width class="text-[1.2em]" />
           </template>
           Upload
         </SidebarItem>
         <SidebarItem :href="url('settings')" screen="Settings">
           <template #icon>
-            <Icon :icon="faTools" fixed-width />
+            <Icon :icon="faTools" fixed-width class="text-[1.2em]" />
           </template>
           Settings
         </SidebarItem>

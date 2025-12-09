@@ -9,23 +9,29 @@
         <div class="flex-1">
           <div class="rounded-lg p-4">
             <div class="max-w-[39rem] mx-auto">
+              <div class="text-center mb-4">
+                <p class="text-k-text-secondary text-sm">
+                  Follow artists from the Saved Tracks section, or add them here
+                </p>
+              </div>
               <div ref="searchContainer" class="relative">
                 <div class="flex">
                   <input
                     v-model="searchQuery"
                     type="text"
-                    class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input text-center placeholder:text-center"
-                    placeholder="Add an artist in the watchlist"
+                    class="flex-1 py-3 px-4 bg-white/10 rounded-l-lg focus:outline-none text-white text-lg search-input"
+                    :placeholder="searchPlaceholder"
                     @keydown.enter="handleSearchButtonClick"
                     @input="onSearchInput"
+                    @focus="handleSearchFocus"
+                    @blur="handleSearchBlur"
                   >
                   <button
-                    class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
                     :disabled="(isSearching || isFetchingReleases) || (!searchQuery.trim() && watchlist.length === 0)"
                     @click="handleSearchButtonClick"
                   >
-                    <Icon v-if="!isFetchingReleases" :icon="faSearch" class="w-5 h-5" />
-                    <span v-else class="text-sm">Fetching…</span>
+                    <Icon :icon="faSearch" class="w-5 h-5" />
                   </button>
                 </div>
 
@@ -89,217 +95,223 @@
         {{ notification }}
       </div>
 
-      <!-- Info Message -->
-      <div class="text-center mt-6">
-        <p class="text-k-text-secondary text-sm">
-          Follow artists from the Saved Tracks section, or add them here
-        </p>
-      </div>
-
-      <div class="flex flex-col gap-6 lg:flex-row">
-        <div class="bg-white/5 rounded-xl p-5 w-full lg:w-72 flex flex-col">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-semibold text-white">Followed Artists</h2>
-            <span class="text-sm text-white/60">{{ watchlist.length }}/{{ watchlistLimit }}</span>
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-start items-start">
+        <div class="w-full lg:w-72 lg:self-start lg:flex-none">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="h-6" />
           </div>
-          <div v-if="watchlist.length" class="space-y-2 overflow-y-auto pr-1" style="max-height: 520px;">
-            <div
-              v-for="artist in watchlist"
-              :key="artist.artist_id"
-              class="flex items-center justify-between gap-2 px-3 py-2 bg-white/5 rounded-lg"
-            >
-              <p class="text-white text-sm truncate">{{ artist.artist_name }}</p>
-              <button
-                class="text-white/60 hover:text-white transition"
-                title="Remove artist"
-                @click="removeArtist(artist)"
-              >
-                <Icon :icon="faTimes" class="w-4 h-4" />
-              </button>
+          <div class="bg-white/5 rounded-xl p-5 flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-lg font-semibold text-white">Followed Artists</h2>
+              <span class="text-sm text-white/60">{{ watchlist.length }}/{{ watchlistLimit }}</span>
             </div>
-          </div>
-          <p v-else class="text-sm text-white/60">
-            No artists followed yet. Use the search above to add your first artist.
-          </p>
-        </div>
-
-        <div class="flex-1 bg-white/5 rounded-xl">
-          <div class="flex items-center justify-between px-6 pt-6 pb-4">
-            <div class="flex items-center gap-4">
-              <h3 class="text-lg font-semibold text-white">Released this month</h3>
-              <div class="flex items-center gap-3">
-                <span class="text-sm text-white/80">Ban listened tracks</span>
+            <div v-if="watchlist.length" class="space-y-2 pr-1">
+              <div
+                v-for="artist in watchlist"
+                :key="artist.artist_id"
+                class="flex items-center justify-between gap-2 px-3 py-2 bg-white/5 rounded-lg"
+              >
+                <p class="text-white text-sm truncate">{{ artist.artist_name }}</p>
                 <button
-                  class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                  :class="banListenedTracks ? 'bg-k-accent' : 'bg-gray-600'"
-                  @click="banListenedTracks = !banListenedTracks"
+                  class="text-white/60 hover:text-white transition"
+                  title="Remove artist"
+                  @click="removeArtist(artist)"
                 >
-                  <span
-                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                    :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
-                  />
+                  <Icon :icon="faTimes" class="w-4 h-4" />
                 </button>
               </div>
             </div>
-            <button
-              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="isFetchingReleases || watchlist.length === 0"
-              title="Refresh releases"
-              @click="fetchReleases()"
-            >
-              <Icon :icon="faSync" class="w-4 h-4" :class="{ 'animate-spin': isFetchingReleases }" />
-              <span>Refresh</span>
-            </button>
+            <p v-else class="text-sm text-white/60">
+              No artists followed yet. Use the search above to add your first artist.
+            </p>
           </div>
+        </div>
 
-          <div class="overflow-x-auto scrollbar-hide">
-            <table class="w-full">
-              <thead>
-                <tr class="border-b border-white/10 text-white/80">
-                  <th class="text-left px-4 py-4 font-medium w-12">#</th>
-                  <th class="text-left px-4 py-4 font-medium">Artist</th>
-                  <th class="text-left px-8 py-4 font-medium">Title</th>
-                  <th class="text-left px-2 py-4 font-medium w-28">Release Date</th>
-                  <th class="text-center pr-3 py-4 font-medium whitespace-nowrap" />
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="isFetchingReleases" class="text-center">
-                  <td colspan="5" class="py-8 text-white/70">Fetching latest releases…</td>
-                </tr>
-                <tr v-else-if="releases.length === 0" class="text-center">
-                  <td colspan="5" class="py-8 text-white/70">No recent releases found. Try refreshing or adding more artists.</td>
-                </tr>
-                <template v-else>
-                  <template v-for="(release, index) in paginatedReleases" :key="getReleaseKey(release, index)">
-                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                      <td class="px-4 py-4 text-white/70">{{ (currentPage - 1) * releasesPerPage + index + 1 }}</td>
-                      <td class="px-4 py-4">
-                        <p class="text-white font-medium">{{ release.artist_name }}</p>
-                      </td>
-                      <td class="px-8 py-4">
-                        <span class="text-white font-medium">
-                          {{ release.release_title || release.track_title }}
-                          <span v-if="release.track_count && release.track_count > 1" class="text-white/50 text-xs ml-1">({{ release.track_count }} tracks)</span>
-                        </span>
-                        <p v-if="release.track_title !== release.release_title" class="text-xs text-white/60">{{ release.track_title }}</p>
-                      </td>
-                      <td class="px-2 py-4 text-white/80 w-28">
-                        {{ formatDate(release.release_date) }}
-                      </td>
-                      <td class="pr-3 py-4 align-middle">
-                        <div class="flex gap-2 justify-end">
-                          <button
-                            :disabled="release.isSaved"
-                            :class="release.isSaved
-                              ? 'bg-green-500 hover:bg-green-600 text-white cursor-default'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
-                            :title="release.isSaved ? 'Saved' : 'Save track'"
-                            @click="saveTrack(release, index)"
-                          >
-                            <Icon :icon="faHeart" class="text-sm" />
-                          </button>
-                          <button
-                            :class="release.isBanned
-                              ? 'bg-red-500 hover:bg-red-600 text-white'
-                              : 'bg-[#484948] hover:bg-gray-500 text-white'"
-                            class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
-                            :title="release.isBanned ? 'Unban track' : 'Ban track'"
-                            @click="banTrack(release, index)"
-                          >
-                            <Icon :icon="faBan" class="text-sm" />
-                          </button>
-                          <button
-                            :disabled="!hasValidSeed(release)"
-                            class="pr-3 ml-4 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center bg-[#484948] hover:bg-gray-500 text-white"
-                            @click="viewRelatedTracks(release)"
-                          >
-                            <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
-                            <span>Related</span>
-                          </button>
-                          <button
-                            :disabled="processingRelease === getReleaseKey(release, index)"
-                            class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                            :class="[
-                              (expandedReleaseKey === getReleaseKey(release, index) || isReleaseListened(release))
-                                ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
-                                : 'bg-[#484948] hover:bg-gray-500 text-white'
-                            ]"
-                            :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : (isReleaseListened(release) ? 'Tracks have been listened to' : 'Preview release')"
-                            @click="togglePreview(release, index)"
-                          >
-                            <img v-if="expandedReleaseKey !== getReleaseKey(release, index)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
-                            <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                            <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : (isReleaseListened(release) ? 'Listened' : 'Preview') }}</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr v-if="expandedReleaseKey === getReleaseKey(release, index)" class="bg-white/5 border-b border-white/5">
-                      <td colspan="5" class="p-0">
-                        <div class="spotify-player-container p-6 bg-white/3 relative">
-                          <div
-                            v-if="release.spotify_album_id || release.spotify_track_id"
-                            class="flex items-center justify-center"
-                            :style="release.is_single_track ? 'min-height:80px;' : 'min-height:152px;'"
-                          >
-                            <iframe
-                              :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
-                              class="w-full max-w-6xl rounded-xl spotify-embed"
-                              :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
-                                ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
-                                : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
-                              :style="release.is_single_track
-                                ? 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
-                                : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
-                              frameborder="0"
-                              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                              loading="lazy"
-                              @load="(event) => { event.target.style.opacity = '1' }"
-                            />
-                          </div>
-                          <p v-else class="text-white/70 text-sm py-6 text-center">
-                            No preview available for this release.
-                          </p>
-                          <div class="absolute bottom-0 right-6">
-                            <span class="text-xs text-white/50 font-light">
-                              <a
-                                href="https://accounts.spotify.com/login"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-white/50 hover:text-white/70 transition-colors underline"
-                              >
-                                Connect</a> to Spotify to listen to the full track
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  </template>
-                </template>
-              </tbody>
-            </table>
+        <div class="flex-1">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="text-sm text-white/80">Ban listened tracks</span>
+            <button
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="banListenedTracks ? 'bg-green-500' : 'bg-gray-600'"
+              @click="banListenedTracks = !banListenedTracks"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
           </div>
-          <div
-            v-if="releases.length > releasesPerPage"
-            class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5"
-          >
-            <button
-              class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="currentPage === 1"
-              @click="goToPage(currentPage - 1)"
-            >
-              Previous
-            </button>
-            <span class="text-white/70 text-sm">Page {{ currentPage }} / {{ totalPages }}</span>
-            <button
-              class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="currentPage >= totalPages"
-              @click="goToPage(currentPage + 1)"
-            >
-              Next
-            </button>
+          <div class="bg-white/5 rounded-xl">
+            <div class="flex items-center justify-between px-6 pt-6 pb-4">
+              <h3 class="text-lg font-semibold text-white">Released this month</h3>
+              <button
+                class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="isFetchingReleases || watchlist.length === 0"
+                title="Refresh releases"
+                @click="fetchReleases()"
+              >
+                <Icon :icon="faSync" class="w-4 h-4" :class="{ 'animate-spin': isFetchingReleases }" />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            <div>
+              <div
+                v-if="isFetchingReleases"
+                class="flex flex-col items-center justify-center py-12 gap-3"
+              >
+                <span class="h-10 w-10 border-4 border-white/20 border-t-k-accent rounded-full animate-spin" />
+                <p class="text-white/70 text-sm">Fetching latest releases…</p>
+              </div>
+              <template v-else>
+                <div class="overflow-x-auto scrollbar-hide">
+                  <table class="w-full">
+                    <thead>
+                      <tr class="border-b border-white/10 text-white/80">
+                        <th class="text-left px-4 py-4 font-medium w-12">#</th>
+                        <th class="text-left px-4 py-4 font-medium">Artist</th>
+                        <th class="text-left px-8 py-4 font-medium">Title</th>
+                        <th class="text-left px-2 py-4 font-medium w-28 whitespace-nowrap">Release Date</th>
+                        <th class="text-center pr-3 py-4 font-medium whitespace-nowrap" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-if="releases.length === 0" class="text-center">
+                        <td colspan="5" class="py-8 text-white/70">No recent releases found. Try refreshing or adding more artists.</td>
+                      </tr>
+                      <template v-else>
+                        <template v-for="(release, index) in paginatedReleases" :key="getReleaseKey(release, index)">
+                          <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="px-4 py-4 text-white/70">{{ (currentPage - 1) * releasesPerPage + index + 1 }}</td>
+                            <td class="px-4 py-4">
+                              <p class="text-white font-medium">{{ release.artist_name }}</p>
+                            </td>
+                            <td class="px-8 py-4">
+                              <span class="text-white/80">
+                                {{ release.release_title || release.track_title }}
+                                <span v-if="release.track_count && release.track_count > 1" class="text-white/50 text-xs ml-1">({{ release.track_count }} tracks)</span>
+                              </span>
+                              <p v-if="release.track_title !== release.release_title" class="text-xs text-white/60">{{ release.track_title }}</p>
+                            </td>
+                            <td class="px-2 py-4 text-white/70 text-sm w-28 whitespace-nowrap">
+                              {{ formatDate(release.release_date) }}
+                            </td>
+                            <td class="pr-3 py-4 align-middle">
+                              <div class="flex gap-2 justify-end">
+                                <button
+                                  :disabled="release.isSaved"
+                                  :class="release.isSaved
+                                    ? 'bg-green-500 hover:bg-green-600 text-white cursor-default'
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                                  class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
+                                  :title="release.isSaved ? 'Saved' : 'Save track'"
+                                  @click="saveTrack(release, index)"
+                                >
+                                  <Icon :icon="faHeart" class="text-sm" />
+                                </button>
+                                <button
+                                  :class="release.isBanned
+                                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                                    : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                                  class="h-[34px] w-[34px] rounded text-sm font-medium transition flex items-center justify-center"
+                                  :title="release.isBanned ? 'Unban track' : 'Ban track'"
+                                  @click="banTrack(release, index)"
+                                >
+                                  <Icon :icon="faBan" class="text-sm" />
+                                </button>
+                                <button
+                                  :disabled="!hasValidSeed(release)"
+                                  class="pr-3 ml-4 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center bg-[#484948] hover:bg-gray-500 text-white"
+                                  @click="viewRelatedTracks(release)"
+                                >
+                                  <Icon :icon="faSearch" class="w-4 h-4 mr-2" />
+                                  <span>Related</span>
+                                </button>
+                                <button
+                                  :disabled="processingRelease === getReleaseKey(release, index)"
+                                  class="px-3 py-2 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                                  :class="[
+                                    (expandedReleaseKey === getReleaseKey(release, index) || isReleaseListened(release))
+                                      ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
+                                      : 'bg-[#484948] hover:bg-gray-500 text-white',
+                                  ]"
+                                  :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : (isReleaseListened(release) ? 'Tracks have been listened to' : 'Preview release')"
+                                  @click="togglePreview(release, index)"
+                                >
+                                  <img v-if="expandedReleaseKey !== getReleaseKey(release, index)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                                  <Icon v-else :icon="faTimes" class="w-3 h-3" />
+                                  <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : (isReleaseListened(release) ? 'Listened' : 'Preview') }}</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          <tr v-if="expandedReleaseKey === getReleaseKey(release, index)" class="bg-white/5 border-b border-white/5">
+                            <td colspan="5" class="p-0">
+                              <div class="spotify-player-container p-6 bg-white/3 relative">
+                                <div
+                                  v-if="release.spotify_album_id || release.spotify_track_id"
+                                  class="flex items-center justify-center"
+                                  :style="release.is_single_track ? 'min-height:80px;' : 'min-height:152px;'"
+                                >
+                                  <iframe
+                                    :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
+                                    class="w-full max-w-6xl rounded-xl spotify-embed"
+                                    :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
+                                      ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
+                                      : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
+                                    :style="release.is_single_track
+                                      ? 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
+                                      : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
+                                    frameborder="0"
+                                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                    loading="lazy"
+                                    @load="(event) => { event.target.style.opacity = '1' }"
+                                  />
+                                </div>
+                                <p v-else class="text-white/70 text-sm py-6 text-center">
+                                  No preview available for this release.
+                                </p>
+                                <div class="absolute bottom-0 right-6">
+                                  <span class="text-xs text-white/50 font-light">
+                                    <a
+                                      href="https://accounts.spotify.com/login"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      class="text-white/50 hover:text-white/70 transition-colors underline"
+                                    >
+                                      Connect</a> to Spotify to listen to the full track
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        </template>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div
+                  v-if="releases.length > releasesPerPage"
+                  class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5"
+                >
+                  <button
+                    class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="currentPage === 1"
+                    @click="goToPage(currentPage - 1)"
+                  >
+                    Previous
+                  </button>
+                  <span class="text-white/70 text-sm">Page {{ currentPage }} / {{ totalPages }}</span>
+                  <button
+                    class="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="currentPage >= totalPages"
+                    @click="goToPage(currentPage + 1)"
+                  >
+                    Next
+                  </button>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -375,6 +387,9 @@ const watchlistLimit = ref(30)
 const releases = ref<WatchlistRelease[]>([])
 const searchResults = ref<ArtistSearchResult[]>([])
 const searchQuery = ref('')
+const isSearchFocused = ref(false)
+const defaultSearchPlaceholder = 'Add an artist in the watchlist'
+const searchPlaceholder = computed(() => (isSearchFocused.value ? '' : defaultSearchPlaceholder))
 const debouncedQuery = ref('')
 const isSearching = ref(false)
 const isFetchingReleases = ref(false)
@@ -391,6 +406,9 @@ const currentPage = ref(1)
 const releasesPerPage = 20
 const processingRelease = ref<string | null>(null)
 const searchContainer = ref<HTMLElement | null>(null)
+const ARTIST_WATCHLIST_REFRESH_KEY = 'koel-artist-watchlist-refresh-request'
+const ARTIST_WATCHLIST_LAST_REFRESH_KEY = 'koel-artist-watchlist-last-refresh'
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
 
 let searchDebounce: number | undefined
 let notificationTimeout: number | undefined
@@ -447,6 +465,57 @@ const handleWatchlistUpdated = (event: Event) => {
     return
   }
   applyWatchlistMutation(detail.action, detail.artist)
+}
+
+const markLastRefresh = () => {
+  try {
+    localStorage.setItem(ARTIST_WATCHLIST_LAST_REFRESH_KEY, Date.now().toString())
+  } catch {}
+}
+
+const isRefreshStale = () => {
+  try {
+    const raw = localStorage.getItem(ARTIST_WATCHLIST_LAST_REFRESH_KEY)
+    const last = raw ? Number.parseInt(raw, 10) : 0
+    if (!Number.isFinite(last)) {
+      return true
+    }
+    return Date.now() - last > TWENTY_FOUR_HOURS
+  } catch {
+    return true
+  }
+}
+
+const clearRefreshRequest = () => {
+  try {
+    localStorage.removeItem(ARTIST_WATCHLIST_REFRESH_KEY)
+  } catch {}
+}
+
+const refreshIfRequested = async (): Promise<boolean> => {
+  try {
+    const request = localStorage.getItem(ARTIST_WATCHLIST_REFRESH_KEY)
+    if (!request) {
+      return false
+    }
+
+    clearRefreshRequest()
+
+    if (isRefreshStale()) {
+      if (isFetchingReleases.value) {
+        return false
+      }
+      await fetchReleases(true)
+      return true
+    }
+  } catch (error) {
+    console.warn('Failed to handle artist watchlist refresh request:', error)
+  }
+  return false
+}
+
+const handleSidebarRefreshEvent = () => {
+  refreshIfRequested()
 }
 
 const attemptReleaseRefresh = (force = true) => {
@@ -558,6 +627,14 @@ const onSearchInput = () => {
   // searchResults.value = []
 }
 
+const handleSearchFocus = () => {
+  isSearchFocused.value = true
+}
+
+const handleSearchBlur = () => {
+  isSearchFocused.value = false
+}
+
 const performSearch = () => {
   const query = searchQuery.value.trim()
   if (query.length < 2) {
@@ -658,8 +735,8 @@ const fetchReleases = async (force = false) => {
         backendFlags: {
           is_banned: (rel as any).is_banned,
           is_saved: (rel as any).is_saved,
-          is_listened: (rel as any).is_listened
-        }
+          is_listened: (rel as any).is_listened,
+        },
       })))
       cooldownSeconds.value = response.cooldown_seconds ?? 0
       lastUpdated.value = response.last_executed_at ?? null
@@ -673,6 +750,8 @@ const fetchReleases = async (force = false) => {
       if (response.api_partial_failure && response.failed_artists) {
         console.warn(`Failed to fetch data for ${response.failed_artists} artist(s)`)
       }
+
+      markLastRefresh()
     }
   } catch (error: any) {
     console.error('Failed to fetch releases:', error)
@@ -796,7 +875,7 @@ const markReleaseAsListened = async (release: WatchlistRelease) => {
       track_name: release.track_title,
       artist_name: release.artist_name,
       spotify_id: release.spotify_track_id,
-      isrc: release.isrc
+      isrc: release.isrc,
     })
   } catch (e) {
     try {
@@ -826,7 +905,7 @@ const autoBlacklistListenedRelease = async (release: WatchlistRelease) => {
       spotify_id: release.spotify_track_id || release.spotify_album_id,
       isrc: isrcValue,
       track_name: release.track_title,
-      artist_name: release.artist_name
+      artist_name: release.artist_name,
     })
 
     if (response.success) {
@@ -1061,7 +1140,7 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
     identifier,
     previous: originalBannedState,
     releaseBanned: release.isBanned,
-    backendFlag: (release as any).is_banned
+    backendFlag: (release as any).is_banned,
   })
 
   // Optimistically update the UI immediately
@@ -1311,14 +1390,19 @@ watch(isFetchingReleases, value => {
 
 onMounted(async () => {
   window.addEventListener(WATCHLIST_EVENT, handleWatchlistUpdated as EventListener)
+  window.addEventListener('artist-watchlist-sidebar-click', handleSidebarRefreshEvent)
   await loadWatchlist()
   loadSessionBanned()
   await loadListenedTracks()
-  await fetchReleases()
+  const refreshedFromSidebar = await refreshIfRequested()
+  if (!refreshedFromSidebar) {
+    await fetchReleases()
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener(WATCHLIST_EVENT, handleWatchlistUpdated as EventListener)
+  window.removeEventListener('artist-watchlist-sidebar-click', handleSidebarRefreshEvent)
   if (autoRefreshTimer) {
     clearTimeout(autoRefreshTimer)
     autoRefreshTimer = undefined
@@ -1329,6 +1413,11 @@ onUnmounted(() => {
 <style scoped lang="postcss">
 .artist-watchlist-screen {
   @apply space-y-8;
+}
+
+/* Center placeholder text in search input */
+.search-input::placeholder {
+  text-align: center;
 }
 
 .spotify-embed {

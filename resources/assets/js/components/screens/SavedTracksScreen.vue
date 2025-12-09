@@ -296,23 +296,21 @@
 
                   <!-- Spotify Player Dropdown Row with Animation -->
                   <Transition name="spotify-dropdown" mode="out-in">
-                    <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                      <td colspan="12" class="p-0 overflow-hidden">
-                        <div class="p-4 bg-white/5 relative">
-                          <div class="max-w-4xl mx-auto">
-                            <div v-if="track.spotify_id && track.spotify_id !== 'NO_TRACK_FOUND'">
+                  <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
+                    <td colspan="12" class="p-0 overflow-hidden">
+                      <div class="spotify-player-container p-6 bg-white/3 relative">
+                          <div class="max-w-[85rem] mx-auto">
+                            <div v-if="(track.album_id || track.spotify_id) && (track.album_id || track.spotify_id) !== 'NO_TRACK_FOUND'">
                               <iframe
-                                :key="track.track_count && track.track_count > 1 ? track.album_id : track.spotify_id"
+                                :key="track.track_count && track.track_count > 1 ? (track.album_id || track.spotify_id) : track.spotify_id"
                                 :src="track.track_count && track.track_count > 1
-                                  ? `https://open.spotify.com/embed/album/${track.album_id}?utm_source=generator&theme=0`
+                                  ? `https://open.spotify.com/embed/album/${track.album_id || track.spotify_id}?utm_source=generator&theme=0`
                                   : `https://open.spotify.com/embed/track/${track.spotify_id}?utm_source=generator&theme=0`"
                                 :title="track.track_count && track.track_count > 1
                                   ? `${track.artist_name} - ${track.track_name} (${track.track_count} tracks)`
                                   : `${track.artist_name} - ${track.track_name}`"
-                                class="w-full spotify-embed"
-                                :style="track.track_count && track.track_count > 1
-                                  ? 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
-                                  : 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
+                                class="w-full spotify-embed flex-shrink-0"
+                                style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
                                 frameBorder="0"
                                 scrolling="no"
                                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -328,7 +326,7 @@
                             </div>
 
                             <!-- Spotify Login Link -->
-                            <div class="absolute bottom-2 right-4">
+                            <div class="absolute bottom-0 right-6">
                               <span class="text-xs text-white/50 font-light">
                                 <a
                                   href="https://accounts.spotify.com/login"
@@ -430,6 +428,7 @@ interface SavedTrack {
   is_single_track?: boolean
   album_id?: string
 }
+
 
 interface WatchlistEventArtist {
   id?: number
@@ -1028,40 +1027,59 @@ const toggleSpotifyPlayer = async (track: SavedTrack) => {
     return
   }
 
-  // If track doesn't have a valid Spotify ID, try to find one
-  if (!track.spotify_id || !isValidSpotifyId(track.spotify_id)) {
+  const hasAlbumId = !!(track.album_id && isValidSpotifyId(track.album_id))
+  let previewTrackId: string | null = hasAlbumId
+    ? track.album_id as string
+    : (track.spotify_id && isValidSpotifyId(track.spotify_id) ? track.spotify_id : null)
+
+  if (!previewTrackId) {
     processingTrack.value = trackKey
     isPreviewProcessing.value = true
 
     try {
-      // Try to find Spotify equivalent for this saved track
-      const response = await http.get('music-discovery/track-preview', {
-        params: {
-          artist_name: track.artist_name,
-          track_title: track.track_name,
-          source: 'saved',
-        },
-      })
+      if (!previewTrackId) {
+        // Try to find Spotify equivalent for this saved track
+        const response = await http.get('music-discovery/track-preview', {
+          params: {
+            artist_name: track.artist_name,
+            track_title: track.track_name,
+            source: 'saved',
+          },
+        })
 
-      if (response.success && response.data && response.data.spotify_track_id) {
-        // Update track with Spotify ID
-        track.spotify_id = response.data.spotify_track_id
-        // Now expand the player
-        expandedTrackId.value = trackKey
-      } else {
-        // Show notification that preview is not available
+        if (response.success && response.data && response.data.spotify_track_id) {
+          track.spotify_id = response.data.spotify_track_id
+          previewTrackId = track.spotify_id
+        } else {
+          // Fallback: try checking cached embed requests
+          const cached = await checkExistingEmbedRequest(track)
+          if (cached && cached.spotify_id && isValidSpotifyId(cached.spotify_id)) {
+            track.spotify_id = cached.spotify_id
+            previewTrackId = track.spotify_id
+          }
+        }
+      }
+
+      if (!previewTrackId && !hasAlbumId) {
         showTrackNotFoundNotification(track)
+        return
       }
     } catch (error: any) {
       showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
+      return
     } finally {
       processingTrack.value = null
       isPreviewProcessing.value = false
     }
-  } else {
-    // Track has valid Spotify ID, show player immediately
-    expandedTrackId.value = trackKey
   }
+
+  if (!previewTrackId && !hasAlbumId) {
+    showTrackNotFoundNotification(track)
+    return
+  }
+
+  // Track has preview data ready, show player
+  expandedTrackId.value = trackKey
 }
 
 // Enhanced notification functions for better UX
@@ -1188,6 +1206,7 @@ const searchByLabel = (label: string) => {
     query: label,
     source: 'savedTracks',
     timestamp: Date.now(),
+    autoSearch: true,
   }
 
   localStorage.setItem('koel-label-search-query', JSON.stringify(labelSearchData))
