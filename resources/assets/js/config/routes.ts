@@ -257,6 +257,11 @@ export const routes: Route[] = [
     screen: 'LabelSearch'
   },
   {
+    name: 'label-watchlist',
+    path: '/label-watchlist',
+    screen: 'LabelWatchlist'
+  },
+  {
     name: 'genre-by-year',
     path: '/genre-by-year',
     screen: 'GenreByYear'

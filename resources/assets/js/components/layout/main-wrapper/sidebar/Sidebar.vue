@@ -39,7 +39,7 @@
             Similar Artists
           </SidebarItem>
 
-          <!-- <SoundCloudSidebarItem>
+          <SoundCloudSidebarItem>
             SoundCloud - Advanced Search
           </SoundCloudSidebarItem>
 
@@ -48,13 +48,20 @@
               <img src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-5 h-5 object-contain">
             </template>
             SoundCloud - Related Tracks
-          </SidebarItem> -->
+          </SidebarItem>
 
           <SidebarItem :href="url('label-search')" screen="LabelSearch">
             <template #icon>
               <img src="/public/icons/LabelSearch-icon.svg" alt="Label Search" class="w-5 h-5 object-contain sidebar-icon-svg">
             </template>
             Label Search
+          </SidebarItem>
+
+          <SidebarItem :href="url('label-watchlist')" screen="LabelWatchlist" @click="handleLabelWatchlistClick">
+            <template #icon>
+              <img src="/public/icons/LabelSearch-icon.svg" alt="Labels Watchlist" class="w-5 h-5 object-contain sidebar-icon-svg">
+            </template>
+            Labels Watchlist
           </SidebarItem>
 
           <SidebarItem :href="url('artist-watchlist')" screen="ArtistWatchlist" @click="handleArtistWatchlistClick">
@@ -151,6 +158,8 @@ const collapseSidebar = () => (mobileShowing.value = false)
 const ARTIST_WATCHLIST_REFRESH_KEY = 'koel-artist-watchlist-refresh-request'
 const ARTIST_WATCHLIST_LAST_REFRESH_KEY = 'koel-artist-watchlist-last-refresh'
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+const LABEL_WATCHLIST_REFRESH_KEY = 'koel-label-watchlist-refresh-request'
+const LABEL_WATCHLIST_LAST_REFRESH_KEY = 'koel-label-watchlist-last-refresh'
 
 const handleArtistWatchlistClick = () => {
   try {
@@ -164,6 +173,21 @@ const handleArtistWatchlistClick = () => {
     }
   } catch (error) {
     console.warn('Failed to prepare artist watchlist refresh request:', error)
+  }
+}
+
+const handleLabelWatchlistClick = () => {
+  try {
+    const lastRefreshRaw = localStorage.getItem(LABEL_WATCHLIST_LAST_REFRESH_KEY)
+    const lastRefresh = lastRefreshRaw ? Number.parseInt(lastRefreshRaw, 10) : 0
+    const stale = Number.isFinite(lastRefresh) ? Date.now() - lastRefresh > TWENTY_FOUR_HOURS : true
+
+    if (stale) {
+      localStorage.setItem(LABEL_WATCHLIST_REFRESH_KEY, Date.now().toString())
+      window.dispatchEvent(new Event('label-watchlist-sidebar-click'))
+    }
+  } catch (error) {
+    console.warn('Failed to prepare label watchlist refresh request:', error)
   }
 }
 

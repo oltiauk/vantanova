@@ -75,6 +75,7 @@ use App\Http\Controllers\API\UserInvitationController;
 use App\Http\Controllers\API\MusicDiscoveryController;
 use App\Http\Controllers\API\MusicPreferencesController;
 use App\Http\Controllers\API\LabelSearchController;
+use App\Http\Controllers\API\LabelWatchlistController;
 use App\Http\Controllers\API\GenreByYearController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -277,6 +278,12 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::delete('artist-watchlist/{artistId}', [ArtistWatchlistController::class, 'destroy'])->name('artist-watchlist.destroy');
             Route::post('artist-watchlist/search', [ArtistWatchlistController::class, 'searchArtists'])->name('artist-watchlist.search');
             Route::post('artist-watchlist/releases', [ArtistWatchlistController::class, 'releases'])->name('artist-watchlist.releases');
+
+            // Label watchlist
+            Route::get('label-watchlist', [LabelWatchlistController::class, 'index'])->name('label-watchlist.index');
+            Route::post('label-watchlist', [LabelWatchlistController::class, 'store'])->name('label-watchlist.store');
+            Route::delete('label-watchlist/{label}', [LabelWatchlistController::class, 'destroy'])->name('label-watchlist.destroy');
+            Route::post('label-watchlist/releases', [LabelWatchlistController::class, 'releases'])->name('label-watchlist.releases');
             
             // Listened tracks
             Route::post('listened-track', [MusicPreferencesController::class, 'markListened'])->name('listened-track.mark');

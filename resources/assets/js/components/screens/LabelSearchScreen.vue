@@ -100,6 +100,13 @@
           >
             Search
           </button>
+          <button
+            :disabled="!searchQuery.trim() || isFollowing || isLoading"
+            class="px-6 py-2 bg-white/10 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-colors"
+            @click="followLabel"
+          >
+            {{ isFollowing ? 'Following…' : 'Follow label' }}
+          </button>
         </div>
       </div>
 
@@ -129,6 +136,7 @@
               @click="banListenedTracks = !banListenedTracks"
             >
               <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
                 :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
               />
             </button>
@@ -343,6 +351,7 @@ const isPreviewProcessing = ref(false)
 const visibleCount = ref(20)
 const INITIAL_VISIBLE_COUNT = 20
 const LOAD_MORE_STEP = 20
+const isFollowing = ref(false)
 
 // Listened tracks tracking (UI only)
 const listenedTracks = ref(new Set<string>())
@@ -1273,6 +1282,41 @@ onRouteChanged(route => {
 
   console.log('🏷️ [LABEL SEARCH] onRouteChanged handler finished')
 })
+
+const followLabel = async () => {
+  const label = (searchQuery.value || lastSearchQuery.value || '').trim()
+  if (!label) {
+    return
+  }
+
+  isFollowing.value = true
+  try {
+    const response = await http.post('music-preferences/label-watchlist', { label })
+    if (response.success) {
+      logger.info('🏷️ [LABEL SEARCH] Label followed', { label })
+      try {
+        localStorage.setItem('koel-label-watchlist-refresh-request', Date.now().toString())
+      } catch {}
+
+      window.dispatchEvent(new CustomEvent('label-watchlist-updated', {
+        detail: {
+          action: 'added',
+          label: {
+            label,
+            normalized_label: label.toLowerCase(),
+          },
+        },
+      }))
+    } else {
+      errorMessage.value = response.error || 'Unable to follow label.'
+    }
+  } catch (error: any) {
+    logger.error('🏷️ [LABEL SEARCH] Failed to follow label', error)
+    errorMessage.value = error.response?.data?.error || error.message || 'Unable to follow label.'
+  } finally {
+    isFollowing.value = false
+  }
+}
 </script>
 
 <style lang="postcss" scoped>

@@ -414,6 +414,7 @@ declare type ScreenName =
   | 'SoundCloudRelatedTracks'
   | 'SimilarArtists'
   | 'ArtistWatchlist'
+  | 'LabelWatchlist'
   | '404'
 
 declare type ArtistAlbumCardLayout = 'full' | 'compact'

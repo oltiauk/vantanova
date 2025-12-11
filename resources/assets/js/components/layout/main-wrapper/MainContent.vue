@@ -29,6 +29,7 @@
     <MusicDiscoveryScreen v-show="screen === 'MusicDiscovery'" />
     <BannedTracksScreen v-show="screen === 'BannedTracks'" />
     <ArtistWatchlistScreen v-show="screen === 'ArtistWatchlist'" />
+    <LabelWatchlistScreen v-show="screen === 'LabelWatchlist'" />
     <SavedTracksScreen v-show="screen === 'SavedTracks'" />
     <SoundCloudScreen v-show="screen === 'SoundCloud'" />
     <SoundCloudRelatedTracksScreen v-show="screen === 'SoundCloudRelatedTracks'" />
@@ -74,6 +75,7 @@ import PodcastListScreen from '@/components/screens/PodcastListScreen.vue'
 import MusicDiscoveryScreen from '@/components/screens/MusicDiscoveryScreen.vue'
 import BannedTracksScreen from '@/components/screens/BannedTracksScreen.vue'
 import ArtistWatchlistScreen from '@/components/screens/ArtistWatchlistScreen.vue'
+import LabelWatchlistScreen from '@/components/screens/LabelWatchlistScreen.vue'
 import SavedTracksScreen from '@/components/screens/SavedTracksScreen.vue'
 import SoundCloudScreen from '@/components/screens/SoundCloudScreen.vue'
 import SoundCloudRelatedTracksScreen from '@/components/screens/SoundCloudRelatedTracksScreen.vue'
