@@ -40,7 +40,7 @@
           </SidebarItem>
 
           <SoundCloudSidebarItem>
-            SoundCloud - Advanced Search
+            SoundCloud Deep Search
           </SoundCloudSidebarItem>
 
           <SidebarItem :href="url('soundcloud-related-tracks')" screen="SoundCloudRelatedTracks">
@@ -59,7 +59,7 @@
 
           <SidebarItem :href="url('label-watchlist')" screen="LabelWatchlist" @click="handleLabelWatchlistClick">
             <template #icon>
-              <img src="/public/icons/LabelSearch-icon.svg" alt="Labels Watchlist" class="w-5 h-5 object-contain sidebar-icon-svg">
+              <img src="/public/icons/LabelWatchlist.svg" alt="Labels Watchlist" class="w-5 h-5 object-contain sidebar-icon-svg">
             </template>
             Labels Watchlist
           </SidebarItem>

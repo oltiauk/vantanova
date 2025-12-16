@@ -3,7 +3,7 @@
     <td colspan="12" class="p-0">
       <div class="flex items-center justify-center player-container">
         <!-- SoundCloud Embedded Player -->
-        <div class="w-full max-w-3xl mx-auto px-8 py-4">
+        <div class="w-full max-w-6xl mx-auto px-8 py-4">
           <iframe
             v-if="embedUrl"
             :src="cleanEmbedUrl(embedUrl)"

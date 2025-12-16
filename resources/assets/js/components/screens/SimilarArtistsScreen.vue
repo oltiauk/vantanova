@@ -271,7 +271,7 @@
                         </div>
 
                         <!-- Tracks Display -->
-                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="max-w-[51rem] mx-auto">
+                        <div v-else-if="artist.spotifyTracks && artist.spotifyTracks.length > 0" class="mx-auto w-full max-w-[95%]">
                           <div
                             v-for="track in artist.spotifyTracks.slice(0, 1)"
                             :key="track.id"
@@ -370,7 +370,7 @@
                         </div>
 
                         <!-- Spotify Login Link -->
-                        <div class="absolute bottom-0 right-6">
+                        <div class="absolute bottom-0 left-0 right-0 text-center">
                           <span class="text-xs text-white/50 font-light">
                             <a
                               href="https://accounts.spotify.com/login"

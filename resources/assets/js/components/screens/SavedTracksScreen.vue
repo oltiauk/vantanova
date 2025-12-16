@@ -64,25 +64,25 @@
       <div v-if="isLoading" class="text-center p-12">
         <div class="inline-flex flex-col items-center">
           <div class="animate-spin rounded-full h-8 w-8 border-2 border-k-accent border-t-transparent mb-4" />
-          <span class="text-k-text-secondary">Loading saved tracks...</span>
+          <span class="text-k-text-secondary">Loading liked tracks...</span>
         </div>
       </div>
 
       <!-- Empty State -->
       <div v-else-if="sortedTracks.length === 0 && !isLoading" class="text-center py-12">
         <h4 class="text-lg font-medium text-k-text-primary mb-2">
-          {{ searchQuery ? 'No tracks found' : 'No Saved Tracks' }}
+          {{ searchQuery ? 'No tracks found' : 'No Liked Tracks' }}
         </h4>
         <p class="text-k-text-secondary">
           {{ searchQuery ? 'Try adjusting your search terms' : 'Tracks you save will appear here' }}
         </p>
       </div>
 
-      <!-- Saved Tracks Table -->
+      <!-- Liked Tracks Table -->
       <div v-if="sortedTracks.length > 0 && !isLoading">
         <div class="text-center mb-4">
           <p class="text-k-text-secondary text-sm">
-            Saved tracks remain in the list for 24h only.
+            Liked tracks remain in the list for 24h only.
           </p>
         </div>
         <div class="bg-white/5 rounded-lg overflow-visible relative z-20">
@@ -266,7 +266,7 @@
                         <!-- Preview -->
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
-                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[15px] justify-center"
+                          class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                           title="Preview Track"
                           @click="toggleSpotifyPlayer(track)"
                         >
@@ -285,7 +285,7 @@
                         <button
                           :disabled="isProcessing"
                           class="p-2 rounded-full transition-colors text-gray-300 hover:text-gray-100 hover:bg-white/10 disabled:opacity-50"
-                          title="Remove from saved tracks"
+                          title="Remove from liked tracks"
                           @click="unsaveTrack(track)"
                         >
                           <Icon :icon="faTrash" class="w-4 h-4" />
@@ -299,7 +299,7 @@
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
                     <td colspan="12" class="p-0 overflow-hidden">
                       <div class="spotify-player-container p-6 bg-white/3 relative">
-                          <div class="max-w-[85rem] mx-auto">
+                          <div class="mx-auto w-full max-w-[94%]">
                             <div v-if="(track.album_id || track.spotify_id) && (track.album_id || track.spotify_id) !== 'NO_TRACK_FOUND'">
                               <iframe
                                 :key="track.track_count && track.track_count > 1 ? (track.album_id || track.spotify_id) : track.spotify_id"
@@ -326,7 +326,7 @@
                             </div>
 
                             <!-- Spotify Login Link -->
-                            <div class="absolute bottom-0 right-6">
+                            <div class="absolute bottom-0 left-0 right-0 text-center">
                               <span class="text-xs text-white/50 font-light">
                                 <a
                                   href="https://accounts.spotify.com/login"

@@ -5,16 +5,13 @@
         <thead>
           <tr class="border-b border-white/10">
             <th class="text-left p-3 font-medium">#</th>
-            <th class="text-left p-3 font-medium w-12">Ban Artist</th>
-            <th class="text-left p-3 font-medium">Name(s)</th>
+            <th class="text-left p-3 font-medium">Artist(s)</th>
             <th class="text-left p-3 font-medium">Title</th>
             <th class="text-left p-3 font-medium">Genre</th>
             <th class="text-left p-3 font-medium">BPM</th>
-            <th class="text-left p-3 font-medium">Plays</th>
-            <th class="text-left p-3 font-medium">Likes</th>
-            <th class="text-left p-3 font-medium">Likes Ratio</th>
+            <th class="text-left p-3 font-medium">Streams</th>
             <th class="text-left p-3 font-medium">Release Date</th>
-            <th class="text-left p-3 font-medium">Duration</th>
+            <th class="text-left p-3 font-medium">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -23,32 +20,19 @@
               class="hover:bg-white/5 transition h-16"
               :class="[
                 isCurrentTrack(track) ? 'bg-white/5' : 'border-b border-white/5',
-                expandedTrackId !== track.id && allowAnimations ? 'track-row' : '',
+                expandedTrackId !== track.id && allowAnimations && index >= animationStartIndex ? 'track-row' : '',
               ]"
-              :style="expandedTrackId !== track.id && allowAnimations ? { animationDelay: `${index * 50}ms` } : {}"
+              :style="expandedTrackId !== track.id
+                && allowAnimations
+                && index >= animationStartIndex
+                ? { animationDelay: `${Math.max(index - animationStartIndex, 0) * 50}ms` }
+                : {}"
             >
               <!-- Index -->
               <td class="p-3 align-middle">
                 <span class="text-white/60">
                   {{ (props.startIndex || 0) + index + 1 }}
                 </span>
-              </td>
-
-              <!-- Ban Button -->
-              <td class="p-3 align-middle">
-                <div class="flex items-center justify-center">
-                  <button
-                    class="w-8 h-8 rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center" :class="[
-                      isArtistBanned(track)
-                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                        : 'bg-[#484948] hover:bg-gray-500 text-white',
-                    ]"
-                    :title="isArtistBanned(track) ? 'Click to unban this artist' : 'Ban this artist'"
-                    @click="banArtist(track)"
-                  >
-                    <Icon :icon="faUserSlash" class="text-xs" />
-                  </button>
-                </div>
               </td>
 
               <!-- Artist -->
@@ -58,11 +42,11 @@
                   :href="getUserProfileUrl(track.user)"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="font-medium text-white hover:text-k-accent transition cursor-pointer"
+                  class="font-medium text-white/90 hover:text-k-accent transition cursor-pointer"
                 >
                   {{ track.user?.username || 'Unknown' }}
                 </a>
-                <div v-else class="font-medium text-white">
+                <div v-else class="font-medium text-white/90">
                   {{ track.user?.username || 'Unknown' }}
                 </div>
               </td>
@@ -74,11 +58,11 @@
                   :href="track.permalink_url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="font-medium text-white hover:text-k-accent transition cursor-pointer"
+                  class="text-white/80 hover:text-k-accent transition cursor-pointer"
                 >
                   {{ track.title || 'Untitled' }}
                 </a>
-                <div v-else class="font-medium text-white">{{ track.title || 'Untitled' }}</div>
+                <div v-else class="text-white/80">{{ track.title || 'Untitled' }}</div>
               </td>
 
               <!-- Genre -->
@@ -99,19 +83,9 @@
                 <span v-else class="text-white/40">-</span>
               </td>
 
-              <!-- Playback Count -->
+              <!-- Stream Count -->
               <td class="p-3 align-middle">
                 <span class="text-white/80">{{ formatCount(track.playback_count || 0) }}</span>
-              </td>
-
-              <!-- Likes (Favoritings) -->
-              <td class="p-3 align-middle">
-                <span class="text-white/80">{{ formatCount(track.favoritings_count || 0) }}</span>
-              </td>
-
-              <!-- Likes Ratio -->
-              <td class="p-3 align-middle">
-                <span class="text-white/80">{{ formatLikesRatio(track.favoritings_count || 0, track.playback_count || 0) }}</span>
               </td>
 
               <!-- Release Date -->
@@ -119,29 +93,37 @@
                 <span class="text-white/80 whitespace-nowrap inline-block">{{ formatDate(track.created_at || '') }}</span>
               </td>
 
-              <!-- Duration -->
-              <td class="p-3 align-middle">
-                <span class="text-white/80">{{ formatDuration(track.duration || 0) }}</span>
-              </td>
-
               <!-- Actions -->
               <td class="p-3 align-middle">
-                <div class="flex gap-2 relative z-0">
+                <div class="flex gap-2 justify-center relative z-0">
                   <button
                     v-if="props.showRelatedButton"
-                    class="px-3 py-1.5 bg-[#9d0cc6] hover:bg-[#c036e8] rounded text-sm font-medium transition relative z-0 flex items-center gap-1"
+                    class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
                     title="Find Related Tracks"
                     @click="$emit('relatedTracks', track)"
                   >
-                    <Icon :icon="faSearch" class="w-3 h-3" />
+                    <Icon :icon="faSearch" class="w-4 h-4 mr-1" />
                     <span>Related</span>
                   </button>
 
                   <button
-                    class="px-3 py-1.5 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition flex items-center gap-1 justify-center"
+                    class="px-3 py-2 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
+                    :class="expandedTrackId === track.id
+                      ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
+                      : 'bg-[#484948] hover:bg-gray-500 text-white'"
                     @click="toggleInlinePlayer(track)"
                   >
-                    <Icon :icon="expandedTrackId === track.id ? faTimes : faPlay" class="w-3 h-3" />
+                    <Icon
+                      v-if="expandedTrackId === track.id"
+                      :icon="faTimes"
+                      class="w-4 h-4 mr-1"
+                    />
+                    <img
+                      v-else
+                      src="/public/img/Primary_Logo_White_RGB.svg"
+                      alt="Spotify"
+                      class="w-[21px] h-[21px] object-contain mr-1"
+                    >
                     <span>{{ expandedTrackId === track.id ? 'Close' : 'Preview' }}</span>
                   </button>
                 </div>
@@ -169,9 +151,9 @@
 </template>
 
 <script lang="ts" setup>
-import { faBan, faMusic, faPause, faPlay, faSearch, faTimes, faUserSlash } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import InlineSoundCloudPlayer from '@/components/ui/soundcloud/InlineSoundCloudPlayer.vue'
 
 interface SoundCloudTrack {
@@ -198,6 +180,7 @@ interface Props {
   showRelatedButton?: boolean
   startIndex?: number
   allowAnimations?: boolean
+  animationStartIndex?: number
 }
 
 interface Emits {
@@ -205,23 +188,18 @@ interface Emits {
   (e: 'pause', track: SoundCloudTrack): void
   (e: 'seek', position: number): void
   (e: 'relatedTracks', track: SoundCloudTrack): void
-  (e: 'banArtist', track: SoundCloudTrack): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showRelatedButton: true,
   allowAnimations: false,
-}); const emit = defineEmits<Emits>() // Banned artists tracking (shared with SoundCloud screen)
-const bannedArtists = ref(new Set<string>()) // Store artist names
-
-// Helper function to check if an artist is banned
-const isArtistBanned = (track: SoundCloudTrack): boolean => {
-  return bannedArtists.value.has(track.user?.username || '')
-}
+  animationStartIndex: 0,
+})
+const emit = defineEmits<Emits>()
 
 const expandedTrackId = ref<string | null>(null)
-const initialLoadComplete = ref(false)
 const allowAnimations = computed(() => props.allowAnimations)
+const animationStartIndex = computed(() => props.animationStartIndex ?? 0)
 
 // Method to close any expanded inline player
 const closeInlinePlayer = () => {
@@ -251,43 +229,6 @@ const toggleInlinePlayer = (track: SoundCloudTrack) => {
     expandedTrackId.value = track.id
     // Auto-play when opening inline player
     emit('play', track)
-  }
-}
-
-const banArtist = (track: SoundCloudTrack) => {
-  emit('banArtist', track)
-
-  // Immediately toggle the banned state in this component for instant visual feedback
-  const artistName = track.user?.username || ''
-  if (isArtistBanned(track)) {
-    bannedArtists.value.delete(artistName)
-  } else {
-    bannedArtists.value.add(artistName)
-  }
-}
-
-// Load banned artists from localStorage
-const loadBannedArtists = () => {
-  try {
-    const stored = localStorage.getItem('koel-banned-artists')
-    if (stored) {
-      const bannedList = JSON.parse(stored)
-      bannedArtists.value = new Set(bannedList)
-    }
-  } catch (error) {
-    console.warn('SoundCloudTrackTable: Failed to load banned artists from localStorage:', error)
-  }
-}
-
-// Watch for changes to localStorage to stay in sync with parent component
-const handleStorageChange = (event: StorageEvent) => {
-  if (event.key === 'koel-banned-artists' && event.newValue) {
-    try {
-      const bannedList = JSON.parse(event.newValue)
-      bannedArtists.value = new Set(bannedList)
-    } catch (error) {
-      console.warn('SoundCloudTrackTable: Failed to parse banned artists from storage event:', error)
-    }
   }
 }
 
@@ -394,42 +335,39 @@ const formatCount = (count: number | undefined | null): string => {
 }
 
 const formatDate = (dateString: string): string => {
+  if (!dateString) {
+    return 'Unknown'
+  }
+
   try {
     const date = new Date(dateString)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    const now = new Date()
+    const diffMs = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 7) {
+      if (diffDays === 0) {
+        return 'Today'
+      }
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+    }
+
+    if (diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7)
+      return `${weeks} week${weeks === 1 ? '' : 's'} ago`
+    }
+
+    if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30)
+      return `${months} month${months === 1 ? '' : 's'} ago`
+    }
+
+    const years = Math.floor(diffDays / 365)
+    return `${years} year${years === 1 ? '' : 's'} ago`
   } catch {
     return 'Unknown'
   }
 }
-
-const formatDuration = (milliseconds: number): string => {
-  const totalSeconds = Math.floor(milliseconds / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
-const formatLikesRatio = (likes: number, plays: number): string => {
-  if (!plays || plays === 0) {
-    return '0.00%'
-  }
-  const ratio = (likes / plays) * 100
-  return `${ratio.toFixed(2)}%`
-}
-
-// Initialize banned artists state when component mounts
-onMounted(() => {
-  loadBannedArtists()
-  window.addEventListener('storage', handleStorageChange)
-})
-
-// Clean up storage listener when component unmounts
-onUnmounted(() => {
-  window.removeEventListener('storage', handleStorageChange)
-})
 </script>
 
 <style scoped>
@@ -494,5 +432,27 @@ tr {
 /* Add subtle shadow to playing rows */
 tr.bg-white\/5 {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Match label search table text tone */
+tbody td {
+  color: rgba(209, 213, 219, 0.9); /* similar to text-gray-300 */
+}
+
+/* Lighten text on row hover for better focus */
+tbody tr:hover td {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+tbody tr:hover td a {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+tbody tr:hover td .text-white\/60 {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+tbody tr:hover td .text-white\/40 {
+  color: rgba(255, 255, 255, 0.65);
 }
 </style>

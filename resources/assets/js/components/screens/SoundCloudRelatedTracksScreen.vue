@@ -125,7 +125,6 @@
           :allow-animations="allowAnimations"
           @play="playTrack"
           @related-tracks="selectSeedTrack"
-          @ban-artist="banArtist"
         />
 
         <!-- Pagination Controls for Seed Search -->
@@ -236,7 +235,6 @@
           @pause="pauseTrack"
           @seek="seekTrack"
           @related-tracks="findRelatedForTrack"
-          @ban-artist="banArtist"
         />
 
         <!-- Pagination Controls -->
@@ -295,7 +293,6 @@ import { debounce } from 'lodash'
 import { eventBus } from '@/utils/eventBus'
 import { soundcloudService, type SoundCloudTrack } from '@/services/soundcloudService'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
-import { http } from '@/services/http'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { useRouter } from '@/composables/useRouter'
 
@@ -337,8 +334,6 @@ const showLikesRatioDropdown = ref(false)
 // Initialize global blacklist filtering for SoundCloud
 const {
   filterSoundCloudTracks,
-  addSoundCloudTrackToBlacklist,
-  addArtistToBlacklist,
   loadBlacklistedItems,
 } = useBlacklistFiltering()
 
@@ -427,16 +422,6 @@ const visibleSeedPages = computed(() => {
 
   return pages
 })
-
-const formatDuration = (duration?: number): string => {
-  if (!duration) {
-    return '0:00'
-  }
-  // Duration is in milliseconds for SoundCloud
-  const minutes = Math.floor(duration / 60000)
-  const seconds = Math.floor((duration % 60000) / 1000)
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
 
 const loadRelatedTracks = async (trackUrn: string) => {
   loading.value = true
@@ -845,89 +830,6 @@ const loadBannedArtists = () => {
     console.error('Failed to load banned artists:', error)
   }
 }
-
-// Helper function to check if an artist is banned
-const isArtistBanned = (track: SoundCloudTrack): boolean => {
-  return bannedArtists.value.has(track.user?.username || '')
-}
-
-// Save banned artists to localStorage
-const saveBannedArtists = () => {
-  try {
-    const bannedList = Array.from(bannedArtists.value)
-    localStorage.setItem('koel-banned-artists', JSON.stringify(bannedList))
-  } catch (error) {
-    console.warn('SoundCloudRelatedTracks: Failed to save banned artists to localStorage:', error)
-  }
-}
-
-// Ban/Unban an artist (toggle banned state)
-const banArtist = async (track: SoundCloudTrack) => {
-  const artistName = track.user?.username || 'Unknown Artist'
-  const isCurrentlyBanned = isArtistBanned(track)
-  
-  try {
-    console.log(`${isCurrentlyBanned ? '✅ Unbanning' : '🚫 Banning'} SoundCloud artist:`, artistName)
-
-    if (isCurrentlyBanned) {
-      // UNBAN ARTIST - immediate UI update, background API removal
-      bannedArtists.value.delete(artistName)
-      
-      // Save to localStorage immediately
-      saveBannedArtists()
-      
-      // Background API call to remove from blacklist
-      try {
-        const deleteData = {
-          artist_name: artistName,
-          spotify_artist_id: `soundcloud:${track.user?.id || track.id}`
-        }
-        const params = new URLSearchParams(deleteData)
-        const response = await http.delete(`music-preferences/blacklist-artist?${params}`)
-        console.log('✅ SoundCloud artist removed from global blacklist API:', response)
-      } catch (apiError: any) {
-        console.error('❌ Failed to remove from API:', apiError)
-        // Revert local state if API call fails
-        bannedArtists.value.add(artistName)
-        saveBannedArtists()
-        error.value = `Failed to unban artist: ${apiError.response?.data?.message || apiError.message}`
-      }
-    } else {
-      // BAN ARTIST - immediate UI update, background API save
-      bannedArtists.value.add(artistName)
-      
-      // Save to localStorage immediately
-      saveBannedArtists()
-      
-      // Add to global blacklist (affects other sections)
-      addArtistToBlacklist(artistName)
-      
-      // Background API call to save to blacklist
-      try {
-        const response = await http.post('music-preferences/blacklist-artist', {
-          artist_name: artistName,
-          spotify_artist_id: `soundcloud:${track.user?.id || track.id}`,
-        })
-        console.log('✅ SoundCloud artist saved to global blacklist API:', response)
-      } catch (apiError: any) {
-        console.error('❌ Failed to save to API:', apiError)
-        // Revert local state if API call fails
-        bannedArtists.value.delete(artistName)
-        saveBannedArtists()
-        error.value = `Failed to ban artist: ${apiError.response?.data?.message || apiError.message}`
-      }
-    }
-
-    // NOTE: We do NOT remove from current results - artists stay visible until next search
-    // The filtering happens in loadRelatedTracks() and searchSeedTracks() for new searches
-
-    console.log(`${isCurrentlyBanned ? '✅ Unbanned' : '🚫 Banned'} SoundCloud artist "${artistName}" - stays visible in current results`)
-  } catch (error: any) {
-    console.error(`Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} SoundCloud artist:`, error)
-    error.value = `Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} artist: ${error.message || 'Unknown error'}`
-  }
-}
-
 // Filter function to remove banned artists from tracks
 const filterBannedArtists = (trackList: SoundCloudTrack[]): SoundCloudTrack[] => {
   return trackList.filter(track => {

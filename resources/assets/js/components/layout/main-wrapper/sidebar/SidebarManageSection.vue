@@ -9,7 +9,7 @@
         <template #icon>
           <Icon :icon="faHeart" fixed-width class="text-[1.2em]" />
         </template>
-        Saved Tracks
+        Liked Tracks
         <span v-if="savedTrackCount !== null" class="ml-1 text-sm text-white/70">({{ savedTrackCount }})</span>
       </SidebarItem>
       <SidebarItem :href="url('banned-tracks')" screen="BannedTracks">

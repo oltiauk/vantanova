@@ -12,7 +12,7 @@
       <div class="search-form max-w-[67rem] mx-auto space-y-6">
         <div class="text-center">
           <p class="text-k-text-secondary text-sm">
-            Find clickable label names in the Saved Tracks section, or type them here
+            Find clickable label names in the Liked Tracks section, or type them here
           </p>
         </div>
         <!-- Search Input -->
@@ -66,7 +66,7 @@
               v-model="releaseYearFilter"
               type="text"
               placeholder="Type a year"
-              class="py-2.5 px-3 bg-white/10 rounded border-0 focus:outline-none text-white placeholder-white/40 placeholder:text-xs text-xs w-24 text-center"
+              class="py-2.5 px-3 bg-white/10 rounded-lg border-0 focus:outline-none text-white placeholder-white/40 placeholder:text-xs text-xs w-24 text-center"
               @input="handleReleaseYearChange"
             >
           </div>
@@ -161,7 +161,7 @@
                 <template v-for="(track, index) in displayTracks" :key="track.spotify_id">
                   <tr
                     class="transition h-16 border-b border-white/5" :class="[
-                      expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5'
+                      expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
                     ]"
                   >
                     <!-- Index -->
@@ -252,7 +252,7 @@
                   <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
                     <td colspan="8" class="p-0 overflow-hidden">
                       <div class="p-4 bg-white/5 relative pb-8">
-                        <div class="max-w-[72.5rem] mx-auto">
+                        <div class="mx-auto w-full max-w-[95%]">
                           <div v-if="(track.album_id || track.spotify_id) && (track.album_id || track.spotify_id) !== 'NO_TRACK_FOUND'">
                             <iframe
                               :key="track.is_single_track
@@ -281,7 +281,7 @@
                         </div>
 
                         <!-- Spotify Login Link -->
-                        <div class="absolute bottom-2 right-4">
+                        <div class="absolute bottom-2 left-0 right-0 text-center">
                           <span class="text-xs text-white/50 font-light">
                             <a
                               href="https://accounts.spotify.com/login"
@@ -526,7 +526,7 @@ const performSearch = async () => {
 
     const queryString = new URLSearchParams({
       ...params,
-      limit: '100'
+      limit: '100',
     }).toString()
 
     console.log('Making request to:', `label-search?${queryString}`)
@@ -742,7 +742,7 @@ const saveTrack = async track => {
       // but for now this client-side approach works well since tracks expire anyway
       try {
         window.dispatchEvent(new CustomEvent('track-unsaved', {
-          detail: { track, trackKey: getTrackKey(track) }
+          detail: { track, trackKey: getTrackKey(track) },
         }))
       } catch (e) {
         // ignore dispatch errors
@@ -833,7 +833,7 @@ const saveTrack = async track => {
           localStorage.setItem('track-saved-timestamp', Date.now().toString())
           try {
             window.dispatchEvent(new CustomEvent('track-saved', {
-              detail: { track, trackKey }
+              detail: { track, trackKey },
             }))
           } catch (e) {
             // ignore dispatch errors
@@ -922,12 +922,11 @@ const banTrack = async track => {
         artist_name: track.artist_name,
       })
 
-    if (response.success) {
+      if (response.success) {
         track.isBanned = true
         blacklistedTracks.value.add(trackKey)
         pendingAutoBannedTracks.value.delete(identifier)
         pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
-
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
       }
@@ -989,10 +988,10 @@ const toggleSpotifyPlayer = async track => {
         expandedTrackId.value = trackKey
       } else {
       // Show notification that preview is not available
-      showTrackNotFoundNotification(track)
-    }
-  } catch (error: any) {
-    showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
+        showTrackNotFoundNotification(track)
+      }
+    } catch (error: any) {
+      showPreviewErrorNotification(track, error.response?.data?.error || error.message || 'Network error')
     } finally {
       processingTrack.value = null
       isPreviewProcessing.value = false
@@ -1392,5 +1391,4 @@ input:focus::placeholder {
   opacity: 0;
   transform: translateY(-4px);
 }
-
 </style>

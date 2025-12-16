@@ -1,41 +1,52 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader header-image="/HeadersSVG/SoundCloud-AdvancedSearch-Header.svg">
+      <ScreenHeader header-image="/VantaNova-Logo.svg">
         Enhanced SoundCloud Search
       </ScreenHeader>
     </template>
 
-
     <div class="p-6 space-y-6">
       <!-- Enhanced Search Controls -->
-      <div class="bg-white/5 rounded-lg p-4">
+      <div class="rounded-lg p-4">
         <!-- Main Layout: Search Controls Left, Advanced Filters Right -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Left Side: Search Controls (50% width) -->
           <div class="space-y-4">
-            <!-- Search Query Row -->
-            <div>
-              <label class="block text-sm font-medium mb-2 text-white/80">Search Keywords</label>
-              <input
-                v-model="searchQuery"
-                type="text"
-                class="w-full p-3 bg-white/10 rounded focus:outline-none text-white text-lg"
-                placeholder="Search for artists, tracks, albums..."
-                @keyup.enter="search"
-              >
-              <div class="mt-2 flex flex-wrap gap-1">
-                <button
-                  v-for="preset in keywordPresets"
-                  :key="preset"
-                  class="px-2 py-1 bg-white/10 hover:bg-k-accent/20 rounded text-xs text-white/70 hover:text-k-accent transition"
-                  @click="addKeywordPreset(preset)"
+            <!-- Top Row: Artist & Keywords -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Artist Input -->
+              <div>
+                <label class="block text-sm font-medium mb-2 text-white/80">Search Artist</label>
+                <input
+                  v-model="artistFilter"
+                  type="text"
+                  class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
+                  placeholder="Search for artists"
+                  @keyup.enter="search"
                 >
-                  {{ preset }}
-                </button>
               </div>
-              <div class="mt-1 text-xs text-white/50">
-                Press Enter to search or use the search button below
+
+              <!-- Search Query Row -->
+              <div>
+                <label class="block text-sm font-medium mb-2 text-white/80">Search Keywords</label>
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg search-input"
+                  placeholder="Search for tracks, albums..."
+                  @keyup.enter="search"
+                >
+                <div class="mt-2 flex flex-wrap gap-1">
+                  <button
+                    v-for="preset in keywordPresets"
+                    :key="preset"
+                    class="px-2 py-1 bg-white/10 hover:bg-k-accent/20 rounded text-xs text-white/70 hover:text-k-accent transition"
+                    @click="addKeywordPreset(preset)"
+                  >
+                    {{ preset }}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -47,8 +58,8 @@
                 <input
                   v-model="selectedGenre"
                   type="text"
-                  class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
-                  placeholder="Type genre..."
+                  class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
+                  placeholder="Type a genre"
                 >
               </div>
 
@@ -58,8 +69,8 @@
                 <input
                   v-model="searchTags"
                   type="text"
-                  class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
-                  placeholder="Add another genre, style, or characteristic"
+                  class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
+                  placeholder="Add another genre or keyword"
                 >
               </div>
             </div>
@@ -71,7 +82,7 @@
                 <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
                 <select
                   v-model="timePeriod"
-                  class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
+                  class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
                 >
                   <option value="" class="bg-gray-800">All Time</option>
                   <option value="1d" class="bg-gray-800">Last Day</option>
@@ -136,24 +147,24 @@
               <div class="grid grid-cols-2 gap-4 mb-auto">
                 <!-- Minimum Plays -->
                 <div>
-                  <label class="block text-sm font-medium mb-2 text-white/80">Minimum Plays</label>
+                  <label class="block text-sm font-medium mb-2 text-white/80">Minimum Streams</label>
                   <input
                     v-model="minPlaysFormatted"
                     type="text"
                     placeholder="e.g. 10,000"
-                    class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
+                    class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
                     @input="handleMinPlaysInput"
                   >
                 </div>
 
                 <!-- Maximum Plays -->
                 <div>
-                  <label class="block text-sm font-medium mb-2 text-white/80">Maximum Plays</label>
+                  <label class="block text-sm font-medium mb-2 text-white/80">Maximum Streams</label>
                   <input
                     v-model="maxPlaysFormatted"
                     type="text"
                     placeholder="e.g. 1,000,000"
-                    class="w-full p-2 bg-white/10 rounded focus:outline-none text-white"
+                    class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
                     @input="handleMaxPlaysInput"
                   >
                 </div>
@@ -187,8 +198,7 @@
             class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition flex items-center gap-2"
             @click="search"
           >
-            <Icon v-if="loading" :icon="faSpinner" spin />
-            <Icon v-else :icon="faSearch" />
+            <Icon :icon="faSearch" />
             {{ searchButtonText }}
           </button>
 
@@ -200,38 +210,15 @@
             Reset
           </button>
         </div>
-
-        <!-- Filter Status -->
-        <div v-if="hasValidFilters" class="mt-3 text-center">
-          <div class="inline-flex items-center gap-2 text-sm text-white/60">
-            <Icon :icon="faFilter" />
-            Filters:
-            <span v-if="searchQuery" class="bg-k-accent/20 text-k-accent px-2 py-1 rounded text-xs">
-              "{{ searchQuery.length > 20 ? `${searchQuery.substring(0, 20)}...` : searchQuery }}"
-            </span>
-            <span v-if="selectedGenre" class="bg-k-accent/20 text-k-accent px-2 py-1 rounded text-xs">
-              {{ selectedGenre }}
-            </span>
-            <span v-if="searchTags" class="bg-k-accent/20 text-k-accent px-2 py-1 rounded text-xs">
-              {{ searchTags.length > 20 ? `${searchTags.substring(0, 20)}...` : searchTags }}
-            </span>
-            <span v-if="bpmFrom !== 95 || bpmTo !== 172" class="bg-k-accent/20 text-k-accent px-2 py-1 rounded text-xs">
-              {{ bpmFrom }}-{{ bpmTo }} BPM
-            </span>
-            <span v-if="timePeriod" class="bg-k-accent/20 text-k-accent px-2 py-1 rounded text-xs">
-              {{ timePeriod }}
-            </span>
-          </div>
-        </div>
       </div>
 
       <!-- Loading Animation -->
-      <div v-if="loading" class="bg-white/5 rounded-lg p-6">
-        <div class="flex items-center justify-center py-8">
-          <div class="flex items-center gap-3">
-            <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
-            <span class="text-k-text-secondary">Searching SoundCloud...</span>
-          </div>
+      <div v-if="loading" class="text-center p-12">
+        <div class="inline-flex flex-col items-center">
+          <svg class="w-8 h-8 animate-spin text-white mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
         </div>
       </div>
 
@@ -245,7 +232,6 @@
             @click="toggleLikesRatioDropdown"
             @blur="hideLikesRatioDropdown"
           >
-            <Icon :icon="getSortIcon()" />
             {{ getSortText() }}
             <Icon :icon="faChevronDown" class="text-xs" />
           </button>
@@ -258,30 +244,17 @@
           >
             <button
               class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-t-lg"
-              :class="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
-              :style="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
-              @mousedown.prevent="setLikesRatioFilter('none')"
-            >
-              <Icon :icon="faFilter" />
-              Default (by Plays)
-            </button>
-            <button
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-              :class="likesRatioFilter === 'highest' ? 'background-color: rgb(67,67,67,255)' : ''"
-              :style="likesRatioFilter === 'highest' ? 'background-color: rgb(67,67,67,255)' : ''"
-              @mousedown.prevent="setLikesRatioFilter('highest')"
-            >
-              <Icon :icon="faArrowUp" />
-              Highest Likes Ratio
-            </button>
-            <button
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-b-lg"
-              :class="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
               :style="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
               @mousedown.prevent="setLikesRatioFilter('newest')"
             >
-              <Icon :icon="faClock" />
-              Newest Releases
+              Most Recent
+            </button>
+            <button
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-b-lg"
+              :style="likesRatioFilter === 'streams' ? 'background-color: rgb(67,67,67,255)' : ''"
+              @mousedown.prevent="setLikesRatioFilter('streams')"
+            >
+              Most Streams
             </button>
           </div>
         </div>
@@ -289,56 +262,25 @@
         <SoundCloudTrackTable
           ref="soundcloudTable"
           :tracks="tracks"
-          :start-index="(currentPage - 1) * 20"
+          :start-index="0"
           :allow-animations="allowAnimations"
+          :animation-start-index="animationStartIndex"
           @play="playTrack"
           @pause="pauseTrack"
           @seek="seekTrack"
           @related-tracks="openRelatedTracks"
-          @ban-artist="banArtist"
         />
 
-        <!-- Pagination Controls -->
-        <div v-if="searched && tracks.length > 0" class="pagination-section flex items-center justify-center gap-2 mt-8">
+        <!-- Load More -->
+        <div v-if="hasMoreResults && !loading" class="flex items-center justify-center mt-8">
           <button
-            :disabled="currentPage <= 1 || loadingMore"
-            class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="{ 'opacity-50 cursor-not-allowed': currentPage <= 1 || loadingMore }"
-            @click="goToPage(currentPage - 1)"
+            class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="loadingMore"
+            @click="loadMoreResults"
           >
-            Previous
+            <Icon v-if="loadingMore" :icon="faSpinner" spin class="mr-2" />
+            Load More
           </button>
-
-          <div class="flex items-center gap-1">
-            <button
-              v-for="page in visiblePages"
-              :key="page"
-              :class="page === currentPage ? 'bg-k-accent text-white' : 'bg-k-bg-primary text-gray-300 hover:bg-white/10'"
-              class="w-10 h-10 flex items-center justify-center rounded transition-colors"
-              :disabled="loadingMore"
-              @click="goToPage(page)"
-            >
-              {{ page }}
-            </button>
-          </div>
-
-          <button
-            :disabled="!hasMoreResults || loadingMore"
-            class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="{ 'opacity-50 cursor-not-allowed': !hasMoreResults || loadingMore }"
-            @click="goToPage(currentPage + 1)"
-          >
-            <Icon v-if="loadingMore" :icon="faSpinner" spin class="mr-1" />
-            {{ loadingMore ? 'Loading...' : 'Next' }}
-          </button>
-        </div>
-
-        <!-- Page Info -->
-        <div v-if="searched && tracks.length > 0" class="text-center mt-3">
-          <div class="text-sm text-white/60">
-            Page {{ currentPage }} • {{ tracks.length }} tracks
-            <span v-if="hasMoreResults"> • More pages available</span>
-          </div>
         </div>
       </div>
 
@@ -376,7 +318,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faArrowDown, faArrowUp, faChartLine, faChevronDown, faChevronLeft, faChevronRight, faClock, faExclamationTriangle, faFilter, faPlay, faPlus, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faChevronDown, faExclamationTriangle, faFilter, faSearch, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from '@/composables/useRouter'
@@ -385,7 +327,6 @@ import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { eventBus } from '@/utils/eventBus'
 import Router from '@/router'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
-import { http } from '@/services/http'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -409,13 +350,16 @@ const bpmTo = ref<number>(172)
 const bpmFromInput = ref<string>('95')
 const bpmToInput = ref<string>('172')
 const timePeriod = ref('')
+const artistFilter = ref('')
 const minPlays = ref<number>()
 const maxPlays = ref<number>()
 const minPlaysFormatted = ref('')
 const maxPlaysFormatted = ref('')
 const contentType = ref('tracks') // Default to tracks
-const likesRatioFilter = ref<'none' | 'highest' | 'newest'>('none') // Sort filter state
+const likesRatioFilter = ref<'streams' | 'newest'>('newest') // Sort filter state
 const showLikesRatioDropdown = ref(false) // Dropdown visibility
+const displayLimit = ref(20)
+const animationStartIndex = ref(0)
 
 // Results state
 const tracks = ref<SoundCloudTrack[]>([])
@@ -428,21 +372,15 @@ const searchStats = ref<SearchStats | null>(null)
 // Pagination state
 const loadingMore = ref(false)
 const hasMoreResults = ref(false)
-const currentPage = ref(1)
-const totalPages = ref(1)
+const serverHasMore = ref(false)
 const lastSearchFilters = ref<SoundCloudFilters | null>(null)
-
-// Page caching to avoid re-fetching visited pages
-const pageCache = ref<Map<number, SoundCloudTrack[]>>(new Map())
-const pageCacheKey = ref<string>('')
 
 // Banned artists tracking (shared with Similar Artists and Recommendations)
 const bannedArtists = ref(new Set<string>()) // Store artist names
 
 // Initialize global blacklist filtering composable
-const { 
-  addArtistToBlacklist,
-  loadBlacklistedItems 
+const {
+  loadBlacklistedItems,
 } = useBlacklistFiltering()
 
 // Player state (now using global store)
@@ -454,40 +392,14 @@ const hasValidFilters = computed(() => {
   const hasGenre = selectedGenre.value && selectedGenre.value !== 'All Genres' && selectedGenre.value !== ''
   const hasTags = searchTags.value?.trim()
   const hasBPM = (bpmFrom.value !== 95 || bpmTo.value !== 172)
+  const hasArtist = artistFilter.value?.trim()
   const hasAdvanced = minPlays.value || maxPlays.value || (contentType.value !== 'tracks')
   const hasTimePeriod = timePeriod.value && timePeriod.value !== ''
 
-  return hasQuery || hasGenre || hasTags || hasBPM || hasAdvanced || hasTimePeriod
+  return hasQuery || hasGenre || hasTags || hasBPM || hasAdvanced || hasTimePeriod || hasArtist
 })
 
-const searchButtonText = computed(() => {
-  if (loading.value) {
-    return 'Searching...'
-  }
-  if (searchStats.value) {
-    return `Search`
-  }
-  return 'Search'
-})
-
-// Pagination computed properties
-const visiblePages = computed(() => {
-  const pages = []
-  const maxVisiblePages = 5
-  let startPage = Math.max(1, currentPage.value - Math.floor(maxVisiblePages / 2))
-  const endPage = Math.min(totalPages.value, startPage + maxVisiblePages - 1)
-
-  // Adjust start page if we're near the end
-  if (endPage - startPage + 1 < maxVisiblePages) {
-    startPage = Math.max(1, endPage - maxVisiblePages + 1)
-  }
-
-  for (let i = startPage; i <= endPage; i++) {
-    pages.push(i)
-  }
-
-  return pages
-})
+const searchButtonText = computed(() => 'Search')
 
 // Keyword presets that users commonly search for
 const keywordPresets = [
@@ -552,29 +464,20 @@ const hideLikesRatioDropdown = () => {
   }, 150) // Small delay to allow click events to register
 }
 
-const setLikesRatioFilter = (type: 'none' | 'highest' | 'newest') => {
+const setLikesRatioFilter = (type: 'streams' | 'newest') => {
   likesRatioFilter.value = type
   showLikesRatioDropdown.value = false
   applyFiltering()
 }
 
-const getSortIcon = () => {
-  switch (likesRatioFilter.value) {
-    case 'highest': return faArrowUp
-    case 'newest': return faClock
-    default: return faFilter
-  }
-}
-
 const getSortText = () => {
   switch (likesRatioFilter.value) {
-    case 'highest': return 'Highest Likes Ratio'
-    case 'newest': return 'Newest Releases'
-    default: return 'Sort by: Plays'
+    case 'streams': return 'Most Streams'
+    default: return 'Most Recent'
   }
 }
 
-const applyFiltering = () => {
+const getFilteredTracks = () => {
   let filteredTracks = [...originalTracks.value]
   const originalCount = filteredTracks.length
 
@@ -587,11 +490,6 @@ const applyFiltering = () => {
 
   // Apply plays filtering first
   if (minPlays.value || maxPlays.value) {
-    console.log('🔍 Applying plays filter with tracks:', filteredTracks.slice(0, 3).map(t => ({
-      title: t?.title,
-      plays: t?.playback_count,
-    })))
-
     filteredTracks = filteredTracks.filter(track => {
       const playCount = track.playback_count || 0
 
@@ -616,15 +514,22 @@ const applyFiltering = () => {
     })
   }
 
-  // Then apply sorting
-  if (likesRatioFilter.value === 'highest') {
-    // Sort by likes ratio highest to lowest
-    filteredTracks.sort((a, b) => {
-      const ratioA = (a.playback_count || 0) > 0 ? (a.favoritings_count || 0) / (a.playback_count || 0) : 0
-      const ratioB = (b.playback_count || 0) > 0 ? (b.favoritings_count || 0) / (b.playback_count || 0) : 0
-      return ratioB - ratioA
+  // Artist filter (matches artist/account/title)
+  if (artistFilter.value?.trim()) {
+    const artistQuery = artistFilter.value.trim().toLowerCase()
+    filteredTracks = filteredTracks.filter(track => {
+      const fields = [
+        track.user?.username,
+        track.user?.permalink_url,
+        track.title,
+      ]
+
+      return fields.some(field => typeof field === 'string' && field.toLowerCase().includes(artistQuery))
     })
-  } else if (likesRatioFilter.value === 'newest') {
+  }
+
+  // Then apply sorting
+  if (likesRatioFilter.value === 'newest') {
     // Sort by creation date newest to oldest
     filteredTracks.sort((a, b) => {
       const dateA = new Date(a.created_at || 0).getTime()
@@ -632,12 +537,44 @@ const applyFiltering = () => {
       return dateB - dateA
     })
   } else {
-    // Default sort by plays (highest to lowest)
+    // Sort by streams (highest to lowest)
     filteredTracks.sort((a, b) => (b.playback_count || 0) - (a.playback_count || 0))
   }
 
-  // Update displayed tracks - show all filtered tracks
-  tracks.value = filteredTracks
+  return filteredTracks
+}
+
+const applyFiltering = () => {
+  const filteredTracks = getFilteredTracks()
+  updateVisibleTracks(filteredTracks, false)
+}
+
+const updateVisibleTracks = (filteredTracks: SoundCloudTrack[], append: boolean) => {
+  if (append) {
+    const start = tracks.value.length
+    const end = Math.min(filteredTracks.length, start + 20)
+    if (end <= start) {
+      hasMoreResults.value = serverHasMore.value || filteredTracks.length > start
+      return
+    }
+    const nextChunk = filteredTracks.slice(start, end)
+    tracks.value.push(...nextChunk)
+    displayLimit.value = tracks.value.length
+  } else {
+    displayLimit.value = Math.max(20, displayLimit.value)
+    tracks.value = filteredTracks.slice(0, displayLimit.value)
+  }
+
+  hasMoreResults.value = serverHasMore.value || filteredTracks.length > tracks.value.length
+}
+
+const triggerRowAnimations = (startIndex: number) => {
+  animationStartIndex.value = startIndex
+  allowAnimations.value = true
+
+  setTimeout(() => {
+    allowAnimations.value = false
+  }, 2000)
 }
 
 // Number formatting helpers for plays inputs
@@ -649,24 +586,6 @@ const parseNumberFromFormatted = (str: string): number | undefined => {
   const cleaned = str.replace(/[,\s]/g, '')
   const num = Number.parseInt(cleaned, 10)
   return isNaN(num) ? undefined : num
-}
-
-// Generate a cache key based on search filters
-const generateCacheKey = (filters: SoundCloudFilters): string => {
-  const keyParts = [
-    filters.searchQuery || '',
-    filters.searchTags || '',
-    filters.genre || '',
-    filters.bpmFrom || '',
-    filters.bpmTo || '',
-    filters.durationFrom || '',
-    filters.durationTo || '',
-    filters.minPlays || '',
-    filters.maxPlays || '',
-    filters.timePeriod || '',
-    likesRatioFilter.value || 'none',
-  ]
-  return keyParts.join('|')
 }
 
 const handleMinPlaysInput = (event: Event) => {
@@ -797,6 +716,13 @@ watch([bpmFrom, bpmTo], ([newFrom, newTo]) => {
   }
 })
 
+// Watch artist filter to re-apply filtering on existing results
+watch(artistFilter, () => {
+  if (originalTracks.value.length > 0 && searched.value && !loading.value) {
+    applyFiltering()
+  }
+})
+
 const search = async () => {
   if (!hasValidFilters.value) {
     error.value = 'Please select at least one filter to search with enhanced features.'
@@ -809,8 +735,8 @@ const search = async () => {
   originalTracks.value = []
   searchStats.value = null
   hasMoreResults.value = false
-
-  currentPage.value = 1
+  loadingMore.value = false
+  animationStartIndex.value = 0
 
   const startTime = performance.now()
 
@@ -838,15 +764,11 @@ const search = async () => {
       minPlays: minPlays.value || undefined,
       maxPlays: maxPlays.value || undefined,
       timePeriod: timePeriod.value || undefined,
-      limit: 20,
+      limit: 200,
     }
 
     // Store filters for pagination
     lastSearchFilters.value = filters
-
-    // Generate cache key and clear cache for new search
-    pageCacheKey.value = generateCacheKey(filters)
-    pageCache.value.clear()
 
     console.log('🎵 DEBUG: Filters being sent to API:', filters)
 
@@ -864,18 +786,16 @@ const search = async () => {
       })),
     })
 
-    // Limit to exactly 20 tracks per page (SoundCloud API sometimes returns more)
-    const limitedTracks = response.tracks.slice(0, 20)
-    
+    const pageLimit = filters.limit || 200
+    const limitedTracks = response.tracks.slice(0, pageLimit)
+
     // Filter out banned artists from NEW search results
     const filteredTracks = filterBannedArtists(limitedTracks)
     console.log(`🚫 SoundCloud: Filtered ${limitedTracks.length - filteredTracks.length} banned artists from new search results`)
 
-    // Cache page 1 results (filtered)
-    pageCache.value.set(1, filteredTracks)
-
-    originalTracks.value = filteredTracks
-    tracks.value = filteredTracks
+    const uniqueTracks = dedupeTracks(filteredTracks)
+    originalTracks.value = uniqueTracks
+    tracks.value = uniqueTracks
 
     console.log('🎵 DEBUG: After storing:', {
       originalTracksCount: originalTracks.value.length,
@@ -885,24 +805,17 @@ const search = async () => {
       willFilter: !!(minPlays.value || maxPlays.value),
     })
 
-    // Apply current filtering to all tracks
+    serverHasMore.value = response.hasMore || response.tracks.length >= pageLimit
+
+    // Reset visible count to first 20
+    displayLimit.value = 20
+
+    // Apply current filtering to visible tracks (updates hasMoreResults)
     applyFiltering()
-
-    // Check if SoundCloud has more pages available - if we got more than 20 tracks, there are definitely more pages
-    hasMoreResults.value = response.hasMore || response.tracks.length > 20
-
-    // Set up pagination state
-    if (hasMoreResults.value) {
-      totalPages.value = 2 // At least 2 pages since we have more
-    } else {
-      totalPages.value = 1 // Only 1 page
-    }
 
     console.log('🎵 Search complete:', {
       totalTracks: tracks.value.length,
       hasMorePages: hasMoreResults.value,
-      currentPage: currentPage.value,
-      estimatedTotalPages: totalPages.value,
     })
 
     // Calculate search statistics
@@ -922,13 +835,8 @@ const search = async () => {
 
     // Trigger animations for new search results
     setTimeout(() => {
-      allowAnimations.value = true
+      triggerRowAnimations(0)
       initialLoadComplete.value = true
-      
-      // Auto-disable animations after 2 seconds
-      setTimeout(() => {
-        allowAnimations.value = false
-      }, 2000)
     }, 50)
   } catch (err: any) {
     error.value = err.message || 'Failed to search SoundCloud. Please try again.'
@@ -939,98 +847,67 @@ const search = async () => {
   }
 }
 
-const goToPage = async (page: number) => {
-  if (!lastSearchFilters.value || page < 1 || page === currentPage.value) {
+const loadMoreResults = async () => {
+  if (!lastSearchFilters.value || loadingMore.value || !hasMoreResults.value) {
     return
   }
 
-  // Check if page is cached first
-  if (pageCache.value.has(page)) {
-    console.log(`🎵 Navigation: Loading page ${page} from cache`)
-    const cachedTracks = pageCache.value.get(page)!
+  const currentVisibleCount = tracks.value.length
+  const filteredTracks = getFilteredTracks()
 
-    // Load from cache instantly
-    originalTracks.value = cachedTracks
-    tracks.value = cachedTracks
-    currentPage.value = page
-
-    // Apply current filtering to cached tracks
-    applyFiltering()
-
-    console.log(`🎵 Page ${page}: Loaded ${tracks.value.length} tracks from cache`)
+  // If we already have more locally, just reveal the next chunk
+  if (displayLimit.value < filteredTracks.length) {
+    updateVisibleTracks(filteredTracks, true)
+    if (tracks.value.length > currentVisibleCount) {
+      setTimeout(() => {
+        triggerRowAnimations(currentVisibleCount)
+      }, 50)
+    }
     return
   }
 
+  // Otherwise fetch the next batch from the API
   loadingMore.value = true
   error.value = ''
 
   try {
-    console.log(`🎵 Navigation: Fetching page ${page} from API`)
-
-    // Calculate offset based on page number (20 tracks per page)
-    const offset = (page - 1) * 20
+    const offset = originalTracks.value.length
+    const limit = lastSearchFilters.value.limit || 200
 
     const filters = {
       ...lastSearchFilters.value,
       offset,
-      limit: 20,
+      limit,
     }
 
-    console.log(`🎵 DEBUG: Requesting page ${page} with filters:`, { offset, limit: 20, query: filters.searchQuery })
+    console.log(`🎵 DEBUG: Loading more SoundCloud results offset ${offset}, limit ${limit}`)
 
     const response = await soundcloudService.searchWithPagination(filters)
 
     if (response.tracks && response.tracks.length > 0) {
-      // Limit to exactly 20 tracks per page (SoundCloud API sometimes returns more)
-      const limitedTracks = response.tracks.slice(0, 20)
-      
-      // Filter out banned artists from NEW page results
-      const filteredTracks = filterBannedArtists(limitedTracks)
-      console.log(`🚫 SoundCloud Page ${page}: Filtered ${limitedTracks.length - filteredTracks.length} banned artists`)
+      const limitedTracks = response.tracks.slice(0, limit)
+      const filteredTracksApi = filterBannedArtists(limitedTracks)
+      const uniqueTracks = dedupeTracks(filteredTracksApi)
 
-      console.log(`🎵 DEBUG Page ${page}: First 3 track titles:`, filteredTracks.slice(0, 3).map(t => t.title))
-      console.log(`🎵 DEBUG Page ${page}: Track IDs:`, filteredTracks.slice(0, 3).map(t => t.id))
+      originalTracks.value = [...originalTracks.value, ...uniqueTracks]
+      serverHasMore.value = response.hasMore || response.tracks.length >= limit
 
-      // Cache the newly fetched page (filtered)
-      pageCache.value.set(page, filteredTracks)
+      const refreshedFiltered = getFilteredTracks()
+      updateVisibleTracks(refreshedFiltered, true)
 
-      // Replace current tracks with new page tracks (clean slate)
-      originalTracks.value = filteredTracks
-      tracks.value = filteredTracks
-      currentPage.value = page
-
-      // Apply current filtering to new page tracks
-      applyFiltering()
-
-      // Update pagination state - if we got more than 20 tracks, there are definitely more pages
-      hasMoreResults.value = response.hasMore || response.tracks.length > 20
-
-      // Estimate total pages (this is approximate since we don't know exact total)
-      if (hasMoreResults.value) {
-        totalPages.value = Math.max(totalPages.value, page + 1)
-      } else {
-        totalPages.value = page
-      }
-
-      console.log(`🎵 Page ${page}: Showing ${tracks.value.length} tracks`)
-
-      // Trigger animations for new page results (only if not from cache)
-      setTimeout(() => {
-        allowAnimations.value = true
-        
-        // Auto-disable animations after 2 seconds
+      // Trigger animations for newly added results
+      if (tracks.value.length > currentVisibleCount) {
         setTimeout(() => {
-          allowAnimations.value = false
-        }, 2000)
-      }, 50)
+          triggerRowAnimations(currentVisibleCount)
+        }, 50)
+      }
     } else {
+      serverHasMore.value = false
       hasMoreResults.value = false
-      totalPages.value = Math.max(1, page - 1)
-      console.log(`🎵 Page ${page}: No tracks found`)
     }
   } catch (err: any) {
-    console.error('🎵 Page Navigation Error:', err)
-    error.value = 'Failed to load page. Please try again.'
+    console.error('🎵 Load more error:', err)
+    error.value = 'Failed to load more tracks. Please try again.'
   } finally {
     loadingMore.value = false
   }
@@ -1138,78 +1015,6 @@ const openRelatedTracks = (track: SoundCloudTrack) => {
   Router.go('soundcloud-related-tracks')
 }
 
-// Helper function to check if an artist is banned
-const isArtistBanned = (track: SoundCloudTrack): boolean => {
-  return bannedArtists.value.has(track.user?.username || '')
-}
-
-// Ban/Unban an artist (toggle banned state)  
-const banArtist = async (track: SoundCloudTrack) => {
-  const artistName = track.user?.username || 'Unknown Artist'
-  const isCurrentlyBanned = isArtistBanned(track)
-  
-  try {
-    console.log(`${isCurrentlyBanned ? '✅ Unbanning' : '🚫 Banning'} SoundCloud artist:`, artistName)
-
-    if (isCurrentlyBanned) {
-      // UNBAN ARTIST - immediate UI update, background API removal
-      bannedArtists.value.delete(artistName)
-      
-      // Save to localStorage immediately
-      saveBannedArtists()
-      
-      // Background API call to remove from blacklist
-      try {
-        const deleteData = {
-          artist_name: artistName,
-          spotify_artist_id: `soundcloud:${track.user?.id || track.id}`
-        }
-        const params = new URLSearchParams(deleteData)
-        const response = await http.delete(`music-preferences/blacklist-artist?${params}`)
-        console.log('✅ SoundCloud artist removed from global blacklist API:', response)
-      } catch (apiError: any) {
-        console.error('❌ Failed to remove from API:', apiError)
-        // Revert local state if API call fails
-        bannedArtists.value.add(artistName)
-        saveBannedArtists()
-        error.value = `Failed to unban artist: ${apiError.response?.data?.message || apiError.message}`
-      }
-    } else {
-      // BAN ARTIST - immediate UI update, background API save
-      bannedArtists.value.add(artistName)
-      
-      // Save to localStorage immediately
-      saveBannedArtists()
-      
-      // Add to global blacklist (affects other sections)
-      addArtistToBlacklist(artistName)
-      
-      // Background API call to save to blacklist
-      try {
-        const response = await http.post('music-preferences/blacklist-artist', {
-          artist_name: artistName,
-          spotify_artist_id: `soundcloud:${track.user?.id || track.id}`,
-        })
-        console.log('✅ SoundCloud artist saved to global blacklist API:', response)
-      } catch (apiError: any) {
-        console.error('❌ Failed to save to API:', apiError)
-        // Revert local state if API call fails
-        bannedArtists.value.delete(artistName)
-        saveBannedArtists()
-        error.value = `Failed to ban artist: ${apiError.response?.data?.message || apiError.message}`
-      }
-    }
-
-    // NOTE: We do NOT remove from current results - artists stay visible until next search
-    // The filtering happens in the search() function for new searches
-
-    console.log(`${isCurrentlyBanned ? '✅ Unbanned' : '🚫 Banned'} SoundCloud artist "${artistName}" - stays visible in current results`)
-  } catch (error: any) {
-    console.error(`Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} SoundCloud artist:`, error)
-    error.value = `Failed to ${isCurrentlyBanned ? 'unban' : 'ban'} artist: ${error.message || 'Unknown error'}`
-  }
-}
-
 // Load banned artists from localStorage (shared with Similar Artists and Recommendations)
 const loadBannedArtists = () => {
   try {
@@ -1225,18 +1030,24 @@ const loadBannedArtists = () => {
 }
 
 // Save banned artists to localStorage
-const saveBannedArtists = () => {
-  try {
-    const bannedList = Array.from(bannedArtists.value)
-    localStorage.setItem('koel-banned-artists', JSON.stringify(bannedList))
-  } catch (error) {
-    console.warn('SoundCloud: Failed to save banned artists to localStorage:', error)
-  }
-}
-
 // Filter out tracks from banned artists (only applied to NEW search results)
 const filterBannedArtists = (trackList: SoundCloudTrack[]) => {
   return trackList.filter(track => !bannedArtists.value.has(track.user?.username || ''))
+}
+
+// Remove duplicate tracks by id when appending results
+const dedupeTracks = (incoming: SoundCloudTrack[]) => {
+  const existingIds = new Set(originalTracks.value.map(track => track.id))
+  return incoming.filter(track => {
+    if (!track || track.id == null) {
+      return false
+    }
+    if (existingIds.has(track.id)) {
+      return false
+    }
+    existingIds.add(track.id)
+    return true
+  })
 }
 
 const resetFilters = () => {
@@ -1248,26 +1059,25 @@ const resetFilters = () => {
   bpmFromInput.value = '95'
   bpmToInput.value = '172'
   timePeriod.value = ''
+  artistFilter.value = ''
   minPlays.value = undefined
   maxPlays.value = undefined
   minPlaysFormatted.value = ''
   maxPlaysFormatted.value = ''
   contentType.value = 'tracks'
-  likesRatioFilter.value = 'none'
+  likesRatioFilter.value = 'newest'
   showLikesRatioDropdown.value = false
+  displayLimit.value = 20
   tracks.value = []
   originalTracks.value = []
   searched.value = false
   error.value = ''
   searchStats.value = null
   hasMoreResults.value = false
-  currentPage.value = 1
-  totalPages.value = 1
+  serverHasMore.value = false
   lastSearchFilters.value = null
-
-  // Clear page cache when resetting filters
-  pageCache.value.clear()
-  pageCacheKey.value = ''
+  loadingMore.value = false
+  animationStartIndex.value = 0
 }
 
 const closePlayer = () => {
@@ -1288,7 +1098,7 @@ onMounted(() => {
   // Listen for skip events from the footer player
   eventBus.on('SOUNDCLOUD_SKIP_PREVIOUS', skipToPrevious)
   eventBus.on('SOUNDCLOUD_SKIP_NEXT', skipToNext)
-  
+
   // Load banned artists and global blacklist items
   loadBannedArtists()
   loadBlacklistedItems()
@@ -1308,7 +1118,7 @@ onRouteChanged(route => {
     if (tracks.value.length > 0) {
       allowAnimations.value = true
       initialLoadComplete.value = false
-      
+
       // Disable animations after they complete
       setTimeout(() => {
         allowAnimations.value = false

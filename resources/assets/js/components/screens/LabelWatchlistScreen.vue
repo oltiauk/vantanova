@@ -124,9 +124,8 @@
                                 {{ release.release_title || release.track_title }}
                                 <span v-if="release.track_count && release.track_count > 1" class="text-white/50 text-xs ml-1">({{ release.track_count }} tracks)</span>
                               </span>
-                              <p v-if="release.track_title !== release.release_title" class="text-xs text-white/60">{{ release.track_title }}</p>
                             </td>
-                            <td class="px-2 py-4 text-white/70 text-sm w-28 whitespace-nowrap">
+                            <td class="px-4 py-4 text-white/70 text-sm w-32 whitespace-nowrap text-center">
                               {{ formatDate(release.release_date) }}
                             </td>
                             <td class="pr-3 py-4 align-middle">
@@ -181,39 +180,39 @@
                           <tr v-if="expandedReleaseKey === getReleaseKey(release, index)" class="bg-white/5 border-b border-white/5">
                             <td colspan="6" class="p-0">
                               <div class="spotify-player-container p-6 bg-white/3 relative">
-                                <div
-                                  v-if="release.spotify_album_id || release.spotify_track_id"
-                                  class="flex items-center justify-center"
-                                  :style="release.is_single_track ? 'min-height:80px;' : 'min-height:152px;'"
-                                >
-                                  <iframe
-                                    :key="`${expandedReleaseKey}-${release.spotify_album_id || release.spotify_track_id}`"
-                                    class="w-full max-w-6xl rounded-xl spotify-embed"
-                                    :src="release.spotify_album_id && (!release.spotify_track_id || !release.is_single_track)
-                                      ? `https://open.spotify.com/embed/album/${release.spotify_album_id}?utm_source=generator&theme=0`
-                                      : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
-                                    :style="release.is_single_track
-                                      ? 'height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'
-                                      : 'height: 152px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);'"
-                                    frameborder="0"
-                                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                    loading="lazy"
-                                    @load="(event) => { event.target.style.opacity = '1' }"
-                                  />
-                                </div>
-                                <p v-else class="text-white/70 text-sm py-6 text-center">
-                                  No preview available for this release.
-                                </p>
-                                <div class="absolute bottom-0 right-6">
-                                  <span class="text-xs text-white/50 font-light">
-                                    <a
-                                      href="https://accounts.spotify.com/login"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      class="text-white/50 hover:text-white/70 transition-colors underline"
-                                    >
-                                      Connect</a> to Spotify to listen to the full track
-                                  </span>
+                                <div class="mx-auto w-full max-w-[98%]">
+                                  <div v-if="release.spotify_album_id || release.spotify_track_id">
+                                    <iframe
+                                      :key="release.track_count && release.track_count > 1 ? (release.spotify_album_id || release.spotify_track_id) : release.spotify_track_id"
+                                      :src="release.track_count && release.track_count > 1
+                                        ? `https://open.spotify.com/embed/album/${release.spotify_album_id || release.spotify_track_id}?utm_source=generator&theme=0`
+                                        : `https://open.spotify.com/embed/track/${release.spotify_track_id}?utm_source=generator&theme=0`"
+                                      class="w-full spotify-embed flex-shrink-0"
+                                      style="height: 80px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                                      frameBorder="0"
+                                      scrolling="no"
+                                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                      loading="lazy"
+                                      @load="(event) => { event.target.style.opacity = '1' }"
+                                      @error="() => {}"
+                                    />
+                                  </div>
+                                  <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
+                                    <div class="text-center text-white/60">
+                                      <div class="text-sm font-medium">No Spotify preview available</div>
+                                    </div>
+                                  </div>
+                                  <div class="absolute bottom-0 left-0 right-0 text-center">
+                                    <span class="text-xs text-white/50 font-light">
+                                      <a
+                                        href="https://accounts.spotify.com/login"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="text-white/50 hover:text-white/70 transition-colors underline"
+                                      >
+                                        Connect</a> to Spotify to listen to the full track
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -636,7 +635,8 @@ const saveTrack = async (release: LabelWatchlistRelease, index: number) => {
     const isAlbum = release.spotify_album_id && (release.track_count ?? 1) > 1
 
     let trackId: string | null = release.spotify_track_id
-    let trackName: string = release.track_title || ''
+    // Use release_title as fallback, ensure it's never empty for backend validation
+    let trackName: string = release.track_title || release.release_title || release.release_name || 'Unknown Track'
     let isrc: string | null = release.isrc || null
 
     if (release.spotify_album_id && !trackId) {
@@ -658,7 +658,8 @@ const saveTrack = async (release: LabelWatchlistRelease, index: number) => {
         if (response.success && response.data?.tracks?.items && response.data.tracks.items.length > 0) {
           const firstTrack = response.data.tracks.items[0]
           trackId = firstTrack.id || (firstTrack.uri?.match(/spotify:track:([a-zA-Z0-9]+)/)?.[1] ?? null)
-          trackName = firstTrack.name || release.track_title || ''
+          // Ensure trackName is never empty
+          trackName = firstTrack.name || release.track_title || release.release_title || release.release_name || 'Unknown Track'
           isrc = firstTrack.external_ids?.isrc || null
         }
       } catch (error) {
@@ -688,14 +689,25 @@ const saveTrack = async (release: LabelWatchlistRelease, index: number) => {
       return
     }
 
+    // Ensure artist_name is never empty for backend validation
+    const artistName = release.artist_name || 'Unknown Artist'
+
+    // Validate required fields before sending
+    if (!trackName || !artistName) {
+      release.isSaved = false
+      showNotification('Cannot save track: missing required information (track name or artist name).')
+      processingRelease.value = null
+      return
+    }
+
     const payload = {
       spotify_id: trackId,
       isrc,
       track_name: trackName,
-      artist_name: release.artist_name,
+      artist_name: artistName,
       label: release.label,
-      popularity: release.followers,
-      followers: release.followers,
+      popularity: release.popularity ?? null,
+      followers: release.followers ?? null,
       release_date: release.release_date,
       preview_url: release.preview_url,
       track_count: release.track_count ?? 1,
@@ -886,7 +898,7 @@ watch(banListenedTracks, async (newValue, oldValue) => {
 
 watch(isFetchingReleases, value => {
   if (!value) {
-    return
+
   }
 })
 

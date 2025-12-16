@@ -208,7 +208,7 @@
                   <tr v-if="track && (expandedTrackId === getTrackKey(track) || (processingTrack === getTrackKey(track) && isPreviewProcessing))" :key="`spotify-${getTrackKey(track)}-${index}`">
                     <td colspan="8" class="p-0 bg-white/5 border-b border-white/5">
                       <div class="spotify-player-container p-6 bg-white/3 relative">
-                          <div class="max-w-[75rem] mx-auto">
+                          <div class="mx-auto w-full max-w-[97%]">
                             <!-- Loading State -->
                             <div v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="flex items-center justify-center" style="height: 80px;">
                               <div class="flex items-center gap-3">
@@ -242,7 +242,7 @@
                           </div>
 
                           <!-- Spotify Login Link -->
-                          <div class="absolute bottom-0 right-6">
+                          <div class="absolute bottom-0 left-0 right-0 text-center">
                             <span class="text-xs text-white/50 font-light">
                               <a
                                 href="https://accounts.spotify.com/login"
