@@ -29,7 +29,7 @@
 
               <!-- Search Query Row -->
               <div>
-                <label class="block text-sm font-medium mb-2 text-white/80">Search Keywords</label>
+                <label class="block text-sm font-medium mb-2 text-white/80">Keyword in Title</label>
                 <input
                   v-model="searchQuery"
                   type="text"
@@ -263,12 +263,17 @@
           ref="soundcloudTable"
           :tracks="tracks"
           :start-index="0"
-          :allow-animations="allowAnimations"
-          :animation-start-index="animationStartIndex"
+          :saved-tracks="savedTracks"
+          :blacklisted-tracks="blacklistedTracks"
+          :processing-track="processingTrack"
+          :listened-tracks="listenedTracks"
           @play="playTrack"
           @pause="pauseTrack"
           @seek="seekTrack"
           @related-tracks="openRelatedTracks"
+          @save-track="saveTrack"
+          @blacklist-track="blacklistTrack"
+          @mark-listened="markTrackAsListened"
         />
 
         <!-- Load More -->
@@ -318,7 +323,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faChevronDown, faExclamationTriangle, faFilter, faSearch, faSpinner } from '@fortawesome/free-solid-svg-icons'
+import { faBan, faChevronDown, faExclamationTriangle, faFilter, faHeart, faSearch, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { faSoundcloud } from '@fortawesome/free-brands-svg-icons'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from '@/composables/useRouter'
@@ -327,6 +332,7 @@ import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { eventBus } from '@/utils/eventBus'
 import Router from '@/router'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
+import { http } from '@/services/http'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -359,7 +365,6 @@ const contentType = ref('tracks') // Default to tracks
 const likesRatioFilter = ref<'streams' | 'newest'>('newest') // Sort filter state
 const showLikesRatioDropdown = ref(false) // Dropdown visibility
 const displayLimit = ref(20)
-const animationStartIndex = ref(0)
 
 // Results state
 const tracks = ref<SoundCloudTrack[]>([])
@@ -381,7 +386,15 @@ const bannedArtists = ref(new Set<string>()) // Store artist names
 // Initialize global blacklist filtering composable
 const {
   loadBlacklistedItems,
+  addTrackToBlacklist,
 } = useBlacklistFiltering()
+
+// Music preferences state
+const savedTracks = ref<Set<string>>(new Set())
+const blacklistedTracks = ref<Set<string>>(new Set())
+const clientUnsavedTracks = ref<Set<string>>(new Set()) // Tracks unsaved by client
+const processingTrack = ref<string | number | null>(null)
+const listenedTracks = ref<Set<string>>(new Set()) // Tracks that have been listened to
 
 // Player state (now using global store)
 // Note: Player will show in footer when this component is mounted (SoundCloud page)
@@ -486,9 +499,165 @@ const getFilteredTracks = () => {
     minPlays: minPlays.value,
     maxPlays: maxPlays.value,
     hasPlayFilters: !!(minPlays.value || maxPlays.value),
+    searchQuery: searchQuery.value,
+    searchTags: searchTags.value,
   })
 
-  // Apply plays filtering first
+  // Apply keyword filtering in title first (if search query exists)
+  if (searchQuery.value?.trim()) {
+    const keywords = searchQuery.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const beforeCount = filteredTracks.length
+    filteredTracks = filteredTracks.filter(track => {
+      const title = (track.title || '').toLowerCase()
+      // All keywords must be present in the title
+      const matches = keywords.every(keyword => title.includes(keyword))
+      if (!matches) {
+        console.log('❌ Title filter REJECTED:', {
+          title: track.title,
+          searchedKeywords: keywords,
+          reason: 'Not all keywords found in title',
+        })
+      }
+      return matches
+    })
+
+    console.log('🔍 [KEYWORD IN TITLE FILTER]', {
+      searchQuery: searchQuery.value,
+      keywords,
+      beforeCount,
+      afterCount: filteredTracks.length,
+      filteredOut: beforeCount - filteredTracks.length,
+      sampleMatches: filteredTracks.slice(0, 3).map(t => ({
+        title: t?.title,
+        matchedKeywords: keywords.filter(k => t.title?.toLowerCase().includes(k)),
+      })),
+    })
+  }
+
+  // Helper function to create tag variations (handles hyphen/space variations)
+  const createTagVariations = (tag: string): string[] => {
+    const variations = new Set<string>()
+    variations.add(tag) // Original tag
+    variations.add(tag.replace(/-/g, ' ')) // Replace hyphens with spaces: "hip-hop" -> "hip hop"
+    variations.add(tag.replace(/\s+/g, '-')) // Replace spaces with hyphens: "hip hop" -> "hip-hop"
+    variations.add(tag.replace(/[-\s]+/g, '')) // Remove both: "hip-hop" -> "hiphop"
+    return Array.from(variations)
+  }
+
+  // Apply tag filtering (if search tags exist)
+  if (searchTags.value?.trim()) {
+    // Get the original search string and split into individual tags
+    const originalSearchString = searchTags.value.trim().toLowerCase()
+    const rawTags = originalSearchString.split(/\s+/).filter(Boolean)
+    const beforeCount = filteredTracks.length
+
+    filteredTracks = filteredTracks.filter(track => {
+      // Check if tags appear in tag_list, caption, description, or title fields
+      const tagList = ((track as any).tag_list || '').toLowerCase()
+      const caption = ((track as any).caption || '').toLowerCase()
+      const description = ((track as any).description || '').toLowerCase()
+      const title = (track.title || '').toLowerCase()
+
+      // First, check if the full original search string (as a phrase) exists
+      const fullPhraseVariations = createTagVariations(originalSearchString)
+      const fullPhraseFound = fullPhraseVariations.some(v =>
+        tagList.includes(v) || caption.includes(v) || description.includes(v) || title.includes(v),
+      )
+
+      // If full phrase found, accept the track
+      if (fullPhraseFound) {
+        return true
+      }
+
+      // Otherwise, check if all individual tags are found (each can be in different fields)
+      const tagMatches = rawTags.map(tag => {
+        const variations = createTagVariations(tag)
+        const foundInTagList = variations.some(v => tagList.includes(v))
+        const foundInCaption = variations.some(v => caption.includes(v))
+        const foundInDescription = variations.some(v => description.includes(v))
+        const foundInTitle = variations.some(v => title.includes(v))
+        const foundAnywhere = foundInTagList || foundInCaption || foundInDescription || foundInTitle
+
+        return {
+          tag,
+          variations,
+          foundInTagList,
+          foundInCaption,
+          foundInDescription,
+          foundInTitle,
+          foundAnywhere,
+        }
+      })
+
+      const allTagsFound = tagMatches.every(m => m.foundAnywhere)
+
+      const trackMatches = fullPhraseFound || allTagsFound
+
+      if (!trackMatches) {
+        const missingTags = tagMatches.filter(m => !m.foundAnywhere).map(m => ({
+          tag: m.tag,
+          variations: m.variations,
+        }))
+        console.log('❌ Tag filter REJECTED:', {
+          title: track.title,
+          searchedPhrase: originalSearchString,
+          searchedTags: rawTags,
+          fullPhraseFound,
+          missingTags,
+          tag_list: tagList || '(empty)',
+          caption: caption || '(empty)',
+          description: description || '(empty)',
+          title_field: title || '(empty)',
+          reason: fullPhraseFound
+            ? 'N/A (should not happen)'
+            : `Missing tags (checked phrase "${originalSearchString}" and individual tags in tag_list/caption/description/title): ${missingTags.map(m => `${m.tag} [${m.variations.join(', ')}]`).join(', ')}`,
+        })
+      }
+
+      return trackMatches
+    })
+
+    console.log('🏷️ [TAG FILTER]', {
+      searchTags: searchTags.value,
+      originalPhrase: originalSearchString,
+      tags: rawTags,
+      beforeCount,
+      afterCount: filteredTracks.length,
+      filteredOut: beforeCount - filteredTracks.length,
+      sampleMatches: filteredTracks.slice(0, 3).map(t => {
+        const tagList = ((t as any).tag_list || '').toLowerCase()
+        const caption = ((t as any).caption || '').toLowerCase()
+        const description = ((t as any).description || '').toLowerCase()
+        const title = (t.title || '').toLowerCase()
+
+        // Check if full phrase matched
+        const fullPhraseVariations = createTagVariations(originalSearchString)
+        const matchedViaPhrase = fullPhraseVariations.some(v =>
+          tagList.includes(v) || caption.includes(v) || description.includes(v) || title.includes(v),
+        )
+
+        // Check which individual tags matched
+        const matchedTags = rawTags.filter(tag => {
+          const variations = createTagVariations(tag)
+          return variations.some(v =>
+            tagList.includes(v) || caption.includes(v) || description.includes(v) || title.includes(v),
+          )
+        })
+
+        return {
+          title: t?.title,
+          tag_list: (t as any).tag_list || '(empty)',
+          caption: (t as any).caption || '(empty)',
+          description: (t as any).description || '(empty)',
+          matchedViaPhrase,
+          matchedTags,
+          matchMethod: matchedViaPhrase ? 'full phrase' : 'individual tags',
+        }
+      }),
+    })
+  }
+
+  // Apply plays filtering
   if (minPlays.value || maxPlays.value) {
     filteredTracks = filteredTracks.filter(track => {
       const playCount = track.playback_count || 0
@@ -504,7 +673,7 @@ const getFilteredTracks = () => {
       return true
     })
 
-    console.log('🔍 After filtering:', {
+    console.log('🔍 After plays filtering:', {
       originalCount,
       filteredCount: filteredTracks.length,
       sampleResults: filteredTracks.slice(0, 3).map(t => ({
@@ -514,19 +683,7 @@ const getFilteredTracks = () => {
     })
   }
 
-  // Artist filter (matches artist/account/title)
-  if (artistFilter.value?.trim()) {
-    const artistQuery = artistFilter.value.trim().toLowerCase()
-    filteredTracks = filteredTracks.filter(track => {
-      const fields = [
-        track.user?.username,
-        track.user?.permalink_url,
-        track.title,
-      ]
-
-      return fields.some(field => typeof field === 'string' && field.toLowerCase().includes(artistQuery))
-    })
-  }
+  // Note: Artist filter is now included in the API search query, so no need to filter client-side
 
   // Then apply sorting
   if (likesRatioFilter.value === 'newest') {
@@ -566,15 +723,6 @@ const updateVisibleTracks = (filteredTracks: SoundCloudTrack[], append: boolean)
   }
 
   hasMoreResults.value = serverHasMore.value || filteredTracks.length > tracks.value.length
-}
-
-const triggerRowAnimations = (startIndex: number) => {
-  animationStartIndex.value = startIndex
-  allowAnimations.value = true
-
-  setTimeout(() => {
-    allowAnimations.value = false
-  }, 2000)
 }
 
 // Number formatting helpers for plays inputs
@@ -716,13 +864,6 @@ watch([bpmFrom, bpmTo], ([newFrom, newTo]) => {
   }
 })
 
-// Watch artist filter to re-apply filtering on existing results
-watch(artistFilter, () => {
-  if (originalTracks.value.length > 0 && searched.value && !loading.value) {
-    applyFiltering()
-  }
-})
-
 const search = async () => {
   if (!hasValidFilters.value) {
     error.value = 'Please select at least one filter to search with enhanced features.'
@@ -736,7 +877,6 @@ const search = async () => {
   searchStats.value = null
   hasMoreResults.value = false
   loadingMore.value = false
-  animationStartIndex.value = 0
 
   const startTime = performance.now()
 
@@ -753,8 +893,14 @@ const search = async () => {
       durationFromFilter = 1000
     }
 
+    // Combine artist filter with search query for API search
+    const combinedSearchQuery = [
+      artistFilter.value?.trim(),
+      searchQuery.value?.trim(),
+    ].filter(Boolean).join(' ') || undefined
+
     const filters: SoundCloudFilters = {
-      searchQuery: searchQuery.value?.trim() || undefined,
+      searchQuery: combinedSearchQuery,
       searchTags: searchTags.value?.trim() || undefined,
       genre: selectedGenre.value || undefined,
       bpmFrom: bpmFrom.value !== 95 ? bpmFrom.value : undefined,
@@ -832,12 +978,7 @@ const search = async () => {
     }
 
     searched.value = true
-
-    // Trigger animations for new search results
-    setTimeout(() => {
-      triggerRowAnimations(0)
-      initialLoadComplete.value = true
-    }, 50)
+    initialLoadComplete.value = true
   } catch (err: any) {
     error.value = err.message || 'Failed to search SoundCloud. Please try again.'
     tracks.value = []
@@ -894,13 +1035,6 @@ const loadMoreResults = async () => {
 
       const refreshedFiltered = getFilteredTracks()
       updateVisibleTracks(refreshedFiltered, true)
-
-      // Trigger animations for newly added results
-      if (tracks.value.length > currentVisibleCount) {
-        setTimeout(() => {
-          triggerRowAnimations(currentVisibleCount)
-        }, 50)
-      }
     } else {
       serverHasMore.value = false
       hasMoreResults.value = false
@@ -1015,6 +1149,319 @@ const openRelatedTracks = (track: SoundCloudTrack) => {
   Router.go('soundcloud-related-tracks')
 }
 
+// Helper function to get track key
+const getTrackKey = (track: SoundCloudTrack): string => {
+  const artist = track.user?.username || 'Unknown'
+  const title = track.title || 'Untitled'
+  return `${artist}-${title}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+// Check if track is saved
+const isTrackSaved = (track: SoundCloudTrack): boolean => {
+  const trackKey = getTrackKey(track)
+  return savedTracks.value.has(trackKey) && !clientUnsavedTracks.value.has(trackKey)
+}
+
+// Check if track is blacklisted
+const isTrackBlacklisted = (track: SoundCloudTrack): boolean => {
+  return blacklistedTracks.value.has(getTrackKey(track))
+}
+
+// Check if ban button should be active (red)
+const isBanButtonActive = (track: SoundCloudTrack): boolean => {
+  return isTrackBlacklisted(track) && !isTrackSaved(track)
+}
+
+// Save track function
+const saveTrack = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+
+  if (isTrackSaved(track)) {
+    // Unsave track: Update UI immediately for better UX
+    savedTracks.value.delete(trackKey)
+
+    // Since no DELETE endpoint exists for saved tracks, use client-side tracking
+    clientUnsavedTracks.value.add(trackKey)
+
+    // Save to localStorage for persistence across page reloads
+    try {
+      const unsavedList = Array.from(clientUnsavedTracks.value)
+      localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+    } catch (error) {
+      // Failed to save unsaved tracks to localStorage
+    }
+
+    // ALSO remove from blacklist when unsaving
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const deleteData = {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+      }
+      const params = new URLSearchParams(deleteData)
+      const response = await http.delete(`music-preferences/blacklist-track?${params}`)
+
+      if (response.success) {
+        blacklistedTracks.value.delete(trackKey)
+        console.log('✅ Track removed from blacklist on unsave:', track.title)
+
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      }
+    } catch (error) {
+      console.warn('Failed to remove track from blacklist on unsave:', error)
+    }
+
+    // Trigger SavedTracksScreen refresh
+    try {
+      window.dispatchEvent(new CustomEvent('track-unsaved', {
+        detail: { track, trackKey },
+      }))
+      localStorage.setItem('track-unsaved-timestamp', Date.now().toString())
+    } catch (error) {
+      // Event dispatch failed, not critical
+    }
+  } else {
+    // Reload client unsaved tracks from localStorage first to get the latest list
+    // This ensures we don't lose tracks that were trashed in other screens
+    try {
+      const stored = localStorage.getItem('koel-client-unsaved-tracks')
+      if (stored) {
+        const unsavedList = JSON.parse(stored)
+        clientUnsavedTracks.value = new Set(unsavedList)
+      }
+    } catch (error) {
+      // Failed to load client unsaved tracks
+    }
+
+    // Update UI immediately for instant feedback
+    savedTracks.value.add(trackKey)
+    clientUnsavedTracks.value.delete(trackKey)
+
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const response = await http.post('music-preferences/save-track', {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+        spotify_id: null, // SoundCloud tracks don't have Spotify IDs
+        label: null,
+        popularity: null,
+        followers: track.user?.followers_count || null,
+        streams: track.playback_count || null,
+        release_date: track.created_at || null,
+        preview_url: null,
+        track_count: 1,
+        is_single_track: true,
+      })
+
+      if (!response.success) {
+        savedTracks.value.delete(trackKey)
+        throw new Error(response.error || 'Failed to save track')
+      }
+
+      // ALSO add to blacklist when saving
+      try {
+        const blacklistResponse = await http.post('music-preferences/blacklist-track', {
+          spotify_id: null,
+          isrc: isrcValue,
+          track_name: track.title,
+          artist_name: track.user?.username || 'Unknown',
+        })
+
+        if (blacklistResponse.success) {
+          blacklistedTracks.value.add(trackKey)
+          addTrackToBlacklist({
+            id: String(track.id),
+            name: track.title,
+            artist: track.user?.username || 'Unknown',
+          } as any)
+          console.log('✅ Track blacklisted in backend:', track.title)
+
+          window.dispatchEvent(new CustomEvent('track-blacklisted', {
+            detail: { track, trackKey },
+          }))
+          localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+        }
+      } catch (error) {
+        console.error('❌ Error blacklisting track:', error)
+      }
+
+      // Update localStorage
+      try {
+        const unsavedList = Array.from(clientUnsavedTracks.value)
+        localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+      } catch (error) {
+        // Failed to update unsaved tracks in localStorage
+      }
+
+      // Trigger SavedTracksScreen refresh
+      try {
+        window.dispatchEvent(new CustomEvent('track-saved', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-saved-timestamp', Date.now().toString())
+      } catch (error) {
+        // Event dispatch failed, not critical
+      }
+    } catch (error: any) {
+      savedTracks.value.delete(trackKey)
+    }
+  }
+}
+
+// Blacklist track function
+const blacklistTrack = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+  const trackIdentifier = track.id || trackKey
+
+  if (isTrackBlacklisted(track)) {
+    // UNBAN TRACK - Update UI immediately
+    blacklistedTracks.value.delete(trackKey)
+
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const deleteData = {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+      }
+      const params = new URLSearchParams(deleteData)
+      const response = await http.delete(`music-preferences/blacklist-track?${params}`)
+
+      if (!response.success) {
+        blacklistedTracks.value.add(trackKey)
+      } else {
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      }
+    } catch (error: any) {
+      blacklistedTracks.value.add(trackKey)
+    }
+  } else {
+    // Block track - show processing state
+    processingTrack.value = track.id
+
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const response = await http.post('music-preferences/blacklist-track', {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+      })
+
+      if (response.success) {
+        blacklistedTracks.value.add(trackKey)
+        addTrackToBlacklist({
+          id: String(track.id),
+          name: track.title,
+          artist: track.user?.username || 'Unknown',
+        } as any)
+
+        window.dispatchEvent(new CustomEvent('track-blacklisted', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } else {
+        throw new Error(response.error || 'Failed to blacklist track')
+      }
+    } catch (error: any) {
+      // Failed to blacklist track
+    } finally {
+      processingTrack.value = null
+    }
+  }
+}
+
+// Mark track as listened
+const markTrackAsListened = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+
+  // Mark as listened (optimistic)
+  listenedTracks.value.add(trackKey)
+  // Reassign to trigger Vue reactivity for Set mutations
+  listenedTracks.value = new Set(listenedTracks.value)
+
+  // Persist listened state
+  try {
+    await http.post('music-preferences/listened-track', {
+      track_key: trackKey,
+      track_name: track.title,
+      artist_name: track.user?.username || 'Unknown',
+      spotify_id: null,
+      isrc: `soundcloud:${track.id}`,
+    })
+  } catch (e) {
+    // If unauthenticated, store locally
+    try {
+      const keys = Array.from(listenedTracks.value)
+      localStorage.setItem('koel-listened-tracks', JSON.stringify(keys))
+    } catch {}
+  }
+}
+
+// Load user preferences
+const loadUserPreferences = async () => {
+  try {
+    // Load blacklisted tracks
+    const blacklistedTracksResponse = await http.get('music-preferences/blacklisted-tracks')
+    if (blacklistedTracksResponse.success && blacklistedTracksResponse.data) {
+      blacklistedTracksResponse.data.forEach((track: any) => {
+        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        blacklistedTracks.value.add(trackKey)
+      })
+    }
+
+    // Load saved tracks
+    const savedTracksResponse = await http.get('music-preferences/saved-tracks')
+    if (savedTracksResponse.success && savedTracksResponse.data) {
+      savedTracksResponse.data.forEach((track: any) => {
+        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        savedTracks.value.add(trackKey)
+      })
+    }
+
+    // Load client unsaved tracks from localStorage
+    try {
+      const stored = localStorage.getItem('koel-client-unsaved-tracks')
+      if (stored) {
+        const unsavedList = JSON.parse(stored)
+        clientUnsavedTracks.value = new Set(unsavedList)
+      }
+    } catch (error) {
+      // Failed to load client unsaved tracks
+    }
+
+    // Load listened tracks from server (fall back to localStorage if unauthenticated)
+    try {
+      const resp: any = await http.get('music-preferences/listened-tracks')
+      if (resp?.success && Array.isArray(resp.data)) {
+        listenedTracks.value = new Set(resp.data as string[])
+      }
+    } catch (e) {
+      // Fallback to localStorage per device
+      try {
+        const stored = localStorage.getItem('koel-listened-tracks')
+        if (stored) {
+          const keys: string[] = JSON.parse(stored)
+          listenedTracks.value = new Set(keys)
+        }
+      } catch {}
+    }
+  } catch (error) {
+    // Could not load user preferences (user may not be logged in)
+  }
+}
+
 // Load banned artists from localStorage (shared with Similar Artists and Recommendations)
 const loadBannedArtists = () => {
   try {
@@ -1077,7 +1524,6 @@ const resetFilters = () => {
   serverHasMore.value = false
   lastSearchFilters.value = null
   loadingMore.value = false
-  animationStartIndex.value = 0
 }
 
 const closePlayer = () => {
@@ -1087,7 +1533,6 @@ const closePlayer = () => {
 const { onRouteChanged } = useRouter()
 
 // Animation state management
-const allowAnimations = ref(false)
 const initialLoadComplete = ref(false)
 
 // Template ref for SoundCloud table
@@ -1102,6 +1547,7 @@ onMounted(() => {
   // Load banned artists and global blacklist items
   loadBannedArtists()
   loadBlacklistedItems()
+  loadUserPreferences()
 })
 
 // Close SoundCloud player when navigating away from this screen
@@ -1113,18 +1559,6 @@ onRouteChanged(route => {
     }
     // Then hide the global player
     soundcloudPlayerStore.hide()
-  } else {
-    // Enable animations when entering SoundCloud screen
-    if (tracks.value.length > 0) {
-      allowAnimations.value = true
-      initialLoadComplete.value = false
-
-      // Disable animations after they complete
-      setTimeout(() => {
-        allowAnimations.value = false
-        initialLoadComplete.value = true
-      }, 2000)
-    }
   }
 })
 

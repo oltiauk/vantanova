@@ -192,16 +192,17 @@ class LabelWatchlistController extends Controller
 
         $status = $this->buildStatusArrays($userId);
         $results = [];
-        $thirtyDaysAgo = now()->subDays(30);
+        $twoWeeksAgo = now()->subDays(14);
 
         foreach ($watchlist as $entry) {
             $tracks = $this->labelSearchService->search($entry->label, [
                 'limit' => 100,
+                'new' => true,
             ], $userId);
 
             foreach ($tracks as $track) {
                 $releaseDate = !empty($track['release_date']) ? Carbon::parse($track['release_date']) : null;
-                if (!$releaseDate || $releaseDate->lt($thirtyDaysAgo)) {
+                if (!$releaseDate || $releaseDate->lt($twoWeeksAgo)) {
                     continue;
                 }
 

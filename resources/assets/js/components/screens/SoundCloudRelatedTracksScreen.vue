@@ -1,10 +1,7 @@
 <template>
   <ScreenBase>
     <template #header>
-      <ScreenHeader 
-        layout="collapsed"
-        header-image="/HeadersSVG/Soundcloud-RelatedTracks-header.svg"
-      >
+      <ScreenHeader header-image="/VantaNova-Logo.svg">
         SoundCloud Related Tracks
         <template #meta>
           <span v-if="seedTrack" class="text-text-secondary">
@@ -32,34 +29,29 @@
           <div class="rounded-lg p-4">
             <div class="max-w-4xl mx-auto">
               <div ref="searchContainer" class="relative">
-                <!-- Search Icon -->
-                <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20 pl-4">
-                  <Icon :icon="faSearch" class="w-5 h-5 text-white/40" />
+                <!-- Search Input -->
+                <div class="flex">
+                  <input
+                    v-model="seedSearchQuery"
+                    type="text"
+                    placeholder="Search for a Seed Track"
+                    class="flex-1 py-3 pl-4 pr-4 bg-white/10 rounded-l-lg border-0 focus:outline-none text-white text-lg search-input"
+                    @input="onSeedSearchInput"
+                    @focus="onSeedSearchFocus"
+                    @keydown.enter="performSeedSearch"
+                  >
+                  <button
+                    class="px-8 py-3 bg-k-accent hover:bg-k-accent/80 text-white rounded-r-lg transition-colors flex items-center justify-center"
+                    :disabled="!seedSearchQuery.trim() || loading"
+                    @click="performSeedSearch"
+                  >
+                    <Icon :icon="faSearch" class="w-5 h-5" />
+                  </button>
                 </div>
-
-                <input
-                  v-model="seedSearchQuery"
-                  type="text"
-                  class="w-full py-3 pl-12 pr-24 bg-white/10 rounded-lg focus:outline-none text-white text-lg"
-                  placeholder="Enter track name or artist to find seed track..."
-                  @input="onSeedSearchInput"
-                  @focus="onSeedSearchFocus"
-                  @keypress.enter.prevent="performSeedSearch"
-                >
-
-                <!-- Search Button -->
-                <button
-                  :disabled="!seedSearchQuery.trim() || loading"
-                  class="absolute inset-y-0 right-0 flex items-center px-4 bg-k-accent hover:bg-k-accent/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-r-lg text-white font-medium transition-colors"
-                  @click="performSeedSearch"
-                >
-                  <Icon v-if="loading && showingSeedResults" :icon="faSpinner" spin class="w-4 h-4" />
-                  <span v-else class="text-sm">Search</span>
-                </button>
 
                 <!-- Loading Animation -->
                 <div
-                  v-if="loading && seedSearchQuery.trim() && showingSeedResults"
+                  v-if="loading && seedSearchQuery.trim()"
                   class="absolute z-50 w-full bg-k-bg-secondary border border-k-border rounded-lg mt-1 shadow-xl"
                 >
                   <div class="flex items-center justify-center py-8">
@@ -69,32 +61,68 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Search Dropdown -->
+                <div
+                  v-if="!loading && seedSearchResults.length > 0 && showDropdown"
+                  class="absolute z-50 w-full border border-k-border rounded-lg mt-1 shadow-xl"
+                  style="background-color: #302f30; top: 100%;"
+                >
+                  <div class="max-h-80 rounded-lg overflow-hidden overflow-y-auto">
+                    <div v-for="track in seedSearchResults.slice(0, dropdownDisplayLimit)" :key="`suggestion-${track.id}`">
+                      <div
+                        class="flex items-center justify-between px-4 py-3 hover:bg-white/10 cursor-pointer transition-colors group border-b border-k-border/30 last:border-b-0"
+                        @click="selectSeedTrack(track)"
+                      >
+                        <!-- Track Info -->
+                        <div class="flex-1 min-w-0">
+                          <div class="font-medium text-k-text-primary group-hover:text-gray-200 transition-colors truncate">
+                            {{ track.user?.username || 'Unknown' }} - {{ track.title }}
+                          </div>
+                        </div>
+
+                        <!-- Duration Badge -->
+                        <div class="bg-k-bg-primary/30 px-2 py-1 rounded text-k-text-tertiary text-xs font-mono ml-3 flex-shrink-0">
+                          {{ formatDuration(track.duration) }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Load More Button -->
+                    <div v-if="seedSearchResults.length > dropdownDisplayLimit" class="px-4 py-3 text-center border-t border-k-border bg-k-bg-tertiary/20">
+                      <button
+                        class="px-4 py-2 bg-k-accent hover:bg-k-accent/80 text-white rounded text-sm font-medium transition-colors"
+                        @click.stop="loadMoreDropdownResults"
+                      >
+                        Load More ({{ seedSearchResults.length - dropdownDisplayLimit }} remaining)
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-        <p class="text-xs text-k-text-secondary text-center mb-4">
-          {{ showingSeedResults ? 'Search for different seed track or select one from the table below' : 'First, search for a track to use as your seed. Then we\'ll find related tracks.' }}
-        </p>
       </div>
 
       <!-- Selected Seed Track Display - Compact -->
       <div v-if="seedTrack" class="selected-seed mb-4 relative z-20">
-        <div class="text-sm font-medium mb-2">Seed Track:</div>
-        <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 flex-1 min-w-0">
-              <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
-              <span class="text-k-text-primary font-medium truncate">{{ seedTrack.artist }} - {{ seedTrack.title }}</span>
+        <div class="max-w-4xl mx-auto">
+          <div class="text-sm font-medium mb-2">Seed Track:</div>
+          <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
+                <span class="text-k-text-primary font-medium truncate">{{ seedTrack.artist }} - {{ seedTrack.title }}</span>
+              </div>
+              <button
+                class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
+                title="Clear seed track"
+                @click="clearSeedTrack"
+              >
+                <Icon :icon="faTimes" class="w-4 h-4" />
+              </button>
             </div>
-            <button
-              class="p-1 hover:bg-red-600/20 text-k-text-tertiary hover:text-red-400 rounded transition-colors flex-shrink-0 ml-2"
-              title="Clear seed track"
-              @click="clearSeedTrack"
-            >
-              <Icon :icon="faTimes" class="w-4 h-4" />
-            </button>
           </div>
         </div>
       </div>
@@ -112,70 +140,36 @@
 
       <!-- Seed Search Results (when searching for seed track) - Table view -->
       <div v-if="showingSeedResults && !loading && seedSearchResults.length > 0">
-        <div class="flex items-center justify-between mb-6">
-          <div class="text-k-text-secondary">
-            Found {{ totalSeedTracks }} seed tracks (showing {{ displayedSeedTracks.length }})
-          </div>
-        </div>
-
         <SoundCloudTrackTable
           ref="seedTracksTable"
           :tracks="displayedSeedTracks"
-          :start-index="(currentSeedPage - 1) * tracksPerPage"
-          :allow-animations="allowAnimations"
+          :start-index="0"
+          :saved-tracks="savedTracks"
+          :blacklisted-tracks="blacklistedTracks"
+          :processing-track="processingTrack"
+          :listened-tracks="listenedTracks"
           @play="playTrack"
-          @related-tracks="selectSeedTrack"
+          @related-tracks="(track) => { console.log('🎵 [EVENT] related-tracks event received:', track); selectSeedTrack(track); }"
+          @save-track="saveTrack"
+          @blacklist-track="blacklistTrack"
+          @mark-listened="markTrackAsListened"
         />
 
-        <!-- Pagination Controls for Seed Search -->
-        <div v-if="totalSeedPages > 1" class="pagination-section w-full mt-8">
-          <div class="flex items-center justify-between">
-            <button
-              :disabled="currentSeedPage === 1"
-              class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :class="{ 'opacity-50 cursor-not-allowed': currentSeedPage === 1 }"
-              @click="goToSeedPage(currentSeedPage - 1)"
-            >
-              Previous
-            </button>
-
-            <div class="flex items-center gap-1">
-              <button
-                v-for="page in visibleSeedPages"
-                :key="page"
-                :class="page === currentSeedPage ? 'bg-k-accent text-white' : 'bg-k-bg-primary text-gray-300 hover:bg-white/10'"
-                class="w-10 h-10 flex items-center justify-center rounded transition-colors"
-                @click="goToSeedPage(page)"
-              >
-                {{ page }}
-              </button>
-            </div>
-
-            <button
-              :disabled="currentSeedPage === totalSeedPages"
-              class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :class="{ 'opacity-50 cursor-not-allowed': currentSeedPage === totalSeedPages }"
-              @click="goToSeedPage(currentSeedPage + 1)"
-            >
-              Next
-            </button>
-          </div>
+        <div v-if="hasMoreSeedTracks && !loading" class="flex items-center justify-center mt-8">
+          <button
+            class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="loadingMoreSeed"
+            @click="loadMoreSeedTracks"
+          >
+            <Icon v-if="loadingMoreSeed" :icon="faSpinner" spin class="mr-2" />
+            Load More
+          </button>
         </div>
       </div>
 
       <!-- Related Tracks Results -->
       <div v-if="!showingSeedResults && tracks.length > 0">
-        <div class="flex items-center justify-between mb-6">
-          <div class="text-k-text-secondary">
-            Found {{ totalTracks }} related tracks (showing {{ displayedTracks.length }})
-          </div>
-          <button
-            class="px-4 py-2 bg-k-bg-secondary hover:bg-k-bg-secondary/80 rounded text-sm transition-colors"
-            @click="clearResults"
-          >
-            New Search
-          </button>
-        </div>
+        <div class="flex items-center justify-between mb-6" />
 
         <!-- Sort by Dropdown -->
         <div class="flex justify-end mb-4 relative">
@@ -185,7 +179,6 @@
             @click="toggleLikesRatioDropdown"
             @blur="hideLikesRatioDropdown"
           >
-            <Icon :icon="getSortIcon()" />
             {{ getSortText() }}
             <Icon :icon="faChevronDown" class="text-xs" />
           </button>
@@ -197,31 +190,20 @@
             style="background-color: rgb(67,67,67,255);"
           >
             <button
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-t-lg"
-              :class="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
-              :style="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
-              @mousedown.prevent="setLikesRatioFilter('none')"
-            >
-              <Icon :icon="faFilter" />
-              Default (by Plays)
-            </button>
-            <button
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2"
-              :class="likesRatioFilter === 'highest' ? 'background-color: rgb(67,67,67,255)' : ''"
-              :style="likesRatioFilter === 'highest' ? 'background-color: rgb(67,67,67,255)' : ''"
-              @mousedown.prevent="setLikesRatioFilter('highest')"
-            >
-              <Icon :icon="faArrowUp" />
-              Highest Likes Ratio
-            </button>
-            <button
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition flex items-center gap-2 rounded-b-lg"
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition rounded-t-lg"
               :class="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
               :style="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
               @mousedown.prevent="setLikesRatioFilter('newest')"
             >
-              <Icon :icon="faClock" />
-              Newest Releases
+              Most Recent
+            </button>
+            <button
+              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition rounded-b-lg"
+              :class="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
+              :style="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
+              @mousedown.prevent="setLikesRatioFilter('none')"
+            >
+              Most Streams
             </button>
           </div>
         </div>
@@ -229,57 +211,39 @@
         <SoundCloudTrackTable
           ref="relatedTracksTable"
           :tracks="displayedTracks"
-          :start-index="(currentPage - 1) * tracksPerPage"
-          :allow-animations="allowAnimations"
+          :start-index="0"
+          :saved-tracks="savedTracks"
+          :blacklisted-tracks="blacklistedTracks"
+          :processing-track="processingTrack"
+          :listened-tracks="listenedTracks"
           @play="playTrack"
           @pause="pauseTrack"
           @seek="seekTrack"
           @related-tracks="findRelatedForTrack"
+          @save-track="saveTrack"
+          @blacklist-track="blacklistTrack"
+          @mark-listened="markTrackAsListened"
         />
 
-        <!-- Pagination Controls -->
-        <div v-if="totalPages > 1" class="pagination-section w-full mt-8">
-          <div class="flex items-center justify-between">
-            <button
-              :disabled="currentPage === 1"
-              class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
-              @click="goToPage(currentPage - 1)"
-            >
-              Previous
-            </button>
-
-            <div class="flex items-center gap-1">
-              <button
-                v-for="page in visiblePages"
-                :key="page"
-                :class="page === currentPage ? 'bg-k-accent text-white' : 'bg-k-bg-primary text-gray-300 hover:bg-white/10'"
-                class="w-10 h-10 flex items-center justify-center rounded transition-colors"
-                @click="goToPage(page)"
-              >
-                {{ page }}
-              </button>
-            </div>
-
-            <button
-              :disabled="currentPage === totalPages"
-              class="px-3 py-2 bg-k-bg-primary text-white rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :class="{ 'opacity-50 cursor-not-allowed': currentPage === totalPages }"
-              @click="goToPage(currentPage + 1)"
-            >
-              Next
-            </button>
-          </div>
+        <div v-if="hasMoreRelatedTracks && !loading" class="flex items-center justify-center mt-8">
+          <button
+            class="px-4 py-2 bg-k-accent text-white rounded hover:bg-k-accent/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="loadingMoreRelated"
+            @click="loadMoreRelatedTracks"
+          >
+            <Icon v-if="loadingMoreRelated" :icon="faSpinner" spin class="mr-2" />
+            Load More
+          </button>
         </div>
       </div>
 
-      <!-- Loading Animation for related tracks -->
-      <div v-if="!showingSeedResults && loading && tracks.length === 0" class="bg-white/5 rounded-lg p-6">
-        <div class="flex items-center justify-center py-8">
-          <div class="flex items-center gap-3">
-            <div class="animate-spin rounded-full h-6 w-6 border-2 border-k-accent border-t-transparent" />
-            <span class="text-k-text-secondary">Loading related tracks...</span>
-          </div>
+      <!-- Loading Animation for related tracks (only when loading related, not when searching for seeds) -->
+      <div v-if="!showingSeedResults && loading && tracks.length === 0 && !seedSearchQuery.trim()" class="text-center p-12">
+        <div class="inline-flex flex-col items-center">
+          <svg class="w-8 h-8 animate-spin text-white mb-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
         </div>
       </div>
     </div>
@@ -287,14 +251,15 @@
 </template>
 
 <script lang="ts" setup>
-import { faArrowUp, faCheck, faChevronDown, faClock, faFilter, faMusic, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { faBan, faCheck, faChevronDown, faHeart, faSearch, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { debounce } from 'lodash'
 import { eventBus } from '@/utils/eventBus'
 import { soundcloudService, type SoundCloudTrack } from '@/services/soundcloudService'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { useRouter } from '@/composables/useRouter'
+import { http } from '@/services/http'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -303,7 +268,6 @@ import SoundCloudTrackTable from '@/components/ui/soundcloud/SoundCloudTrackTabl
 const { isCurrentScreen, onRouteChanged } = useRouter()
 
 // Animation state management
-const allowAnimations = ref(false)
 const initialLoadComplete = ref(false)
 
 // Template refs for SoundCloud tables
@@ -320,108 +284,79 @@ const currentData = ref<any>(null)
 const seedSearchResults = ref<SoundCloudTrack[]>([])
 const showingSeedResults = ref(false)
 const showDropdown = ref(false)
+const dropdownDisplayLimit = ref(10) // How many results to show in dropdown
 const searchContainer = ref<HTMLElement | null>(null)
+const seedHasMore = ref(false)
+const seedLastQuery = ref('')
+let searchSuggestionTimer: ReturnType<typeof setTimeout> | null = null
 
 // Pagination state
-const currentPage = ref(1)
-const currentSeedPage = ref(1)
-const tracksPerPage = 20
+const displayLimitRelated = ref(20)
+const displayLimitSeed = ref(20)
+const loadingMoreRelated = ref(false)
+const loadingMoreSeed = ref(false)
 
 // Sort filter state
-const likesRatioFilter = ref<'none' | 'highest' | 'newest'>('none')
+const likesRatioFilter = ref<'none' | 'newest'>('newest')
 const showLikesRatioDropdown = ref(false)
 
 // Initialize global blacklist filtering for SoundCloud
 const {
   filterSoundCloudTracks,
   loadBlacklistedItems,
+  addTrackToBlacklist,
 } = useBlacklistFiltering()
 
 // Local banned artists tracking (for Similar Artists compatibility)
 const bannedArtists = ref(new Set<string>()) // Store artist names for SoundCloud tracks
 const allTracks = ref<SoundCloudTrack[]>([]) // Store all tracks for sorting
 
-// Pagination computed properties
+// Music preferences state
+const savedTracks = ref<Set<string>>(new Set())
+const blacklistedTracks = ref<Set<string>>(new Set())
+const clientUnsavedTracks = ref<Set<string>>(new Set()) // Tracks unsaved by client
+const processingTrack = ref<string | number | null>(null)
+const listenedTracks = ref<Set<string>>(new Set()) // Tracks that have been listened to
+
+// Load-more computed helpers
 const totalTracks = computed(() => tracks.value.length)
-const totalPages = computed(() => Math.ceil(totalTracks.value / tracksPerPage))
+const displayedTracks = computed(() => tracks.value.slice(0, displayLimitRelated.value))
+const hasMoreRelatedTracks = computed(() => totalTracks.value > displayLimitRelated.value)
 
-const displayedTracks = computed(() => {
-  const start = (currentPage.value - 1) * tracksPerPage
-  const end = start + tracksPerPage
-  return tracks.value.slice(start, end)
-})
-
-const visiblePages = computed(() => {
-  const pages = []
-  const maxVisible = 5
-  const total = totalPages.value
-
-  if (total <= maxVisible) {
-    // Show all pages if total is small
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
-  } else {
-    // Show pages around current page
-    const current = currentPage.value
-    let start = Math.max(1, current - 2)
-    let end = Math.min(total, current + 2)
-
-    // Adjust if we're near the beginning or end
-    if (current <= 3) {
-      end = Math.min(total, 5)
-    } else if (current >= total - 2) {
-      start = Math.max(1, total - 4)
-    }
-
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-  }
-
-  return pages
-})
-
-// Seed search pagination computed properties
 const totalSeedTracks = computed(() => seedSearchResults.value.length)
-const totalSeedPages = computed(() => Math.ceil(totalSeedTracks.value / tracksPerPage))
+const displayedSeedTracks = computed(() => seedSearchResults.value.slice(0, displayLimitSeed.value))
+const hasMoreSeedTracks = computed(() => totalSeedTracks.value > displayLimitSeed.value)
 
-const displayedSeedTracks = computed(() => {
-  const start = (currentSeedPage.value - 1) * tracksPerPage
-  const end = start + tracksPerPage
-  return seedSearchResults.value.slice(start, end)
-})
+// Format duration from milliseconds to mm:ss
+const formatDuration = (ms?: number): string => {
+  if (!ms) {
+    return '0:00'
+  }
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
 
-const visibleSeedPages = computed(() => {
-  const pages = []
-  const maxVisible = 5
-  const total = totalSeedPages.value
+// Deduplicate seed tracks by ID
+const dedupeSeedTracks = (incoming: SoundCloudTrack[]): SoundCloudTrack[] => {
+  const existingIds = new Set(seedSearchResults.value.map(t => t.id))
+  return incoming.filter(t => !existingIds.has(t.id))
+}
 
-  if (total <= maxVisible) {
-    // Show all pages if total is small
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
+const ensureTrackVisible = (targetIndex: number, isSeed: boolean) => {
+  const step = 20
+  if (isSeed) {
+    if (targetIndex >= displayLimitSeed.value) {
+      const nextLimit = Math.ceil((targetIndex + 1) / step) * step
+      displayLimitSeed.value = Math.min(nextLimit, seedSearchResults.value.length)
     }
   } else {
-    // Show pages around current page
-    const current = currentSeedPage.value
-    let start = Math.max(1, current - 2)
-    let end = Math.min(total, current + 2)
-
-    // Adjust if we're near the beginning or end
-    if (current <= 3) {
-      end = Math.min(total, 5)
-    } else if (current >= total - 2) {
-      start = Math.max(1, total - 4)
-    }
-
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
+    if (targetIndex >= displayLimitRelated.value) {
+      const nextLimit = Math.ceil((targetIndex + 1) / step) * step
+      displayLimitRelated.value = Math.min(nextLimit, tracks.value.length)
     }
   }
-
-  return pages
-})
+}
 
 const loadRelatedTracks = async (trackUrn: string) => {
   loading.value = true
@@ -439,20 +374,10 @@ const loadRelatedTracks = async (trackUrn: string) => {
 
     allTracks.value = localFiltered // Store all tracks for sorting
     applyFiltering() // Apply current sort filter
-    currentPage.value = 1 // Reset to first page when loading new tracks
+    displayLimitRelated.value = Math.min(20, tracks.value.length || 0) // Reset visible count when loading new tracks
     console.log('🎵 Loaded', tracks.value.length, 'related tracks (after filtering blacklisted tracks/artists)')
     console.log(`🚫 Filtered out ${relatedTracks.length - tracks.value.length} blacklisted items`)
-
-    // Trigger animations for new related tracks
-    setTimeout(() => {
-      allowAnimations.value = true
-      initialLoadComplete.value = true
-      
-      // Auto-disable animations after 2 seconds
-      setTimeout(() => {
-        allowAnimations.value = false
-      }, 2000)
-    }, 50)
+    initialLoadComplete.value = true
   } catch (err: any) {
     error.value = `Failed to load related tracks: ${err.message || 'Unknown error'}`
     console.error('🎵 Related tracks error:', err)
@@ -484,44 +409,51 @@ const searchTracks = async (query: string) => {
 const searchSeedTracks = async (query: string) => {
   loading.value = true
   error.value = ''
-  showingSeedResults.value = true
-  showDropdown.value = true
-  currentSeedPage.value = 1 // Reset to first page for new search
+  displayLimitSeed.value = 20 // Reset visible count for new search
+  dropdownDisplayLimit.value = 10 // Reset dropdown display limit for new search
+  seedHasMore.value = false
+  seedLastQuery.value = query
 
   try {
     console.log('🎵 Searching for seed tracks:', query)
-    const searchResults = await soundcloudService.search({
+    const pageLimit = 200
+    const response = await soundcloudService.searchWithPagination({
       searchQuery: query,
-      limit: 50,
+      limit: pageLimit,
+      offset: 0,
     })
 
     // For NEW seed track searches: filter out banned artists from new results
     // Apply local banned artists filter (for Similar Artists compatibility)
-    const filteredResults = filterBannedArtists(searchResults)
+    const filteredResults = filterBannedArtists(response.tracks || [])
 
     seedSearchResults.value = filteredResults
-    console.log('🎵 Found', seedSearchResults.value.length, 'seed track candidates (after filtering)')
+    seedHasMore.value = response.hasMore || (response.tracks?.length || 0) >= pageLimit
+    displayLimitSeed.value = Math.min(20, seedSearchResults.value.length || 0)
 
-    // Trigger animations for seed search results
-    setTimeout(() => {
-      allowAnimations.value = true
-      initialLoadComplete.value = true
-      
-      // Auto-disable animations after 2 seconds
-      setTimeout(() => {
-        allowAnimations.value = false
-      }, 2000)
-    }, 50)
+    // Show dropdown automatically when results are available
+    showDropdown.value = seedSearchResults.value.length > 0 && query.trim() === seedSearchQuery.value.trim()
+
+    console.log('🎵 Found', seedSearchResults.value.length, 'seed track candidates (after filtering)')
+    initialLoadComplete.value = true
   } catch (err: any) {
     error.value = `Failed to search seed tracks: ${err.message || 'Unknown error'}`
     console.error('🎵 Seed search error:', err)
+    showDropdown.value = false
   } finally {
     loading.value = false
   }
 }
 
 const selectSeedTrack = async (track: SoundCloudTrack) => {
-  console.log('🎵 Selected seed track:', track.title, 'by', track.user.username)
+  console.log('🎵 [SEED SELECT] Selected seed track:', track.title, 'by', track.user.username)
+  console.log('🎵 [SEED SELECT] Track object:', track)
+
+  // Clear search suggestion timer
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
+  }
 
   // Set the seed track info
   seedTrack.value = {
@@ -530,14 +462,25 @@ const selectSeedTrack = async (track: SoundCloudTrack) => {
     trackUrn: `soundcloud:tracks:${track.id}`,
   }
 
+  console.log('🎵 [SEED SELECT] seedTrack.value set to:', seedTrack.value)
+  console.log('🎵 [SEED SELECT] seedTrack.value is truthy?', !!seedTrack.value)
+
   // Clear seed search results and show related tracks loading state
   showingSeedResults.value = false
   showDropdown.value = false
   seedSearchResults.value = []
   seedSearchQuery.value = ''
 
+  // Clear existing tracks so loading animation will show
+  tracks.value = []
+  allTracks.value = []
+
+  console.log('🎵 [SEED SELECT] About to load related tracks for:', `soundcloud:tracks:${track.id}`)
+
   // Load related tracks for this seed
   await loadRelatedTracks(`soundcloud:tracks:${track.id}`)
+
+  console.log('🎵 [SEED SELECT] After loadRelatedTracks, seedTrack.value:', seedTrack.value)
 }
 
 const playTrack = async (track: SoundCloudTrack) => {
@@ -614,6 +557,10 @@ const findRelatedForTrack = async (track: SoundCloudTrack) => {
   seedSearchResults.value = []
   seedSearchQuery.value = ''
 
+  // Clear existing tracks so loading animation will show
+  tracks.value = []
+  allTracks.value = []
+
   // Load related tracks for this seed
   await loadRelatedTracks(`soundcloud:tracks:${track.id}`)
 
@@ -662,13 +609,7 @@ const skipToPrevious = () => {
     const previousTrack = currentTracksList[currentIndex - 1]
     console.log('🎵 Skipping to previous track:', previousTrack.title)
 
-    // Navigate to the page containing the previous track
-    if (!showingSeedResults.value) {
-      const targetPage = Math.floor((currentIndex - 1) / tracksPerPage) + 1
-      if (targetPage !== currentPage.value) {
-        currentPage.value = targetPage
-      }
-    }
+    ensureTrackVisible(currentIndex - 1, showingSeedResults.value)
 
     // Always just play the track, don't select it as seed
     playTrack(previousTrack)
@@ -685,13 +626,7 @@ const skipToNext = () => {
     const nextTrack = currentTracksList[currentIndex + 1]
     console.log('🎵 Skipping to next track:', nextTrack.title)
 
-    // Navigate to the page containing the next track
-    if (!showingSeedResults.value) {
-      const targetPage = Math.floor((currentIndex + 1) / tracksPerPage) + 1
-      if (targetPage !== currentPage.value) {
-        currentPage.value = targetPage
-      }
-    }
+    ensureTrackVisible(currentIndex + 1, showingSeedResults.value)
 
     // Always just play the track, don't select it as seed
     playTrack(nextTrack)
@@ -726,7 +661,326 @@ const handleScreenLoad = (data: any) => {
   }
 }
 
+// Helper function to get track key
+const getTrackKey = (track: SoundCloudTrack): string => {
+  const artist = track.user?.username || 'Unknown'
+  const title = track.title || 'Untitled'
+  return `${artist}-${title}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+// Check if track is saved
+const isTrackSaved = (track: SoundCloudTrack): boolean => {
+  const trackKey = getTrackKey(track)
+  return savedTracks.value.has(trackKey) && !clientUnsavedTracks.value.has(trackKey)
+}
+
+// Check if track is blacklisted
+const isTrackBlacklisted = (track: SoundCloudTrack): boolean => {
+  return blacklistedTracks.value.has(getTrackKey(track))
+}
+
+// Check if ban button should be active (red)
+const isBanButtonActive = (track: SoundCloudTrack): boolean => {
+  return isTrackBlacklisted(track) && !isTrackSaved(track)
+}
+
+// Save track function
+const saveTrack = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+
+  if (isTrackSaved(track)) {
+    // Unsave track: Update UI immediately for better UX
+    savedTracks.value.delete(trackKey)
+
+    // Since no DELETE endpoint exists for saved tracks, use client-side tracking
+    clientUnsavedTracks.value.add(trackKey)
+
+    // Save to localStorage for persistence across page reloads
+    try {
+      const unsavedList = Array.from(clientUnsavedTracks.value)
+      localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+    } catch (error) {
+      // Failed to save unsaved tracks to localStorage
+    }
+
+    // ALSO remove from blacklist when unsaving
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const deleteData = {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+      }
+      const params = new URLSearchParams(deleteData)
+      const response = await http.delete(`music-preferences/blacklist-track?${params}`)
+
+      if (response.success) {
+        blacklistedTracks.value.delete(trackKey)
+        console.log('✅ Track removed from blacklist on unsave:', track.title)
+
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      }
+    } catch (error) {
+      console.warn('Failed to remove track from blacklist on unsave:', error)
+    }
+
+    // Trigger SavedTracksScreen refresh
+    try {
+      window.dispatchEvent(new CustomEvent('track-unsaved', {
+        detail: { track, trackKey },
+      }))
+      localStorage.setItem('track-unsaved-timestamp', Date.now().toString())
+    } catch (error) {
+      // Event dispatch failed, not critical
+    }
+  } else {
+    // Reload client unsaved tracks from localStorage first to get the latest list
+    // This ensures we don't lose tracks that were trashed in other screens
+    try {
+      const stored = localStorage.getItem('koel-client-unsaved-tracks')
+      if (stored) {
+        const unsavedList = JSON.parse(stored)
+        clientUnsavedTracks.value = new Set(unsavedList)
+      }
+    } catch (error) {
+      // Failed to load client unsaved tracks
+    }
+
+    // Update UI immediately for instant feedback
+    savedTracks.value.add(trackKey)
+    clientUnsavedTracks.value.delete(trackKey)
+
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const response = await http.post('music-preferences/save-track', {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+        spotify_id: null, // SoundCloud tracks don't have Spotify IDs
+        label: null,
+        popularity: null,
+        followers: track.user?.followers_count || null,
+        streams: track.playback_count || null,
+        release_date: track.created_at || null,
+        preview_url: null,
+        track_count: 1,
+        is_single_track: true,
+      })
+
+      if (!response.success) {
+        savedTracks.value.delete(trackKey)
+        throw new Error(response.error || 'Failed to save track')
+      }
+
+      // ALSO add to blacklist when saving
+      try {
+        const blacklistResponse = await http.post('music-preferences/blacklist-track', {
+          spotify_id: null,
+          isrc: isrcValue,
+          track_name: track.title,
+          artist_name: track.user?.username || 'Unknown',
+        })
+
+        if (blacklistResponse.success) {
+          blacklistedTracks.value.add(trackKey)
+          addTrackToBlacklist({
+            id: String(track.id),
+            name: track.title,
+            artist: track.user?.username || 'Unknown',
+          } as any)
+          console.log('✅ Track blacklisted in backend:', track.title)
+
+          window.dispatchEvent(new CustomEvent('track-blacklisted', {
+            detail: { track, trackKey },
+          }))
+          localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+        }
+      } catch (error) {
+        console.error('❌ Error blacklisting track:', error)
+      }
+
+      // Update localStorage
+      try {
+        const unsavedList = Array.from(clientUnsavedTracks.value)
+        localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+      } catch (error) {
+        // Failed to update unsaved tracks in localStorage
+      }
+
+      // Trigger SavedTracksScreen refresh
+      try {
+        window.dispatchEvent(new CustomEvent('track-saved', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-saved-timestamp', Date.now().toString())
+      } catch (error) {
+        // Event dispatch failed, not critical
+      }
+    } catch (error: any) {
+      savedTracks.value.delete(trackKey)
+    }
+  }
+}
+
+// Blacklist track function
+const blacklistTrack = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+  const trackIdentifier = track.id || trackKey
+
+  if (isTrackBlacklisted(track)) {
+    // UNBAN TRACK - Update UI immediately
+    blacklistedTracks.value.delete(trackKey)
+
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const deleteData = {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+      }
+      const params = new URLSearchParams(deleteData)
+      const response = await http.delete(`music-preferences/blacklist-track?${params}`)
+
+      if (!response.success) {
+        blacklistedTracks.value.add(trackKey)
+      } else {
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      }
+    } catch (error: any) {
+      blacklistedTracks.value.add(trackKey)
+    }
+  } else {
+    // Block track - show processing state
+    processingTrack.value = track.id
+
+    try {
+      const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const response = await http.post('music-preferences/blacklist-track', {
+        isrc: isrcValue,
+        track_name: track.title,
+        artist_name: track.user?.username || 'Unknown',
+      })
+
+      if (response.success) {
+        blacklistedTracks.value.add(trackKey)
+        addTrackToBlacklist({
+          id: String(track.id),
+          name: track.title,
+          artist: track.user?.username || 'Unknown',
+        } as any)
+
+        window.dispatchEvent(new CustomEvent('track-blacklisted', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } else {
+        throw new Error(response.error || 'Failed to blacklist track')
+      }
+    } catch (error: any) {
+      // Failed to blacklist track
+    } finally {
+      processingTrack.value = null
+    }
+  }
+}
+
+// Mark track as listened
+const markTrackAsListened = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+
+  // Mark as listened (optimistic)
+  listenedTracks.value.add(trackKey)
+  // Reassign to trigger Vue reactivity for Set mutations
+  listenedTracks.value = new Set(listenedTracks.value)
+
+  // Persist listened state
+  try {
+    await http.post('music-preferences/listened-track', {
+      track_key: trackKey,
+      track_name: track.title,
+      artist_name: track.user?.username || 'Unknown',
+      spotify_id: null,
+      isrc: `soundcloud:${track.id}`,
+    })
+  } catch (e) {
+    // If unauthenticated, store locally
+    try {
+      const keys = Array.from(listenedTracks.value)
+      localStorage.setItem('koel-listened-tracks', JSON.stringify(keys))
+    } catch {}
+  }
+}
+
+// Load user preferences
+const loadUserPreferences = async () => {
+  try {
+    // Load blacklisted tracks
+    const blacklistedTracksResponse = await http.get('music-preferences/blacklisted-tracks')
+    if (blacklistedTracksResponse.success && blacklistedTracksResponse.data) {
+      blacklistedTracksResponse.data.forEach((track: any) => {
+        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        blacklistedTracks.value.add(trackKey)
+      })
+    }
+
+    // Load saved tracks
+    const savedTracksResponse = await http.get('music-preferences/saved-tracks')
+    if (savedTracksResponse.success && savedTracksResponse.data) {
+      savedTracksResponse.data.forEach((track: any) => {
+        const trackKey = `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        savedTracks.value.add(trackKey)
+      })
+    }
+
+    // Load client unsaved tracks from localStorage
+    try {
+      const stored = localStorage.getItem('koel-client-unsaved-tracks')
+      if (stored) {
+        const unsavedList = JSON.parse(stored)
+        clientUnsavedTracks.value = new Set(unsavedList)
+      }
+    } catch (error) {
+      // Failed to load client unsaved tracks
+    }
+
+    // Load listened tracks from server (fall back to localStorage if unauthenticated)
+    try {
+      const resp: any = await http.get('music-preferences/listened-tracks')
+      if (resp?.success && Array.isArray(resp.data)) {
+        listenedTracks.value = new Set(resp.data as string[])
+      }
+    } catch (e) {
+      // Fallback to localStorage per device
+      try {
+        const stored = localStorage.getItem('koel-listened-tracks')
+        if (stored) {
+          const keys: string[] = JSON.parse(stored)
+          listenedTracks.value = new Set(keys)
+        }
+      } catch {}
+    }
+  } catch (error) {
+    // Could not load user preferences (user may not be logged in)
+  }
+}
+
 const clearSeedTrack = () => {
+  // Clear search suggestion timer
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
+  }
+
   seedTrack.value = null
   tracks.value = []
   allTracks.value = []
@@ -737,12 +991,23 @@ const clearSeedTrack = () => {
   showLikesRatioDropdown.value = false
   error.value = ''
   currentData.value = null
-  currentPage.value = 1
-  currentSeedPage.value = 1
-  likesRatioFilter.value = 'none'
+  displayLimitRelated.value = 20
+  displayLimitSeed.value = 20
+  dropdownDisplayLimit.value = 10
+  loadingMoreRelated.value = false
+  loadingMoreSeed.value = false
+  seedHasMore.value = false
+  seedLastQuery.value = ''
+  likesRatioFilter.value = 'newest'
 }
 
 const clearResults = () => {
+  // Clear search suggestion timer
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
+  }
+
   tracks.value = []
   allTracks.value = []
   seedTrack.value = null
@@ -754,34 +1019,70 @@ const clearResults = () => {
   showLikesRatioDropdown.value = false
   error.value = ''
   currentData.value = null
-  currentPage.value = 1
-  currentSeedPage.value = 1
-  likesRatioFilter.value = 'none'
+  displayLimitRelated.value = 20
+  displayLimitSeed.value = 20
+  dropdownDisplayLimit.value = 10
+  loadingMoreRelated.value = false
+  loadingMoreSeed.value = false
+  seedHasMore.value = false
+  seedLastQuery.value = ''
+  likesRatioFilter.value = 'newest'
 }
 
-// Pagination functions
-const goToPage = (page: number) => {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page
-
-    // Update navigation for currently playing track if it exists
-    const currentTrack = soundcloudPlayerStore.state.currentTrack
-    if (currentTrack) {
-      updateNavigationState(currentTrack)
-    }
+const loadMoreRelatedTracks = () => {
+  if (loadingMoreRelated.value || !hasMoreRelatedTracks.value) {
+    return
   }
+  loadingMoreRelated.value = true
+  displayLimitRelated.value = Math.min(displayLimitRelated.value + 20, tracks.value.length)
+  setTimeout(() => {
+    loadingMoreRelated.value = false
+  }, 50)
 }
 
-const goToSeedPage = (page: number) => {
-  if (page >= 1 && page <= totalSeedPages.value) {
-    currentSeedPage.value = page
-
-    // Update navigation for currently playing track if it exists
-    const currentTrack = soundcloudPlayerStore.state.currentTrack
-    if (currentTrack) {
-      updateNavigationState(currentTrack)
-    }
+const loadMoreSeedTracks = () => {
+  if (loadingMoreSeed.value || !hasMoreSeedTracks.value) {
+    return
   }
+  loadingMoreSeed.value = true
+
+  // If we still have local results hidden, just reveal them
+  if (displayLimitSeed.value < seedSearchResults.value.length) {
+    displayLimitSeed.value = Math.min(displayLimitSeed.value + 20, seedSearchResults.value.length)
+    setTimeout(() => {
+      loadingMoreSeed.value = false
+    }, 50)
+    return
+  }
+
+  // Otherwise fetch the next batch from the API
+  if (!seedHasMore.value || !seedLastQuery.value) {
+    loadingMoreSeed.value = false
+    return
+  }
+
+  const offset = seedSearchResults.value.length
+  const pageLimit = 200
+
+  soundcloudService.searchWithPagination({
+    searchQuery: seedLastQuery.value,
+    limit: pageLimit,
+    offset,
+  })
+    .then(response => {
+      const incoming = filterBannedArtists(response.tracks || [])
+      const unique = dedupeSeedTracks(incoming)
+      seedSearchResults.value = [...seedSearchResults.value, ...unique]
+      seedHasMore.value = response.hasMore || (response.tracks?.length || 0) >= pageLimit
+      displayLimitSeed.value = Math.min(displayLimitSeed.value + 20, seedSearchResults.value.length)
+    })
+    .catch(err => {
+      console.error('🎵 Seed load more error:', err)
+      error.value = 'Failed to load more seed tracks. Please try again.'
+    })
+    .finally(() => {
+      loadingMoreSeed.value = false
+    })
 }
 
 const performSearch = () => {
@@ -791,6 +1092,12 @@ const performSearch = () => {
 }
 
 const performSeedSearch = () => {
+  // Clear automatic search timer when manually searching
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
+  }
+
   if (seedSearchQuery.value.trim()) {
     searchSeedTracks(seedSearchQuery.value.trim())
   }
@@ -802,12 +1109,40 @@ const onSearchInput = debounce(() => {
 }, 500)
 
 const onSeedSearchInput = () => {
-  // Show dropdown if we have results and user is typing
-  if (seedSearchResults.value.length > 0 && seedSearchQuery.value.trim()) {
+  // Clear previous timer
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
+  }
+
+  const currentQuery = seedSearchQuery.value.trim()
+
+  // Clear old results if query is empty
+  if (!currentQuery) {
+    seedSearchResults.value = []
+    showDropdown.value = false
+    seedLastQuery.value = ''
+    return
+  }
+
+  // If query changed from the last searched query, clear old results
+  // This prevents showing stale suggestions when user deletes and types new text
+  if (seedLastQuery.value && currentQuery !== seedLastQuery.value.trim()) {
+    seedSearchResults.value = []
+    showDropdown.value = false
+  } else if (seedSearchResults.value.length > 0 && currentQuery === seedLastQuery.value.trim()) {
+    // Only show dropdown if we have results AND they match the current query exactly
     showDropdown.value = true
   } else {
     showDropdown.value = false
   }
+
+  // Schedule automatic search after user pauses typing for 2 seconds
+  searchSuggestionTimer = setTimeout(() => {
+    if (seedSearchQuery.value.trim()) {
+      searchSeedTracks(seedSearchQuery.value.trim())
+    }
+  }, 2000)
 }
 
 const onSeedSearchFocus = () => {
@@ -815,6 +1150,11 @@ const onSeedSearchFocus = () => {
   if (seedSearchResults.value.length > 0 && seedSearchQuery.value.trim()) {
     showDropdown.value = true
   }
+}
+
+// Load more results in the dropdown
+const loadMoreDropdownResults = () => {
+  dropdownDisplayLimit.value = Math.min(dropdownDisplayLimit.value + 10, seedSearchResults.value.length)
 }
 
 // Load banned artists from localStorage
@@ -859,25 +1199,16 @@ const hideLikesRatioDropdown = () => {
   }, 150) // Small delay to allow click events to register
 }
 
-const setLikesRatioFilter = (type: 'none' | 'highest' | 'newest') => {
+const setLikesRatioFilter = (type: 'none' | 'newest') => {
   likesRatioFilter.value = type
   showLikesRatioDropdown.value = false
   applyFiltering()
 }
 
-const getSortIcon = () => {
-  switch (likesRatioFilter.value) {
-    case 'highest': return faArrowUp
-    case 'newest': return faClock
-    default: return faFilter
-  }
-}
-
 const getSortText = () => {
   switch (likesRatioFilter.value) {
-    case 'highest': return 'Highest Likes Ratio'
-    case 'newest': return 'Newest Releases'
-    default: return 'Sort by: Plays'
+    case 'newest': return 'Most Recent'
+    default: return 'Most Streams'
   }
 }
 
@@ -886,14 +1217,7 @@ const applyFiltering = () => {
   const filteredTracks = [...allTracks.value]
 
   // Apply sorting
-  if (likesRatioFilter.value === 'highest') {
-    // Sort by likes ratio highest to lowest
-    filteredTracks.sort((a, b) => {
-      const ratioA = (a.playback_count || 0) > 0 ? (a.favoritings_count || 0) / (a.playback_count || 0) : 0
-      const ratioB = (b.playback_count || 0) > 0 ? (b.favoritings_count || 0) / (b.playback_count || 0) : 0
-      return ratioB - ratioA
-    })
-  } else if (likesRatioFilter.value === 'newest') {
+  if (likesRatioFilter.value === 'newest') {
     // Sort by creation date newest to oldest
     filteredTracks.sort((a, b) => {
       const dateA = new Date(a.created_at || 0).getTime()
@@ -904,9 +1228,21 @@ const applyFiltering = () => {
   // 'none' keeps the default order by plays (already sorted by SoundCloud API)
 
   tracks.value = filteredTracks
+  displayLimitRelated.value = Math.min(displayLimitRelated.value, tracks.value.length || 0) || 0
 }
 
+// Watch seedTrack changes for debugging
+watch(seedTrack, (newValue, oldValue) => {
+  console.log('🎵 [WATCH] seedTrack changed:', {
+    old: oldValue,
+    new: newValue,
+    isTruthy: !!newValue,
+  })
+}, { immediate: true })
+
 onMounted(() => {
+  console.log('🎵 [MOUNT] Component mounted, seedTrack initial value:', seedTrack.value)
+
   // Listen for related tracks data from other screens
   eventBus.on('SOUNDCLOUD_RELATED_TRACKS_DATA', handleScreenLoad)
 
@@ -919,6 +1255,9 @@ onMounted(() => {
 
   // Load global blacklisted items
   loadBlacklistedItems()
+
+  // Load user preferences
+  loadUserPreferences()
 
   // Add click outside listener
   document.addEventListener('click', handleClickOutside)
@@ -936,18 +1275,6 @@ onRouteChanged(route => {
     }
     // Then hide the global player
     soundcloudPlayerStore.hide()
-  } else {
-    // Enable animations when entering SoundCloud Related Tracks screen
-    if (tracks.value.length > 0 || seedSearchResults.value.length > 0) {
-      allowAnimations.value = true
-      initialLoadComplete.value = false
-      
-      // Disable animations after they complete
-      setTimeout(() => {
-        allowAnimations.value = false
-        initialLoadComplete.value = true
-      }, 2000)
-    }
   }
 })
 
@@ -956,7 +1283,29 @@ onUnmounted(() => {
   eventBus.off('SOUNDCLOUD_SKIP_PREVIOUS', skipToPrevious)
   eventBus.off('SOUNDCLOUD_SKIP_NEXT', skipToNext)
 
+  // Clear search suggestion timer
+  if (searchSuggestionTimer) {
+    clearTimeout(searchSuggestionTimer)
+    searchSuggestionTimer = null
+  }
+
   // Remove click outside listener
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
+
+<style scoped>
+.seed-selection {
+  max-width: 100%;
+}
+
+/* Hide placeholders on focus */
+input:focus::placeholder {
+  opacity: 0;
+}
+
+/* Center placeholder text in search input */
+.search-input::placeholder {
+  text-align: center;
+}
+</style>

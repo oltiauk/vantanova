@@ -65,12 +65,39 @@ const { url } = useRouter()
 const { isAdmin } = useAuthorization()
 
 const savedTrackCount = ref<number | null>(null)
+const clientUnsavedTracks = ref<Set<string>>(new Set())
+
+// Helper function to get track key (same as in SavedTracksScreen.vue)
+const getTrackKey = (track: { artist_name: string, track_name: string }): string => {
+  return `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+// Load client-side unsaved tracks from localStorage
+const loadClientUnsavedTracks = () => {
+  try {
+    const stored = localStorage.getItem('koel-client-unsaved-tracks')
+    if (stored) {
+      const unsavedList = JSON.parse(stored)
+      clientUnsavedTracks.value = new Set(unsavedList)
+    }
+  } catch (error) {
+    console.warn('Failed to load client unsaved tracks from localStorage:', error)
+  }
+}
 
 const loadSavedTrackCount = async () => {
   try {
+    // Load client-side unsaved tracks first
+    loadClientUnsavedTracks()
+
     const response = await http.get('music-preferences/saved-tracks')
     if (response.success && Array.isArray(response.data)) {
-      savedTrackCount.value = response.data.length
+      // Filter out client-side unsaved tracks
+      const filteredTracks = response.data.filter((track: { artist_name: string, track_name: string }) => {
+        const trackKey = getTrackKey(track)
+        return !clientUnsavedTracks.value.has(trackKey)
+      })
+      savedTrackCount.value = filteredTracks.length
     }
   } catch (error) {
     savedTrackCount.value = null
@@ -78,29 +105,37 @@ const loadSavedTrackCount = async () => {
 }
 
 const handleTrackSaved = () => {
-  if (savedTrackCount.value === null) {
-    savedTrackCount.value = 1
-  } else {
-    savedTrackCount.value += 1
-  }
+  // Reload the count to ensure it's accurate
+  loadSavedTrackCount()
 }
 
-const handleTrackUnsaved = () => {
-  if (savedTrackCount.value === null) {
-    savedTrackCount.value = 0
-  } else {
+const handleTrackUnsaved = (event?: CustomEvent) => {
+  // Update count immediately for instant feedback
+  if (savedTrackCount.value !== null && savedTrackCount.value > 0) {
     savedTrackCount.value = Math.max(0, savedTrackCount.value - 1)
+  }
+  
+  // Also reload from server to ensure accuracy (accounts for client-side unsaved tracks)
+  // This happens in the background
+  loadSavedTrackCount()
+}
+
+const handleStorageChange = (e: StorageEvent) => {
+  if (e.key === 'koel-client-unsaved-tracks' || e.key === 'track-saved-timestamp' || e.key === 'track-unsaved-timestamp') {
+    loadSavedTrackCount()
   }
 }
 
 onMounted(() => {
   loadSavedTrackCount()
-  window.addEventListener('track-saved', handleTrackSaved)
-  window.addEventListener('track-unsaved', handleTrackUnsaved)
+  window.addEventListener('track-saved', handleTrackSaved as EventListener)
+  window.addEventListener('track-unsaved', handleTrackUnsaved as EventListener)
+  window.addEventListener('storage', handleStorageChange)
 })
 
 onUnmounted(() => {
   window.removeEventListener('track-saved', handleTrackSaved)
   window.removeEventListener('track-unsaved', handleTrackUnsaved)
+  window.removeEventListener('storage', handleStorageChange)
 })
 </script>

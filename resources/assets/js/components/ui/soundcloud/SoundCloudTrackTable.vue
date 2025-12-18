@@ -4,14 +4,15 @@
       <table class="w-full">
         <thead>
           <tr class="border-b border-white/10">
-            <th class="text-left p-3 font-medium">#</th>
+            <th class="text-left p-3 font-medium"></th>
             <th class="text-left p-3 font-medium">Artist(s)</th>
             <th class="text-left p-3 font-medium">Title</th>
-            <th class="text-left p-3 font-medium">Genre</th>
-            <th class="text-left p-3 font-medium">BPM</th>
-            <th class="text-left p-3 font-medium">Streams</th>
-            <th class="text-left p-3 font-medium">Release Date</th>
-            <th class="text-left p-3 font-medium">Actions</th>
+            <th class="text-center p-3 font-medium align-middle">Genre</th>
+            <th class="text-center p-3 font-medium align-middle">BPM</th>
+            <th class="text-center p-3 font-medium align-middle">Streams</th>
+            <th class="text-center p-3 font-medium align-middle">Release Date</th>
+            <th class="text-left p-3 font-medium"></th>
+            <th class="text-left p-3 font-medium"></th>
           </tr>
         </thead>
         <tbody>
@@ -66,10 +67,10 @@
               </td>
 
               <!-- Genre -->
-              <td class="p-3 align-middle">
+              <td class="p-3 align-middle text-center">
                 <span
                   v-if="track.genre"
-                  class="px-2 py-1 bg-white/10 text-white rounded text-sm whitespace-nowrap"
+                  class="px-2 py-1 bg-white/10 text-white rounded text-sm whitespace-nowrap inline-block"
                   :title="track.genre"
                 >
                   {{ track.genre.length > 12 ? `${track.genre.substring(0, 12)}...` : track.genre }}
@@ -78,19 +79,50 @@
               </td>
 
               <!-- BPM -->
-              <td class="p-3 align-middle">
+              <td class="p-3 align-middle text-center">
                 <span v-if="track.bpm" class="text-white/80">{{ track.bpm }}</span>
                 <span v-else class="text-white/40">-</span>
               </td>
 
               <!-- Stream Count -->
-              <td class="p-3 align-middle">
+              <td class="p-3 align-middle text-center">
                 <span class="text-white/80">{{ formatCount(track.playback_count || 0) }}</span>
               </td>
 
               <!-- Release Date -->
-              <td class="p-3 whitespace-nowrap align-middle">
+              <td class="p-3 whitespace-nowrap align-middle text-center">
                 <span class="text-white/80 whitespace-nowrap inline-block">{{ formatDate(track.created_at || '') }}</span>
+              </td>
+
+              <!-- Save/Ban Actions -->
+              <td class="pl-3 align-middle">
+                <div class="flex gap-2 justify-center">
+                  <!-- Save Button (24h) -->
+                  <button
+                    @click="$emit('saveTrack', track)"
+                    :disabled="processingTrack === track.id"
+                    :class="isTrackSaved(track)
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                    class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                    :title="isTrackSaved(track) ? 'Click to unsave track' : 'Save the Track (24h)'"
+                  >
+                    <Icon :icon="faHeart" class="text-sm" />
+                  </button>
+
+                  <!-- Blacklist Button -->
+                  <button
+                    @click="$emit('blacklistTrack', track)"
+                    :disabled="processingTrack === track.id"
+                    :class="isBanButtonActive(track)
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                    class="h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center"
+                    :title="isTrackBlacklisted(track) ? 'Click to unblock track' : 'Ban the Track'"
+                  >
+                    <Icon :icon="faBan" class="text-sm" />
+                  </button>
+                </div>
               </td>
 
               <!-- Actions -->
@@ -108,9 +140,11 @@
 
                   <button
                     class="px-3 py-2 rounded text-sm font-medium transition flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                    :class="expandedTrackId === track.id
-                      ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
-                      : 'bg-[#484948] hover:bg-gray-500 text-white'"
+                    :class="[
+                      expandedTrackId === track.id || isTrackListened(track)
+                        ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
+                        : 'bg-[#484948] hover:bg-gray-500 text-white'
+                    ]"
                     @click="toggleInlinePlayer(track)"
                   >
                     <Icon
@@ -120,11 +154,11 @@
                     />
                     <img
                       v-else
-                      src="/public/img/Primary_Logo_White_RGB.svg"
-                      alt="Spotify"
+                      src="/public/img/soundcloud-icon.svg"
+                      alt="SoundCloud"
                       class="w-[21px] h-[21px] object-contain mr-1"
                     >
-                    <span>{{ expandedTrackId === track.id ? 'Close' : 'Preview' }}</span>
+                    <span>{{ expandedTrackId === track.id ? 'Close' : (isTrackListened(track) ? 'Listened' : 'Listen') }}</span>
                   </button>
                 </div>
               </td>
@@ -151,7 +185,7 @@
 </template>
 
 <script lang="ts" setup>
-import { faPlay, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons'
+import { faPlay, faSearch, faTimes, faHeart, faBan } from '@fortawesome/free-solid-svg-icons'
 import { soundcloudPlayerStore } from '@/stores/soundcloudPlayerStore'
 import { computed, ref, watch } from 'vue'
 import InlineSoundCloudPlayer from '@/components/ui/soundcloud/InlineSoundCloudPlayer.vue'
@@ -181,6 +215,10 @@ interface Props {
   startIndex?: number
   allowAnimations?: boolean
   animationStartIndex?: number
+  savedTracks?: Set<string>
+  blacklistedTracks?: Set<string>
+  processingTrack?: string | number | null
+  listenedTracks?: Set<string>
 }
 
 interface Emits {
@@ -188,14 +226,48 @@ interface Emits {
   (e: 'pause', track: SoundCloudTrack): void
   (e: 'seek', position: number): void
   (e: 'relatedTracks', track: SoundCloudTrack): void
+  (e: 'saveTrack', track: SoundCloudTrack): void
+  (e: 'blacklistTrack', track: SoundCloudTrack): void
+  (e: 'markListened', track: SoundCloudTrack): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showRelatedButton: true,
   allowAnimations: false,
   animationStartIndex: 0,
+  savedTracks: () => new Set<string>(),
+  blacklistedTracks: () => new Set<string>(),
+  processingTrack: null,
+  listenedTracks: () => new Set<string>(),
 })
 const emit = defineEmits<Emits>()
+
+// Helper function to get track key (same format as parent components)
+const getTrackKey = (track: SoundCloudTrack): string => {
+  const artist = track.user?.username || 'Unknown'
+  const title = track.title || 'Untitled'
+  return `${artist}-${title}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
+}
+
+// Check if track is saved
+const isTrackSaved = (track: SoundCloudTrack): boolean => {
+  return props.savedTracks?.has(getTrackKey(track)) || false
+}
+
+// Check if track is blacklisted
+const isTrackBlacklisted = (track: SoundCloudTrack): boolean => {
+  return props.blacklistedTracks?.has(getTrackKey(track)) || false
+}
+
+// Check if ban button should be active (red)
+const isBanButtonActive = (track: SoundCloudTrack): boolean => {
+  return isTrackBlacklisted(track) && !isTrackSaved(track)
+}
+
+// Check if track has been listened to
+const isTrackListened = (track: SoundCloudTrack): boolean => {
+  return props.listenedTracks?.has(getTrackKey(track)) || false
+}
 
 const expandedTrackId = ref<string | null>(null)
 const allowAnimations = computed(() => props.allowAnimations)
@@ -229,6 +301,8 @@ const toggleInlinePlayer = (track: SoundCloudTrack) => {
     expandedTrackId.value = track.id
     // Auto-play when opening inline player
     emit('play', track)
+    // Mark track as listened when opening player
+    emit('markListened', track)
   }
 }
 

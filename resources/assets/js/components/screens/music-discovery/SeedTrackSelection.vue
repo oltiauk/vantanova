@@ -87,7 +87,7 @@
         <div class="text-sm font-medium mb-2">Seed Track:</div>
         <div class="bg-k-bg-secondary/50 border border-k-border rounded-lg px-3 py-2">
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
               <Icon :icon="faCheck" class="w-4 h-4 text-k-accent flex-shrink-0" />
               <span class="text-k-text-primary font-medium truncate">{{ formatArtists(selectedTrack) }} - {{ selectedTrack.name }}</span>
             </div>

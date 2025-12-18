@@ -72,7 +72,7 @@
           </div>
           <div class="bg-white/5 rounded-xl">
             <div class="flex items-center justify-between px-6 pt-6 pb-4">
-              <h3 class="text-lg font-semibold text-white">Released this month</h3>
+              <h3 class="text-lg font-semibold text-white">Releases in the past 2 weeks</h3>
               <button
                 class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="isFetchingReleases || watchlist.length === 0"
@@ -338,6 +338,10 @@ const applyWatchlistMutation = (action: WatchlistMutationAction, label: Watchlis
   if (action === 'added') {
     if (existingIndex === -1) {
       watchlist.value = sortWatchlist([...watchlist.value, normalized])
+      // Reset refresh timestamp when new label is added
+      try {
+        localStorage.removeItem(LABEL_WATCHLIST_LAST_REFRESH_KEY)
+      } catch {}
     } else {
       watchlist.value.splice(existingIndex, 1, { ...watchlist.value[existingIndex], ...normalized })
     }

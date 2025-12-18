@@ -100,13 +100,6 @@
           >
             Search
           </button>
-          <button
-            :disabled="!searchQuery.trim() || isFollowing || isLoading"
-            class="px-6 py-2 bg-white/10 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-colors"
-            @click="followLabel"
-          >
-            {{ isFollowing ? 'Following…' : 'Follow label' }}
-          </button>
         </div>
       </div>
 
@@ -141,6 +134,16 @@
               />
             </button>
           </div>
+          <button
+            :disabled="!searchQuery.trim() && !lastSearchQuery.trim() || isFollowing || isLoading || labelFollowed"
+            class="px-6 py-2 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :class="labelFollowed
+              ? 'bg-gray-500 text-white cursor-default'
+              : 'bg-white/10 text-white hover:bg-white/20'"
+            @click="followLabel"
+          >
+            {{ isFollowing ? 'Following…' : (labelFollowed ? 'Following' : 'Follow label') }}
+          </button>
         </div>
 
         <div class="bg-white/5 rounded-lg overflow-hidden">
@@ -352,6 +355,8 @@ const visibleCount = ref(20)
 const INITIAL_VISIBLE_COUNT = 20
 const LOAD_MORE_STEP = 20
 const isFollowing = ref(false)
+const labelFollowed = ref(false) // Track if label has been followed
+const watchlist = ref<Array<{ label: string, normalized_label: string }>>([]) // Store watchlist labels
 
 // Listened tracks tracking (UI only)
 const listenedTracks = ref(new Set<string>())
@@ -493,6 +498,31 @@ const isBanButtonActive = (track: any): boolean => {
   return !!(track && track.isBanned && !track.isSaved)
 }
 
+// Check if current label is in watchlist
+const checkIfLabelFollowed = async () => {
+  const currentLabel = (searchQuery.value || lastSearchQuery.value || '').trim()
+  if (!currentLabel) {
+    labelFollowed.value = false
+    return
+  }
+
+  try {
+    const response = await http.get<{ success: boolean, data: Array<{ label: string, normalized_label: string }> }>('music-preferences/label-watchlist')
+    if (response.success && response.data) {
+      watchlist.value = response.data
+      const normalizedCurrentLabel = currentLabel.toLowerCase()
+      labelFollowed.value = response.data.some(
+        item => item.normalized_label === normalizedCurrentLabel || item.label.toLowerCase() === normalizedCurrentLabel,
+      )
+    } else {
+      labelFollowed.value = false
+    }
+  } catch (error) {
+    // If unauthenticated or error, assume not followed
+    labelFollowed.value = false
+  }
+}
+
 const performSearch = async () => {
   if (!searchQuery.value.trim()) {
     return
@@ -504,6 +534,9 @@ const performSearch = async () => {
   isLoading.value = true
   errorMessage.value = ''
   lastSearchQuery.value = searchQuery.value
+
+  // Check if label is already followed
+  await checkIfLabelFollowed()
 
   try {
     // Build parameters using the working backend format
@@ -753,9 +786,6 @@ const saveTrack = async track => {
 
       // Do backend work in background without blocking UI
       try {
-        console.log('🎵 [LABEL SEARCH] Starting to save track:', track.track_name, 'by', track.artist_name)
-        console.log('🎵 [LABEL SEARCH] Track object:', track)
-
         // Extract metadata from the track object
         let label = track.label || ''
         let popularity = track.popularity || 0
@@ -763,18 +793,12 @@ const saveTrack = async track => {
         let releaseDate = track.release_date || ''
         let previewUrl = track.preview_url || null
 
-        console.log('🎵 [LABEL SEARCH] Initial metadata - label:', label, 'popularity:', popularity, 'followers:', followers, 'releaseDate:', releaseDate)
-
         // Check if we need to fetch additional metadata
         // Always try to fetch followers data since label search doesn't provide it
         const needsEnhancedMetadata = !followers || followers === 0
 
-        console.log('🎵 [LABEL SEARCH] needsEnhancedMetadata:', needsEnhancedMetadata)
-        console.log('🎵 [LABEL SEARCH] Current data - label:', label, 'releaseDate:', releaseDate, 'followers:', followers)
-
         if (needsEnhancedMetadata) {
           try {
-            console.log('🎵 [LABEL SEARCH] Fetching enhanced metadata from API...')
             const response = await http.get('music-discovery/track-preview', {
               params: {
                 artist_name: track.artist_name || 'Unknown',
@@ -784,26 +808,17 @@ const saveTrack = async track => {
               },
             })
 
-            console.log('🎵 [LABEL SEARCH] Enhanced data response:', response)
-            console.log('🎵 [LABEL SEARCH] Response success:', response.success)
-            console.log('🎵 [LABEL SEARCH] Response data:', response.data)
-
             if (response.success && response.data && response.data.metadata) {
               const metadata = response.data.metadata
-              console.log('🎵 [LABEL SEARCH] Metadata received:', metadata)
 
               label = metadata.label || label
               popularity = metadata.popularity || popularity
               followers = metadata.followers || followers
               releaseDate = metadata.release_date || releaseDate
               previewUrl = metadata.preview_url || previewUrl
-
-              console.log('🎵 [LABEL SEARCH] Updated metadata - label:', label, 'popularity:', popularity, 'followers:', followers, 'releaseDate:', releaseDate)
-            } else {
-              console.log('🎵 [LABEL SEARCH] No metadata in response or API call failed')
             }
           } catch (error) {
-            console.warn('🎵 [LABEL SEARCH] Failed to fetch enhanced metadata, using basic data:', error)
+            // Failed to fetch enhanced metadata, using basic data
           }
         }
 
@@ -822,11 +837,7 @@ const saveTrack = async track => {
           album_id: track.album_id || null,
         }
 
-        console.log('🎵 [LABEL SEARCH] Sending save request with payload:', savePayload)
-
         const response = await http.post('music-preferences/save-track', savePayload)
-
-        console.log('🎵 [LABEL SEARCH] Save response:', response)
 
         if (response.success) {
           // Update localStorage timestamp to trigger cross-tab refresh
@@ -840,8 +851,6 @@ const saveTrack = async track => {
           }
 
           // Blacklist the track in backend (UI already updated)
-          console.log('🎵 [LABEL SEARCH] Track saved successfully, blacklisting in backend...')
-
           try {
             const blacklistResponse = await http.post('music-preferences/blacklist-track', {
               spotify_id: track.spotify_id,
@@ -853,18 +862,15 @@ const saveTrack = async track => {
             if (blacklistResponse.success) {
               track.isBanned = true
               blacklistedTracks.value.add(trackKey)
-              console.log('✅ [LABEL SEARCH] Track blacklisted in backend:', track.track_name)
 
               // Trigger BannedTracksScreen refresh
               window.dispatchEvent(new CustomEvent('track-blacklisted', {
                 detail: { track, trackKey },
               }))
               localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
-            } else {
-              console.warn('⚠️ [LABEL SEARCH] Failed to blacklist in backend:', blacklistResponse.error)
             }
           } catch (error) {
-            console.error('❌ [LABEL SEARCH] Error blacklisting track:', error)
+            // Error blacklisting track
           }
         } else {
           // Revert UI change on failure
@@ -1117,7 +1123,7 @@ const clearSearchState = () => {
   lastSearchQuery.value = ''
   errorMessage.value = ''
   expandedTrackId.value = null
-  console.log('🏷️ [LABEL SEARCH] Search state cleared')
+  labelFollowed.value = false // Reset follow state when clearing search
 }
 
 // Check for label search query from other screens
@@ -1130,8 +1136,6 @@ const checkForStoredLabelQuery = async () => {
 
       // Only use if it's recent (within last 5 seconds)
       if (Date.now() - labelSearchData.timestamp < 5000) {
-        console.log('🏷️ [LABEL SEARCH] Found stored label query:', labelSearchData.query)
-
         // Clear previous search results first
         clearSearchState()
 
@@ -1148,12 +1152,13 @@ const checkForStoredLabelQuery = async () => {
           searchSuggestionTimer.value = null
         }
 
+        // Check if label is followed after setting query
+        await checkIfLabelFollowed()
+
         if (shouldAutoSearch) {
           await nextTick()
           performSearch()
         }
-
-        console.log('🏷️ [LABEL SEARCH] Search query populated, previous results cleared, and filters reset')
 
         // Clear the stored data after using it
         localStorage.removeItem('koel-label-search-query')
@@ -1169,12 +1174,18 @@ const checkForStoredLabelQuery = async () => {
 
 // Removed auto-ban listened tracks watcher
 
-// Watch search query - clear results when user modifies it
-watch(searchQuery, (newValue, oldValue) => {
+// Watch search query - clear results when user modifies it and check if label is followed
+watch(searchQuery, async (newValue, oldValue) => {
   // Only clear if there are existing results and the query actually changed
   if (hasSearched.value && oldValue !== '' && newValue !== oldValue) {
-    console.log('🏷️ [LABEL SEARCH] Search query changed - clearing previous results')
     clearSearchState()
+  }
+
+  // Check if new search query is in watchlist
+  if (newValue.trim()) {
+    await checkIfLabelFollowed()
+  } else {
+    labelFollowed.value = false
   }
 })
 
@@ -1182,7 +1193,6 @@ watch(searchQuery, (newValue, oldValue) => {
 watch(freshDropsFilter, (newValue, oldValue) => {
   // Only clear if there are existing results
   if (hasSearched.value && newValue !== oldValue) {
-    console.log('🏷️ [LABEL SEARCH] Fresh Drops filter changed - clearing previous results')
     clearSearchState()
   }
 })
@@ -1191,7 +1201,6 @@ watch(freshDropsFilter, (newValue, oldValue) => {
 watch(releaseYearFilter, (newValue, oldValue) => {
   // Only clear if there are existing results and the value actually changed
   if (hasSearched.value && newValue !== oldValue) {
-    console.log('🏷️ [LABEL SEARCH] Release Year filter changed - clearing previous results')
     clearSearchState()
   }
 })
@@ -1200,7 +1209,6 @@ watch(releaseYearFilter, (newValue, oldValue) => {
 watch(popularityFilter, (newValue, oldValue) => {
   // Only clear if there are existing results
   if (hasSearched.value && newValue !== oldValue) {
-    console.log('🏷️ [LABEL SEARCH] Hidden Gems filter changed - clearing previous results')
     clearSearchState()
   }
 })
@@ -1220,16 +1228,27 @@ watch(searchQuery, newValue => {
   }
 })
 
+// Listen for watchlist updates from other screens
+const handleWatchlistUpdate = async () => {
+  // Refresh watchlist and check if current label is followed
+  await checkIfLabelFollowed()
+}
+
 // Check on mount
 onMounted(async () => {
+  // Listen for watchlist updates
+  window.addEventListener('label-watchlist-updated', handleWatchlistUpdate)
+
   checkForStoredLabelQuery()
+
+  // Load watchlist to check if labels are already followed
+  await checkIfLabelFollowed()
 
   // Load listened tracks from server (fall back to localStorage if unauthenticated)
   try {
     const resp: any = await http.get('music-preferences/listened-tracks')
     if (resp?.success && Array.isArray(resp.data)) {
       listenedTracks.value = new Set(resp.data as string[])
-      console.log('🎵 [LABEL SEARCH] Loaded listened tracks from server:', listenedTracks.value.size)
     }
   } catch (e) {
     // Fallback to localStorage per device
@@ -1238,13 +1257,15 @@ onMounted(async () => {
       if (stored) {
         const keys: string[] = JSON.parse(stored)
         listenedTracks.value = new Set(keys)
-        console.log('🎵 [LABEL SEARCH] Loaded listened tracks from localStorage:', listenedTracks.value.size)
       }
     } catch {}
   }
 })
 
 onUnmounted(() => {
+  // Remove watchlist update listener
+  window.removeEventListener('label-watchlist-updated', handleWatchlistUpdate)
+
   if (searchSuggestionTimer.value) {
     clearTimeout(searchSuggestionTimer.value)
     searchSuggestionTimer.value = null
@@ -1256,30 +1277,22 @@ const resetFilters = () => {
   freshDropsFilter.value = false
   popularityFilter.value = false
   releaseYearFilter.value = ''
-  console.log('🏷️ [LABEL SEARCH] Filters reset to default state')
 }
 
 // Also check when navigating to this screen
 onRouteChanged(route => {
-  console.log('🏷️ [LABEL SEARCH] onRouteChanged called - route.screen:', route.screen)
-
   // Close dropdown immediately when navigating to ANY screen (including when leaving or returning)
   if (expandedTrackId.value) {
     expandedTrackId.value = null
-    console.log('🏷️ [LABEL SEARCH] Closed preview dropdown on navigation')
   }
 
   if (route.screen === 'LabelSearch') {
-    console.log('🏷️ [LABEL SEARCH] Navigated to LabelSearch screen')
-
     // Reset filters first to ensure clean state
     resetFilters()
 
     // Check for stored query AFTER resetting filters
     checkForStoredLabelQuery()
   }
-
-  console.log('🏷️ [LABEL SEARCH] onRouteChanged handler finished')
 })
 
 const followLabel = async () => {
@@ -1292,10 +1305,17 @@ const followLabel = async () => {
   try {
     const response = await http.post('music-preferences/label-watchlist', { label })
     if (response.success) {
+      labelFollowed.value = true // Mark as followed
       logger.info('🏷️ [LABEL SEARCH] Label followed', { label })
       try {
         localStorage.setItem('koel-label-watchlist-refresh-request', Date.now().toString())
       } catch {}
+
+      // Update local watchlist
+      watchlist.value.push({
+        label,
+        normalized_label: label.toLowerCase(),
+      })
 
       window.dispatchEvent(new CustomEvent('label-watchlist-updated', {
         detail: {

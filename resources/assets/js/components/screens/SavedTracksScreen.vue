@@ -19,7 +19,7 @@
                 v-model="searchQuery"
                 type="text"
                 class="w-full py-3 pl-12 pr-12 bg-white/10 rounded-lg focus:outline-none text-white text-lg search-input"
-                placeholder="Search for a saved track"
+                placeholder="Search for a liked track"
               >
             </div>
           </div>
@@ -97,6 +97,8 @@
                   <th class="text-left px-2 font-medium">Title</th>
                   <th class="text-center px-2 font-medium">Record Label</th>
                   <th class="text-center px-2 font-medium">Followers</th>
+                  <th class="text-center px-2 font-medium">Streams</th>
+                  <th class="text-center px-2 font-medium">Shazams</th>
                   <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
                   <th class="text-center px-2 font-medium whitespace-nowrap" />
                   <th class="text-center px-1 font-medium whitespace-nowrap w-20" />
@@ -130,7 +132,7 @@
                     </td>
 
                     <!-- Watchlist -->
-                    <td class="p-3 align-middle text-center">
+                    <td v-if="!isSoundCloudTrack(track)" class="p-3 align-middle text-center">
                       <button
                         :disabled="followInProgress === getTrackKey(track)"
                         class="watchlist-btn"
@@ -155,9 +157,12 @@
                           v-else
                           src="/public/icons/FollowArtist.svg"
                           alt="Add artist"
-                          :class="['watchlist-icon', track.artist_followed ? 'watchlist-icon-active' : '']"
+                          class="watchlist-icon" :class="[track.artist_followed ? 'watchlist-icon-active' : '']"
                         >
                       </button>
+                    </td>
+                    <td v-else class="p-3 align-middle text-center">
+                      <!-- No follow button for SoundCloud tracks -->
                     </td>
 
                     <!-- Artist -->
@@ -176,8 +181,8 @@
                     </td>
 
                     <!-- Label -->
-                    <td class="p-3 align-middle text-center">
-                      <template v-if="track.label && track.label !== 'Unknown Label'">
+                    <td class="p-3 align-middle text-center whitespace-nowrap">
+                      <template v-if="track.label && track.label !== 'Unknown Label' && track.label.trim()">
                         <template v-for="(label, labelIndex) in track.label.split('/')" :key="labelIndex">
                           <button
                             class="text-gray-300 text-sm hover:text-gray-100 transition-colors cursor-pointer"
@@ -189,7 +194,7 @@
                           <span v-if="labelIndex < track.label.split('/').length - 1" class="text-white/60 text-sm mx-1">/</span>
                         </template>
                       </template>
-                      <span v-else class="text-white/80 text-sm">{{ track.label || '-' }}</span>
+                      <span v-else class="text-white/80 text-sm">-</span>
                     </td>
 
                     <!-- Followers -->
@@ -197,9 +202,26 @@
                       <span class="text-white/80 font-medium">{{ track.followers ? formatNumber(track.followers) : '-' }}</span>
                     </td>
 
+                    <!-- Streams -->
+                    <td class="p-3 align-middle text-center">
+                      <span class="text-white/80 font-medium">
+                        <template v-if="isSoundCloudTrack(track) && track.streams">
+                          {{ formatNumber(track.streams) }}
+                        </template>
+                        <template v-else>
+                          -
+                        </template>
+                      </span>
+                    </td>
+
+                    <!-- Shazams -->
+                    <td class="p-3 align-middle text-center">
+                      <span class="text-white/80 font-medium">-</span>
+                    </td>
+
                     <!-- Release Date -->
                     <td class="p-3 align-middle text-center">
-                      <span class="text-white/80 text-sm">{{ formatDate(track.release_date) }}</span>
+                      <span class="text-white/80 text-sm">{{ formatDate(track.release_date || '', track) }}</span>
                     </td>
 
                     <!-- Countdown -->
@@ -267,8 +289,8 @@
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
                           class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                          title="Preview Track"
-                          @click="toggleSpotifyPlayer(track)"
+                          :title="isSoundCloudTrack(track) ? 'Listen on SoundCloud' : 'Preview Track'"
+                          @click="isSoundCloudTrack(track) ? toggleSoundCloudPlayer(track) : toggleSpotifyPlayer(track)"
                         >
                           <!-- Loading spinner when processing -->
                           <svg v-if="processingTrack === getTrackKey(track) && isPreviewProcessing" class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -276,9 +298,10 @@
                             <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                           </svg>
                           <!-- Regular icon when not processing -->
-                          <img v-if="expandedTrackId !== getTrackKey(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                          <img v-if="expandedTrackId !== getTrackKey(track) && !isSoundCloudTrack(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
+                          <img v-else-if="expandedTrackId !== getTrackKey(track) && isSoundCloudTrack(track)" src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-[21px] h-[21px] object-contain">
                           <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                          <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Preview') }}</span>
+                          <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (isSoundCloudTrack(track) ? 'Listen' : 'Preview')) }}</span>
                         </button>
 
                         <!-- Remove Track -->
@@ -294,13 +317,34 @@
                     </td>
                   </tr>
 
-                  <!-- Spotify Player Dropdown Row with Animation -->
+                  <!-- Player Dropdown Row with Animation -->
                   <Transition name="spotify-dropdown" mode="out-in">
-                  <tr v-if="expandedTrackId === getTrackKey(track)" :key="`spotify-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                    <td colspan="12" class="p-0 overflow-hidden">
-                      <div class="spotify-player-container p-6 bg-white/3 relative">
+                    <tr v-if="expandedTrackId === getTrackKey(track)" :key="`player-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
+                      <td colspan="14" class="p-0 overflow-hidden">
+                        <div class="spotify-player-container p-6 bg-white/3 relative">
                           <div class="mx-auto w-full max-w-[94%]">
-                            <div v-if="(track.album_id || track.spotify_id) && (track.album_id || track.spotify_id) !== 'NO_TRACK_FOUND'">
+                            <!-- SoundCloud Player -->
+                            <div v-if="isSoundCloudTrack(track) && soundCloudEmbedUrls[getTrackKey(track)]">
+                              <iframe
+                                :src="soundCloudEmbedUrls[getTrackKey(track)] || ''"
+                                :title="`${track.artist_name} - ${track.track_name}`"
+                                class="w-full soundcloud-embed flex-shrink-0"
+                                style="height: 130px; border-radius: 15px; background-color: rgba(255, 255, 255, 0.05);"
+                                frameBorder="no"
+                                scrolling="no"
+                                allow="autoplay"
+                                loading="lazy"
+                                @load="(event) => { event.target.style.opacity = '1' }"
+                                @error="() => {}"
+                              />
+                            </div>
+                            <div v-else-if="isSoundCloudTrack(track)" class="flex items-center justify-center bg-white/5" style="height: 130px; border-radius: 15px;">
+                              <div class="text-center text-white/60">
+                                <div class="text-sm font-medium">Loading SoundCloud player...</div>
+                              </div>
+                            </div>
+                            <!-- Spotify Player -->
+                            <div v-else-if="(track.album_id || track.spotify_id) && (track.album_id || track.spotify_id) !== 'NO_TRACK_FOUND'">
                               <iframe
                                 :key="track.track_count && track.track_count > 1 ? (track.album_id || track.spotify_id) : track.spotify_id"
                                 :src="track.track_count && track.track_count > 1
@@ -321,12 +365,12 @@
                             </div>
                             <div v-else class="flex items-center justify-center bg-white/5" style="height: 80px; border-radius: 15px;">
                               <div class="text-center text-white/60">
-                                <div class="text-sm font-medium">No Spotify preview available</div>
+                                <div class="text-sm font-medium">No preview available</div>
                               </div>
                             </div>
 
-                            <!-- Spotify Login Link -->
-                            <div class="absolute bottom-0 left-0 right-0 text-center">
+                            <!-- Login Link (only for Spotify) -->
+                            <div v-if="!isSoundCloudTrack(track)" class="absolute bottom-0 left-0 right-0 text-center">
                               <span class="text-xs text-white/50 font-light">
                                 <a
                                   href="https://accounts.spotify.com/login"
@@ -403,6 +447,8 @@ import {
 import { http } from '@/services/http'
 import { useRouter } from '@/composables/useRouter'
 import Router from '@/router'
+import { soundcloudService } from '@/services/soundcloudService'
+import { eventBus } from '@/utils/eventBus'
 
 import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
@@ -427,8 +473,10 @@ interface SavedTrack {
   track_count?: number
   is_single_track?: boolean
   album_id?: string
+  // SoundCloud data
+  streams?: number
+  shazams?: number
 }
-
 
 interface WatchlistEventArtist {
   id?: number
@@ -468,10 +516,11 @@ const expandedTrackId = ref<string | null>(null)
 const processingTrack = ref<string | null>(null)
 const isPreviewProcessing = ref(false)
 const openActionsDropdown = ref<number | null>(null)
+const soundCloudEmbedUrls = ref<Record<string, string>>({})
 
 // Sort options for the dropdown
 const sortOptions = [
-  { value: 'most_recent', label: 'Recently saved' },
+  { value: 'most_recent', label: 'Recently liked' },
   { value: 'latest_releases', label: 'Latest Releases' },
   { value: 'most_followers', label: 'Most Followers' },
 ]
@@ -552,10 +601,24 @@ const getTrackKey = (track: SavedTrack): string => {
   return `${track.artist_name}-${track.track_name}`.toLowerCase().replace(/[^a-z0-9]/g, '-')
 }
 
+// Check if track is from SoundCloud
+const isSoundCloudTrack = (track: SavedTrack): boolean => {
+  return !!(track.isrc && track.isrc.startsWith('soundcloud:'))
+}
+
+// Extract SoundCloud track ID from isrc
+const getSoundCloudTrackId = (track: SavedTrack): number | null => {
+  if (!isSoundCloudTrack(track)) {
+    return null
+  }
+  const match = track.isrc.match(/^soundcloud:(\d+)$/)
+  return match ? Number.parseInt(match[1], 10) : null
+}
+
 // Format date helper function
-const formatDate = (dateString: string): string => {
-  if (!dateString) {
-    return 'Unknown'
+const formatDate = (dateString: string, track?: SavedTrack): string => {
+  if (!dateString || dateString === 'Unknown') {
+    return '-'
   }
   try {
     const date = new Date(dateString)
@@ -563,6 +626,26 @@ const formatDate = (dateString: string): string => {
     const diffTime = Math.abs(now.getTime() - date.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
+    // For SoundCloud tracks, use created_at format (relative time)
+    if (track && isSoundCloudTrack(track)) {
+      if (diffDays < 7) {
+        if (diffDays === 0) {
+          return 'Today'
+        }
+        return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+      } else if (diffDays < 30) {
+        const weeks = Math.floor(diffDays / 7)
+        return `${weeks} week${weeks === 1 ? '' : 's'} ago`
+      } else if (diffDays < 365) {
+        const months = Math.floor(diffDays / 30)
+        return `${months} month${months === 1 ? '' : 's'} ago`
+      } else {
+        const years = Math.floor(diffDays / 365)
+        return `${years} year${years === 1 ? '' : 's'} ago`
+      }
+    }
+
+    // For Spotify tracks, use release date format
     if (diffDays < 30) {
       return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
     } else if (diffDays < 365) {
@@ -572,7 +655,7 @@ const formatDate = (dateString: string): string => {
       return dateString.split('T')[0]
     }
   } catch (error) {
-    return dateString.split('T')[0]
+    return dateString.split('T')[0] || '-'
   }
 }
 
@@ -642,6 +725,8 @@ const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value && page !== currentPage.value) {
     // Close any open preview dropdown when changing pages
     expandedTrackId.value = null
+    // Clear SoundCloud embed URLs when closing
+    soundCloudEmbedUrls.value = {}
     // Close any open actions dropdown when changing pages
     openActionsDropdown.value = null
 
@@ -671,7 +756,7 @@ const goToPage = (page: number) => {
 
 const getSortText = () => {
   const option = sortOptions.find(opt => opt.value === sortBy.value)
-  return option ? `Sort by: ${option.label}` : 'Sort by: Recently saved'
+  return option ? `Sort by: ${option.label}` : 'Sort by: Recently liked'
 }
 
 const hasLabel = (track: SavedTrack): boolean => {
@@ -685,9 +770,11 @@ const loadClientUnsavedTracks = () => {
     if (stored) {
       const unsavedList = JSON.parse(stored)
       clientUnsavedTracks.value = new Set(unsavedList)
+    } else {
+      clientUnsavedTracks.value = new Set()
     }
   } catch (error) {
-    console.warn('Failed to load client unsaved tracks from localStorage:', error)
+    clientUnsavedTracks.value = new Set()
   }
 }
 
@@ -749,11 +836,6 @@ const loadTracks = async () => {
 }
 
 const loadAdditionalSpotifyData = async () => {
-  console.log('🚨 [SAVED TRACKS] loadAdditionalSpotifyData called - DISABLED to prevent API costs!')
-  console.log('🚨 [SAVED TRACKS] This function should not be called anymore')
-  console.log('🚨 [SAVED TRACKS] Tracks count:', tracks.value.length)
-  console.log('🚨 [SAVED TRACKS] Call stack:', new Error().stack)
-
   // Set default values for all tracks to prevent loading states
   tracks.value.forEach(track => {
     if (!track.label) {
@@ -769,8 +851,6 @@ const loadAdditionalSpotifyData = async () => {
       track.followers = 0
     }
   })
-
-  console.log('🚨 [SAVED TRACKS] Default values set, returning immediately')
 }
 
 const checkExistingEmbedRequest = async (track: SavedTrack): Promise<any | null> => {
@@ -840,10 +920,6 @@ const openSpotifyTrackPage = (track: SavedTrack) => {
 }
 
 const fetchSpotifyTrackData = async (track: SavedTrack) => {
-  console.log('🚨 [SAVED TRACKS] fetchSpotifyTrackData called - DISABLED to prevent API costs!')
-  console.log('🚨 [SAVED TRACKS] Track:', track.track_name, 'by', track.artist_name)
-  console.log('🚨 [SAVED TRACKS] Call stack:', new Error().stack)
-
   // Set default values only - NO API CALLS
   Object.assign(track, {
     label: 'Unknown Label',
@@ -851,8 +927,6 @@ const fetchSpotifyTrackData = async (track: SavedTrack) => {
     release_date: 'Unknown',
     followers: 0,
   })
-
-  console.log('🚨 [SAVED TRACKS] Default values set for track, returning immediately')
 }
 
 // DISABLED: This function was causing infinite loops and expensive API calls
@@ -874,12 +948,27 @@ const unsaveTrack = async (track: SavedTrack) => {
 
   // Close any open preview dropdown when unsaving tracks
   expandedTrackId.value = null
+  // Clear SoundCloud embed URLs when closing
+  soundCloudEmbedUrls.value = {}
   // Close any open actions dropdown when unsaving tracks
   openActionsDropdown.value = null
 
   isProcessing.value = true
 
   try {
+    const trackKey = getTrackKey(track)
+
+    // Add to client-side unsaved tracks to prevent it from reappearing
+    clientUnsavedTracks.value.add(trackKey)
+
+    // Save to localStorage for persistence across page reloads
+    try {
+      const unsavedList = Array.from(clientUnsavedTracks.value)
+      localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+    } catch (error) {
+      console.warn('Failed to save unsaved tracks to localStorage:', error)
+    }
+
     // Remove from local state immediately for better UX
     tracks.value = tracks.value.filter(t => t.id !== track.id)
 
@@ -889,6 +978,16 @@ const unsaveTrack = async (track: SavedTrack) => {
     }
 
     console.log(`Track ${track.track_name} has been removed from saved tracks`)
+
+    // Dispatch event to update sidebar count immediately
+    try {
+      window.dispatchEvent(new CustomEvent('track-unsaved', {
+        detail: { track, trackKey },
+      }))
+      localStorage.setItem('track-unsaved-timestamp', Date.now().toString())
+    } catch (error) {
+      // Event dispatch failed, not critical
+    }
 
     // Since there's no DELETE endpoint for saved tracks in the current implementation,
     // tracks will naturally expire in 24 hours anyway
@@ -952,18 +1051,35 @@ const fetchFirstTrackFromAlbum = async (albumId: string | undefined | null): Pro
       return firstTrack.id || (firstTrack.uri?.match(/spotify:track:([a-zA-Z0-9]+)/)?.[1] ?? null)
     }
   } catch (error) {
-    console.warn('🔍 [SAVED TRACKS] Failed to fetch first track from album:', error)
+    // Failed to fetch first track from album
   }
 
   return null
 }
 
 const viewRelatedTracks = async (track: SavedTrack) => {
-  console.log('🔍 [SAVED TRACKS] viewRelatedTracks called with track:', track)
-
   // Close the actions dropdown
   openActionsDropdown.value = null
 
+  // Check if this is a SoundCloud track
+  if (isSoundCloudTrack(track)) {
+    const soundCloudTrackId = getSoundCloudTrackId(track)
+    if (soundCloudTrackId) {
+      // Emit event for SoundCloudRelatedTracksScreen
+      eventBus.emit('SOUNDCLOUD_RELATED_TRACKS_DATA', {
+        type: 'related',
+        trackUrn: `soundcloud:tracks:${soundCloudTrackId}`,
+        trackTitle: track.track_name,
+        artist: track.artist_name,
+      })
+
+      // Navigate to SoundCloud Related Tracks screen
+      Router.go('soundcloud-related-tracks')
+      return
+    }
+  }
+
+  // For non-SoundCloud tracks, use existing behavior (MusicDiscoveryScreen)
   // Store seed track data in localStorage for MusicDiscoveryScreen to pick up
   let seedTrackId: string | null = null
 
@@ -975,11 +1091,8 @@ const viewRelatedTracks = async (track: SavedTrack) => {
   }
 
   if (!seedTrackId) {
-    console.log('🔍 [SAVED TRACKS] No valid Spotify track ID available for related search')
     return
   }
-
-  console.log('🔍 [SAVED TRACKS] Setting up seed track data for music discovery')
 
   const seedTrackData = {
     id: seedTrackId,
@@ -990,16 +1103,12 @@ const viewRelatedTracks = async (track: SavedTrack) => {
   }
 
   localStorage.setItem('koel-music-discovery-seed-track', JSON.stringify(seedTrackData))
-  console.log('🔍 [SAVED TRACKS] Stored seed track data:', seedTrackData)
 
   // Try direct hash navigation as a fallback
-  console.log('🔍 [SAVED TRACKS] Trying direct hash navigation to /discover')
   window.location.hash = '#/discover'
 }
 
 const viewSimilarArtists = (track: SavedTrack) => {
-  console.log('🔍 [SAVED TRACKS] viewSimilarArtists called with track:', track)
-
   // Close the actions dropdown
   openActionsDropdown.value = null
 
@@ -1011,10 +1120,8 @@ const viewSimilarArtists = (track: SavedTrack) => {
   }
 
   localStorage.setItem('koel-similar-artists-seed-artist', JSON.stringify(seedArtistData))
-  console.log('🔍 [SAVED TRACKS] Stored seed artist data:', seedArtistData)
 
   // Navigate to similar artists screen
-  console.log('🔍 [SAVED TRACKS] Navigating to similar artists screen')
   window.location.hash = '#/similar-artists'
 }
 
@@ -1080,6 +1187,55 @@ const toggleSpotifyPlayer = async (track: SavedTrack) => {
 
   // Track has preview data ready, show player
   expandedTrackId.value = trackKey
+}
+
+// SoundCloud player functionality
+const toggleSoundCloudPlayer = async (track: SavedTrack) => {
+  const trackKey = getTrackKey(track)
+
+  if (expandedTrackId.value === trackKey) {
+    expandedTrackId.value = null
+    return
+  }
+
+  const soundCloudTrackId = getSoundCloudTrackId(track)
+  if (!soundCloudTrackId) {
+    showTrackNotFoundNotification(track)
+    return
+  }
+
+  // Check if we already have the embed URL cached
+  if (soundCloudEmbedUrls.value[trackKey]) {
+    expandedTrackId.value = trackKey
+    return
+  }
+
+  // Fetch embed URL
+  processingTrack.value = trackKey
+  isPreviewProcessing.value = true
+
+  try {
+    const embedUrl = await soundcloudService.getEmbedUrl(soundCloudTrackId, {
+      auto_play: true,
+      hide_related: true,
+      show_comments: false,
+      show_user: true,
+    })
+
+    // Clean embed URL (remove visual=true to get HTML5 player)
+    let cleanUrl = embedUrl.replace(/[&?]visual=true/g, '')
+    cleanUrl = cleanUrl.replace(/[&?]visual=false/g, '')
+    cleanUrl += '&show_artwork=false'
+
+    soundCloudEmbedUrls.value[trackKey] = cleanUrl
+    expandedTrackId.value = trackKey
+  } catch (error: any) {
+    console.error('Failed to load SoundCloud player:', error)
+    showPreviewErrorNotification(track, error.message || 'Failed to load SoundCloud player')
+  } finally {
+    processingTrack.value = null
+    isPreviewProcessing.value = false
+  }
 }
 
 // Enhanced notification functions for better UX
@@ -1199,8 +1355,6 @@ const copyTrackInfo = async (track: SavedTrack) => {
 }
 
 const searchByLabel = (label: string) => {
-  console.log('🏷️ [SAVED TRACKS] Searching by label:', label)
-
   // Store the label search query in localStorage for LabelSearchScreen to pick up
   const labelSearchData = {
     query: label,
@@ -1210,7 +1364,6 @@ const searchByLabel = (label: string) => {
   }
 
   localStorage.setItem('koel-label-search-query', JSON.stringify(labelSearchData))
-  console.log('🏷️ [SAVED TRACKS] Stored label search data:', labelSearchData)
 
   // Navigate to label search screen
   window.location.hash = '#/label-search'
@@ -1220,30 +1373,61 @@ const searchByLabel = (label: string) => {
 const resetPagination = () => {
   currentPage.value = 1
   // Close any open dropdowns when search/sort changes
+  expandedTrackId.value = null
+  soundCloudEmbedUrls.value = {}
   openActionsDropdown.value = null
 }
 
 // Auto-refresh when tracks are saved or unsaved
-const handleTrackSaved = () => {
-  console.log('🔄 [SAVED TRACKS] Track saved event detected, refreshing...')
+const handleTrackSaved = (event?: CustomEvent) => {
+  // If a track was saved, remove it from clientUnsavedTracks if it was there
+  if (event?.detail?.trackKey) {
+    const trackKey = event.detail.trackKey
+    if (clientUnsavedTracks.value.has(trackKey)) {
+      clientUnsavedTracks.value.delete(trackKey)
+      // Save updated unsaved tracks to localStorage
+      try {
+        const unsavedList = Array.from(clientUnsavedTracks.value)
+        localStorage.setItem('koel-client-unsaved-tracks', JSON.stringify(unsavedList))
+      } catch (error) {
+        // Failed to save unsaved tracks to localStorage
+      }
+    }
+  }
+
+  // Reload client unsaved tracks first to ensure filtering works (in case another screen updated it)
+  loadClientUnsavedTracks()
   loadTracks()
 }
 
-const handleTrackUnsaved = () => {
-  console.log('🔄 [SAVED TRACKS] Track unsaved event detected, refreshing...')
+const handleTrackUnsaved = (event?: CustomEvent) => {
+  // Don't reload if we already removed it locally - the event might be from another screen
+  // Only reload if we're not currently on SavedTracks screen or if the track wasn't already removed
+  if (event?.detail?.trackKey) {
+    // Check if this track is already in our unsaved list
+    if (clientUnsavedTracks.value.has(event.detail.trackKey)) {
+      return
+    }
+  }
   loadTracks()
 }
 
 const handleStorageChange = (e: StorageEvent) => {
   if (e.key === 'track-saved-timestamp' || e.key === 'track-unsaved-timestamp') {
-    console.log('🔄 [SAVED TRACKS] Storage change detected, refreshing...')
+    // Reload client unsaved tracks first to ensure filtering works
+    loadClientUnsavedTracks()
+    loadTracks()
+  } else if (e.key === 'koel-client-unsaved-tracks') {
+    // When unsaved tracks change in another tab, reload the list
+    loadClientUnsavedTracks()
     loadTracks()
   }
 }
 
 const handleVisibilityChange = () => {
   if (!document.hidden) {
-    console.log('🔄 [SAVED TRACKS] Page became visible, refreshing...')
+    // Reload client unsaved tracks first to ensure filtering works
+    loadClientUnsavedTracks()
     loadTracks()
   }
 }
@@ -1273,7 +1457,8 @@ onUnmounted(() => {
 // Always refresh when navigating to SavedTracks (override the previous logic)
 onRouteChanged(route => {
   if (route.screen === 'SavedTracks') {
-    console.log('🔄 [SAVED TRACKS] Navigated to SavedTracks, refreshing...')
+    // Reload client unsaved tracks first to ensure filtering works
+    loadClientUnsavedTracks()
 
     // Enable animations when entering SavedTracks screen
     if (tracks.value.length > 0) {

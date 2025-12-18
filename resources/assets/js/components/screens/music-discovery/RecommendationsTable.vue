@@ -728,6 +728,10 @@ const saveTrack = async (track: Track) => {
       // Event dispatch failed, not critical
     }
   } else {
+    // Reload client unsaved tracks from localStorage first to get the latest list
+    // This ensures we don't lose tracks that were trashed in other screens
+    loadClientUnsavedTracks()
+    
     // Update UI immediately for instant feedback
     savedTracks.value.add(trackKey)
     clientUnsavedTracks.value.delete(trackKey)

@@ -886,6 +886,10 @@ const saveTrack = async (track: SpotifyTrack) => {
       // ignore dispatch errors
     }
   } else {
+    // Reload client unsaved tracks from localStorage first to get the latest list
+    // This ensures we don't lose tracks that were trashed in other screens
+    loadClientUnsavedTracks()
+    
     // Save track - Update UI immediately for instant feedback
     savedTracks.value.add(trackKey)
     clientUnsavedTracks.value.delete(trackKey)
