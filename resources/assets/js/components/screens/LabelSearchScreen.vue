@@ -235,7 +235,7 @@
                             ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
                             : 'bg-[#484948] hover:bg-gray-500 text-white',
                         ]"
-                        :title="expandedTrackId === getTrackKey(track) ? 'Close preview' : 'Preview track'"
+                        :title="expandedTrackId === getTrackKey(track) ? 'Close preview' : 'Listen to track'"
                         @click="toggleSpotifyPlayer(track)"
                       >
                         <!-- Loading spinner when processing -->
@@ -246,7 +246,7 @@
                         <!-- Regular icon when not processing -->
                         <img v-if="expandedTrackId !== getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                         <Icon v-else-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
-                        <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Preview')) }}</span>
+                        <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Listen')) }}</span>
                       </button>
                     </td>
                   </tr>

@@ -167,12 +167,12 @@
                                       ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
                                       : 'bg-[#484948] hover:bg-gray-500 text-white',
                                   ]"
-                                  :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : (isReleaseListened(release) ? 'Tracks have been listened to' : 'Preview release')"
+                                  :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : (isReleaseListened(release) ? 'Tracks have been listened to' : 'Listen to release')"
                                   @click="togglePreview(release, index)"
                                 >
                                   <img v-if="expandedReleaseKey !== getReleaseKey(release, index)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                                   <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                                  <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : (isReleaseListened(release) ? 'Listened' : 'Preview') }}</span>
+                                  <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : (isReleaseListened(release) ? 'Listened' : 'Listen') }}</span>
                                 </button>
                               </div>
                             </td>

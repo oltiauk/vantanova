@@ -197,7 +197,7 @@
                         <!-- Regular icon when not processing -->
                         <img v-if="expandedTrackId !== getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                         <Icon v-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
-                        <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Preview')) }}</span>
+                        <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Listen')) }}</span>
                       </button>
                     </div>
                   </td>

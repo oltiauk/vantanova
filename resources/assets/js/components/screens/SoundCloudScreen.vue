@@ -17,12 +17,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Artist Input -->
               <div>
-                <label class="block text-sm font-medium mb-2 text-white/80">Search Artist</label>
+                <label class="block text-sm font-medium mb-2 text-white/80">Artist(s)</label>
                 <input
                   v-model="artistFilter"
                   type="text"
                   class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
-                  placeholder="Search for artists"
+                  placeholder="Type artist(s) name(s)"
                   @keyup.enter="search"
                 >
               </div>
@@ -34,7 +34,7 @@
                   v-model="searchQuery"
                   type="text"
                   class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg search-input"
-                  placeholder="Search for tracks, albums..."
+                  placeholder="Type a title or keyword(s)"
                   @keyup.enter="search"
                 >
                 <div class="mt-2 flex flex-wrap gap-1">
@@ -70,7 +70,7 @@
                   v-model="searchTags"
                   type="text"
                   class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
-                  placeholder="Add another genre or keyword"
+                  placeholder="Type other genre(s) or keyword(s)"
                 >
               </div>
             </div>
@@ -82,15 +82,16 @@
                 <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
                 <select
                   v-model="timePeriod"
-                  class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
+                  class="time-period-select w-full py-3 pl-4 pr-4 rounded-lg border-0 focus:outline-none text-white/80 text-lg font-medium transition"
+                  style="background-color: rgba(47, 47, 47, 255) !important;"
                 >
-                  <option value="" class="bg-gray-800">All Time</option>
-                  <option value="1d" class="bg-gray-800">Last Day</option>
-                  <option value="1w" class="bg-gray-800">Last Week</option>
-                  <option value="1m" class="bg-gray-800">Last Month</option>
-                  <option value="3m" class="bg-gray-800">Last 3 Months</option>
-                  <option value="6m" class="bg-gray-800">Last 6 Months</option>
-                  <option value="1y" class="bg-gray-800">Last Year</option>
+                  <option value="">All Time</option>
+                  <option value="1d">Last Day</option>
+                  <option value="1w">Last Week</option>
+                  <option value="1m">Last Month</option>
+                  <option value="3m">Last 3 Months</option>
+                  <option value="6m">Last 6 Months</option>
+                  <option value="1y">Last Year</option>
                 </select>
               </div>
 
@@ -387,6 +388,7 @@ const bannedArtists = ref(new Set<string>()) // Store artist names
 const {
   loadBlacklistedItems,
   addTrackToBlacklist,
+  filterSoundCloudTracks,
 } = useBlacklistFiltering()
 
 // Music preferences state
@@ -935,9 +937,12 @@ const search = async () => {
     const pageLimit = filters.limit || 200
     const limitedTracks = response.tracks.slice(0, pageLimit)
 
-    // Filter out banned artists from NEW search results
-    const filteredTracks = filterBannedArtists(limitedTracks)
-    console.log(`🚫 SoundCloud: Filtered ${limitedTracks.length - filteredTracks.length} banned artists from new search results`)
+    // Apply global blacklist filtering (tracks + artists)
+    const globalFiltered = filterSoundCloudTracks(limitedTracks)
+
+    // Apply local banned artists filtering (for Similar Artists compatibility)
+    const filteredTracks = filterBannedArtists(globalFiltered)
+    console.log(`🚫 SoundCloud: Filtered ${limitedTracks.length - filteredTracks.length} blacklisted items (${limitedTracks.length - globalFiltered.length} global + ${globalFiltered.length - filteredTracks.length} local banned artists)`)
 
     const uniqueTracks = dedupeTracks(filteredTracks)
     originalTracks.value = uniqueTracks
@@ -1027,7 +1032,12 @@ const loadMoreResults = async () => {
 
     if (response.tracks && response.tracks.length > 0) {
       const limitedTracks = response.tracks.slice(0, limit)
-      const filteredTracksApi = filterBannedArtists(limitedTracks)
+
+      // Apply global blacklist filtering (tracks + artists)
+      const globalFiltered = filterSoundCloudTracks(limitedTracks)
+
+      // Apply local banned artists filtering (for Similar Artists compatibility)
+      const filteredTracksApi = filterBannedArtists(globalFiltered)
       const uniqueTracks = dedupeTracks(filteredTracksApi)
 
       originalTracks.value = [...originalTracks.value, ...uniqueTracks]
@@ -1638,5 +1648,38 @@ iframe {
 .soundcloud-player-container iframe {
   position: relative;
   z-index: 2;
+}
+
+/* Time Period dropdown styling - match sort dropdown exactly */
+.time-period-select {
+  background-color: rgba(47, 47, 47, 255) !important;
+  color: rgba(255, 255, 255, 0.8) !important; /* text-white/80 */
+}
+
+.time-period-select:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important; /* hover:bg-white/20 */
+}
+
+.time-period-select:focus {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  outline: none !important;
+}
+
+/* Style dropdown options with dark grey background and white text */
+.time-period-select option {
+  background-color: rgb(67, 67, 67) !important;
+  color: white !important;
+}
+
+.time-period-select option:checked {
+  background-color: rgb(67, 67, 67) !important;
+  color: white !important;
+}
+
+.time-period-select option:hover,
+.time-period-select option:focus,
+.time-period-select option:active {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
 }
 </style>

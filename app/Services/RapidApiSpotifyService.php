@@ -1128,9 +1128,45 @@ class RapidApiSpotifyService
                     elseif (isset($result['data']['data']['artist']['relatedContent']['relatedArtists']['items'])) {
                         $artistsData = $result['data']['data']['artist']['relatedContent']['relatedArtists']['items'];
                         $structure = 'rapidapi_spotify81_double_wrapped';
+                        $itemsCount = is_array($artistsData) ? count($artistsData) : 0;
                         \Log::debug('🎵 [RAPIDAPI SPOTIFY] Found rapidapi_spotify81 structure (double wrapped)', [
-                            'items_count' => is_array($artistsData) ? count($artistsData) : 0
+                            'items_count' => $itemsCount
                         ]);
+                        
+                        // If items array is empty, log the full structure to debug
+                        if ($itemsCount === 0) {
+                            $relatedArtists = $result['data']['data']['artist']['relatedContent']['relatedArtists'] ?? null;
+                            $totalCount = $relatedArtists['totalCount'] ?? null;
+                            
+                            \Log::warning('🎵 [RAPIDAPI SPOTIFY] Empty items array detected - logging full structure', [
+                                'full_path_exists' => isset($result['data']['data']['artist']['relatedContent']['relatedArtists']),
+                                'totalCount' => $totalCount,
+                                'totalCount_type' => gettype($totalCount),
+                                'items_is_array' => is_array($artistsData),
+                                'items_count' => $itemsCount,
+                                'relatedArtists_keys' => isset($result['data']['data']['artist']['relatedContent']['relatedArtists']) 
+                                    ? array_keys($result['data']['data']['artist']['relatedContent']['relatedArtists']) 
+                                    : [],
+                                'relatedContent_keys' => isset($result['data']['data']['artist']['relatedContent']) 
+                                    ? array_keys($result['data']['data']['artist']['relatedContent']) 
+                                    : [],
+                                'artist_keys' => isset($result['data']['data']['artist']) 
+                                    ? array_keys($result['data']['data']['artist']) 
+                                    : [],
+                                'data_data_keys' => isset($result['data']['data']) 
+                                    ? array_keys($result['data']['data']) 
+                                    : [],
+                            ]);
+                            
+                            // If totalCount > 0 but items is empty, there might be a pagination or structure issue
+                            if ($totalCount !== null && $totalCount > 0 && $itemsCount === 0) {
+                                \Log::error('🎵 [RAPIDAPI SPOTIFY] Mismatch: totalCount indicates artists exist but items array is empty', [
+                                    'totalCount' => $totalCount,
+                                    'items_count' => $itemsCount,
+                                    'artist_id' => $artistId,
+                                ]);
+                            }
+                        }
                     }
                     // Official Spotify structure
                     elseif (isset($result['data']['artists']['items'])) {
@@ -1148,13 +1184,41 @@ class RapidApiSpotifyService
                             'items_count' => is_array($artistsData) ? count($artistsData) : 0
                         ]);
                     } else {
-                        // Log what we actually have for debugging
+                        // Check for alternative structures - maybe data is at root level
+                        if (isset($result['data']) && is_array($result['data'])) {
+                            // Try to find any array that might contain artists
+                            $possiblePaths = [
+                                'data' => $result['data'],
+                                'data.data' => $result['data']['data'] ?? null,
+                                'data.artist' => $result['data']['artist'] ?? null,
+                                'data.artists' => $result['data']['artists'] ?? null,
+                            ];
+                            
+                            foreach ($possiblePaths as $path => $value) {
+                                if (is_array($value)) {
+                                    // Check if this array contains items that look like artists
+                                    if (isset($value['items']) && is_array($value['items'])) {
+                                        \Log::info('🎵 [RAPIDAPI SPOTIFY] Found alternative structure at path', [
+                                            'path' => $path,
+                                            'items_count' => count($value['items'])
+                                        ]);
+                                        $artistsData = $value['items'];
+                                        $structure = 'alternative_' . str_replace('.', '_', $path);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Log what we actually have for debugging (limit size to avoid huge logs)
+                        $dataSummary = $this->summarizeArrayStructure($result['data'] ?? [], 3);
                         \Log::warning('🎵 [RAPIDAPI SPOTIFY] Spotify81 structure not recognized', [
                             'data_keys' => array_keys($result['data'] ?? []),
                             'has_artist_key' => isset($result['data']['artist']),
                             'artist_keys' => isset($result['data']['artist']) ? array_keys($result['data']['artist']) : [],
                             'has_data_data' => isset($result['data']['data']),
                             'data_data_keys' => isset($result['data']['data']) ? array_keys($result['data']['data']) : [],
+                            'structure_summary' => $dataSummary,
                         ]);
                     }
                 }
@@ -1169,11 +1233,26 @@ class RapidApiSpotifyService
                     ]);
                     return $artists;
                 } else {
-                    \Log::warning('🎵 [RAPIDAPI SPOTIFY] Spotify81 returned success but no artists found', [
+                    // Enhanced logging when no artists found
+                    $logData = [
                         'artistsData_empty' => empty($artistsData),
                         'artistsData_type' => gettype($artistsData),
                         'artistsData_count' => is_array($artistsData) ? count($artistsData) : 'not_array',
-                    ]);
+                        'structure_detected' => $structure,
+                    ];
+                    
+                    // If we found a structure but it's empty, log the actual response path
+                    if ($structure !== 'unknown' && empty($artistsData)) {
+                        if ($structure === 'rapidapi_spotify81_double_wrapped') {
+                            $logData['response_path'] = 'data.data.artist.relatedContent.relatedArtists.items';
+                            $logData['relatedArtists_exists'] = isset($result['data']['data']['artist']['relatedContent']['relatedArtists']);
+                            if (isset($result['data']['data']['artist']['relatedContent']['relatedArtists'])) {
+                                $logData['relatedArtists_keys'] = array_keys($result['data']['data']['artist']['relatedContent']['relatedArtists']);
+                            }
+                        }
+                    }
+                    
+                    \Log::warning('🎵 [RAPIDAPI SPOTIFY] Spotify81 returned success but no artists found', $logData);
                 }
             }
 
@@ -2152,5 +2231,31 @@ class RapidApiSpotifyService
         $normalized = preg_replace('/[^a-z0-9\s]/', '', $normalized);
         $normalized = preg_replace('/\s+/', ' ', $normalized);
         return trim($normalized);
+    }
+
+    /**
+     * Summarize array structure for logging (recursive, limited depth)
+     */
+    private function summarizeArrayStructure(array $data, int $maxDepth = 3, int $currentDepth = 0): array
+    {
+        if ($currentDepth >= $maxDepth) {
+            return ['...' => '(max depth reached)'];
+        }
+
+        $summary = [];
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                if (count($value) > 10) {
+                    $summary[$key] = ['type' => 'array', 'count' => count($value), 'sample_keys' => array_slice(array_keys($value), 0, 5)];
+                } else {
+                    $summary[$key] = $this->summarizeArrayStructure($value, $maxDepth, $currentDepth + 1);
+                }
+            } else {
+                $summary[$key] = is_string($value) && strlen($value) > 50 
+                    ? substr($value, 0, 50) . '...' 
+                    : $value;
+            }
+        }
+        return $summary;
     }
 }

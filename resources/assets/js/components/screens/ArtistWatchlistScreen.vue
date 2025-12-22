@@ -235,12 +235,12 @@
                                       ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
                                       : 'bg-[#484948] hover:bg-gray-500 text-white',
                                   ]"
-                                  :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : (isReleaseListened(release) ? 'Tracks have been listened to' : 'Preview release')"
+                                  :title="expandedReleaseKey === getReleaseKey(release, index) ? 'Close preview' : (isReleaseListened(release) ? 'Tracks have been listened to' : 'Listen to release')"
                                   @click="togglePreview(release, index)"
                                 >
                                   <img v-if="expandedReleaseKey !== getReleaseKey(release, index)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                                   <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                                  <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : (isReleaseListened(release) ? 'Listened' : 'Preview') }}</span>
+                                  <span>{{ expandedReleaseKey === getReleaseKey(release, index) ? 'Close' : (isReleaseListened(release) ? 'Listened' : 'Listen') }}</span>
                                 </button>
                               </div>
                             </td>
@@ -328,6 +328,7 @@ import ScreenBase from '@/components/screens/ScreenBase.vue'
 import ScreenHeader from '@/components/ui/ScreenHeader.vue'
 // @ts-ignore - Axios wrapper resolved via Vite aliases
 import { http } from '@/services/http'
+import { useRouter } from '@/composables/useRouter'
 
 interface WatchlistArtist {
   id?: number
@@ -412,6 +413,8 @@ const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
 let searchDebounce: number | undefined
 let notificationTimeout: number | undefined
 let autoRefreshTimer: number | undefined
+
+const { onRouteChanged } = useRouter()
 
 const sortWatchlist = (entries: WatchlistArtist[]) => {
   return [...entries].sort((a, b) => a.artist_name.localeCompare(b.artist_name))
@@ -1463,15 +1466,50 @@ watch(isFetchingReleases, value => {
   }
 })
 
+const checkForStoredSearchQuery = () => {
+  try {
+    const stored = localStorage.getItem('koel-artist-watchlist-search-query')
+    if (stored) {
+      const searchData = JSON.parse(stored)
+      if (searchData.query && searchData.query.trim()) {
+        searchQuery.value = searchData.query.trim()
+        // Clear the stored query after using it
+        localStorage.removeItem('koel-artist-watchlist-search-query')
+        // Trigger search automatically if autoSearch is true
+        if (searchData.autoSearch) {
+          // Use nextTick to ensure the search input is updated before searching
+          setTimeout(() => {
+            performSearch()
+          }, 100)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load artist watchlist search query from localStorage:', error)
+  }
+}
+
 onMounted(async () => {
   window.addEventListener(WATCHLIST_EVENT, handleWatchlistUpdated as EventListener)
   window.addEventListener('artist-watchlist-sidebar-click', handleSidebarRefreshEvent)
   await loadWatchlist()
   loadSessionBanned()
   await loadListenedTracks()
+  
+  // Check for stored search query from other screens
+  checkForStoredSearchQuery()
+  
   const refreshedFromSidebar = await refreshIfRequested()
   if (!refreshedFromSidebar) {
     await fetchReleases()
+  }
+})
+
+// Also check when navigating to this screen
+onRouteChanged(route => {
+  if (route.screen === 'ArtistWatchlist') {
+    // Check for stored search query when navigating to this screen
+    checkForStoredSearchQuery()
   }
 })
 

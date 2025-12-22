@@ -109,6 +109,7 @@
                 <template v-for="(track, index) in paginatedTracks" :key="track.id">
                   <tr
                     class="transition h-16 border-b border-white/5" :class="[
+                      index === 0 ? 'first-track-sticky' : '',
                       expandedTrackId === getTrackKey(track) ? 'bg-white/5' : 'hover:bg-white/5',
                     ]"
                   >
@@ -132,15 +133,15 @@
                     </td>
 
                     <!-- Watchlist -->
-                    <td v-if="!isSoundCloudTrack(track)" class="p-3 align-middle text-center">
+                    <td class="p-3 align-middle text-center">
                       <button
                         :disabled="followInProgress === getTrackKey(track)"
                         class="watchlist-btn"
                         :class="track.artist_followed
                           ? 'bg-green-600 hover:bg-green-700 rounded-md'
                           : 'bg-[#484948] hover:bg-gray-500 rounded-md'"
-                        title="Add the artist to the watchlist"
-                        aria-label="Add the artist to the watchlist"
+                        :title="isSoundCloudTrack(track) ? 'Search for artist in watchlist' : 'Add the artist to the watchlist'"
+                        :aria-label="isSoundCloudTrack(track) ? 'Search for artist in watchlist' : 'Add the artist to the watchlist'"
                         @click="followArtist(track)"
                       >
                         <svg
@@ -160,9 +161,6 @@
                           class="watchlist-icon" :class="[track.artist_followed ? 'watchlist-icon-active' : '']"
                         >
                       </button>
-                    </td>
-                    <td v-else class="p-3 align-middle text-center">
-                      <!-- No follow button for SoundCloud tracks -->
                     </td>
 
                     <!-- Artist -->
@@ -251,7 +249,8 @@
                         <!-- Dropdown Menu -->
                         <div
                           v-if="openActionsDropdown === track.id"
-                          class="absolute right-0 w-48 rounded-lg shadow-lg z-[9999] bottom-full mb-1"
+                          class="absolute w-48 rounded-lg shadow-lg z-[9999] flex flex-col actions-dropdown"
+                          :class="index === 0 ? 'right-full mr-1 bottom-full translate-y-10' : 'left-0 top-full mt-4'"
                           style="background-color: rgb(67,67,67,255);"
                         >
                           <button
@@ -289,7 +288,7 @@
                         <button
                           :disabled="processingTrack === getTrackKey(track)"
                           class="px-3 py-2 bg-[#484948] hover:bg-gray-500 rounded text-sm font-medium transition disabled:opacity-50 flex items-center gap-1 min-w-[100px] min-h-[34px] justify-center"
-                          :title="isSoundCloudTrack(track) ? 'Listen on SoundCloud' : 'Preview Track'"
+                          :title="isSoundCloudTrack(track) ? 'Listen on SoundCloud' : 'Listen to track'"
                           @click="isSoundCloudTrack(track) ? toggleSoundCloudPlayer(track) : toggleSpotifyPlayer(track)"
                         >
                           <!-- Loading spinner when processing -->
@@ -301,7 +300,7 @@
                           <img v-if="expandedTrackId !== getTrackKey(track) && !isSoundCloudTrack(track)" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                           <img v-else-if="expandedTrackId !== getTrackKey(track) && isSoundCloudTrack(track)" src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-[21px] h-[21px] object-contain">
                           <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                          <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (isSoundCloudTrack(track) ? 'Listen' : 'Preview')) }}</span>
+                          <span :class="processingTrack === getTrackKey(track) && isPreviewProcessing ? '' : 'ml-1'">{{ processingTrack === getTrackKey(track) && isPreviewProcessing ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : 'Listen') }}</span>
                         </button>
 
                         <!-- Remove Track -->
@@ -1489,6 +1488,24 @@ const emitWatchlistAddition = (artist: WatchlistEventArtist) => {
 }
 
 const followArtist = async (track: SavedTrack) => {
+  // For SoundCloud tracks, navigate to watchlist with artist name pre-filled
+  if (isSoundCloudTrack(track)) {
+    // Store the artist name in localStorage for ArtistWatchlistScreen to pick up
+    const artistSearchData = {
+      query: track.artist_name,
+      source: 'savedTracks',
+      timestamp: Date.now(),
+      autoSearch: true,
+    }
+
+    localStorage.setItem('koel-artist-watchlist-search-query', JSON.stringify(artistSearchData))
+
+    // Navigate to artist watchlist screen
+    Router.go('artist-watchlist')
+    return
+  }
+
+  // For non-SoundCloud tracks, use existing behavior
   if (track.artist_followed) {
     return
   }
@@ -1711,5 +1728,17 @@ iframe {
 .watchlist-btn:hover .watchlist-icon {
   opacity: 1;
   filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.first-track-sticky {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  background-color: rgba(47, 47, 47, 0.9);
+}
+
+.first-track-sticky td {
+  background-color: inherit;
 }
 </style>

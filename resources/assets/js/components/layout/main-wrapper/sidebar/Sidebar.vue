@@ -39,17 +39,6 @@
             Similar Artists
           </SidebarItem>
 
-          <SoundCloudSidebarItem>
-            SoundCloud Deep Search
-          </SoundCloudSidebarItem>
-
-          <SidebarItem :href="url('soundcloud-related-tracks')" screen="SoundCloudRelatedTracks">
-            <template #icon>
-              <img src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-5 h-5 object-contain">
-            </template>
-            SoundCloud - Related Tracks
-          </SidebarItem>
-
           <SidebarItem :href="url('label-search')" screen="LabelSearch">
             <template #icon>
               <img src="/public/icons/LabelSearch-icon.svg" alt="Label Search" class="w-5 h-5 object-contain sidebar-icon-svg">
@@ -69,6 +58,20 @@
               <img src="/public/icons/ArtistWatchlist.svg" alt="Artists Watchlist" class="w-5 h-5 object-contain sidebar-icon-svg">
             </template>
             Artists Watchlist
+          </SidebarItem>
+
+          <!-- SoundCloud sections with spacing -->
+          <li class="soundcloud-section-spacer" />
+
+          <SoundCloudSidebarItem>
+            SoundCloud Deep Search
+          </SoundCloudSidebarItem>
+
+          <SidebarItem :href="url('soundcloud-related-tracks')" screen="SoundCloudRelatedTracks">
+            <template #icon>
+              <img src="/public/img/soundcloud-icon.svg" alt="SoundCloud" class="w-5 h-5 object-contain">
+            </template>
+            SoundCloud Related Tracks
           </SidebarItem>
 
           <!-- <SidebarItem :href="url('genre-by-year')" screen="GenreByYear">
@@ -249,5 +252,12 @@ li.current :deep(.sidebar-icon-svg) {
   filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%)
     contrast(100%);
   opacity: 1;
+}
+
+/* Spacing for SoundCloud sections */
+.soundcloud-section-spacer {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  height: 0;
 }
 </style>

@@ -96,17 +96,18 @@ class SimilarArtistsController extends Controller
     }
 
     /**
-     * Get similar artists by Spotify Artist ID
+     * Get similar artists by Spotify Artist ID or MBID
      */
     public function getSimilarArtists(Request $request): JsonResponse
     {
         $artistId = $request->get('artist_id', '');
+        $mbid = $request->get('mbid', '');
         $limit = $request->get('limit', 20);
 
-        if (empty(trim($artistId))) {
+        if (empty(trim($artistId)) && empty(trim($mbid))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Artist ID parameter is required',
+                'message' => 'Artist ID or MBID parameter is required',
                 'data' => []
             ]);
         }
@@ -114,17 +115,19 @@ class SimilarArtistsController extends Controller
         try {
             Log::info('🎵 [SIMILAR ARTISTS] Getting similar artists', [
                 'artist_id' => $artistId,
+                'mbid' => $mbid,
                 'limit' => $limit,
                 'rapidapi_enabled' => RapidApiSpotifyService::enabled()
             ]);
 
-            if (RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
+            // Try RapidAPI Spotify if we have an artist ID
+            if (!empty(trim($artistId)) && RapidApiSpotifyService::enabled() && $this->rapidApiSpotifyService) {
                 $artists = $this->rapidApiSpotifyService->getSimilarArtists($artistId, $limit);
 
                 if (!empty($artists)) {
                     $deduped = $this->removeDuplicateArtists($artists);
 
-                    Log::info('🎵 [SIMILAR ARTISTS] RapidAPI similar artists successful (service handled provider selection)', [
+                    Log::info('🎵 [SIMILAR ARTISTS] Similar artists successful', [
                         'artist_id' => $artistId,
                         'total_count' => count($deduped),
                         'sample_artists' => array_slice(array_map(fn($a) => $a['name'], $deduped), 0, 5)
@@ -134,18 +137,23 @@ class SimilarArtistsController extends Controller
                         'success' => true,
                         'data' => $deduped
                     ]);
+                } else {
+                    Log::warning('🎵 [SIMILAR ARTISTS] No similar artists found', [
+                        'artist_id' => $artistId
+                    ]);
                 }
             }
 
             return response()->json([
                 'success' => false,
-                'message' => 'All RapidAPI similar artists services failed',
+                'message' => 'No similar artists found. This artist may not have enough data in music databases to generate recommendations.',
                 'data' => []
             ]);
 
         } catch (\Exception $e) {
             Log::error('🎵 [SIMILAR ARTISTS] Failed to get similar artists', [
                 'artist_id' => $artistId,
+                'mbid' => $mbid,
                 'error' => $e->getMessage()
             ]);
 

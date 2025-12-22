@@ -141,7 +141,6 @@
       </div>
 
       <div v-else-if="displayedArtists.length > 0" class="results-section">
-
         <div class="flex items-center justify-between max-w-4xl mx-auto mb-4 px-1">
           <!-- Ban listened tracks toggle -->
           <div class="flex items-center gap-3">
@@ -246,13 +245,13 @@
                               ? 'bg-[#868685] hover:bg-[#6d6d6d] text-white'
                               : 'bg-[#484948] hover:bg-gray-500 text-white',
                           ]"
-                          :title="loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close preview' : (hasListenedTracks(artist) ? 'Tracks have been listened to' : 'Preview artist tracks'))"
+                          :title="loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close preview' : (hasListenedTracks(artist) ? 'Tracks have been listened to' : 'Listen to artist tracks'))"
                           @click="previewArtist(artist)"
                         >
                           <!-- Regular icon when not processing -->
                           <img v-if="currentlyPreviewingArtist !== artist.name" src="/public/img/Primary_Logo_White_RGB.svg" alt="Spotify" class="w-[21px] h-[21px] object-contain">
                           <Icon v-else :icon="faTimes" class="w-3 h-3" />
-                          <span :class="loadingPreviewArtist === artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close' : (hasListenedTracks(artist) ? 'Listened' : 'Preview')) }}</span>
+                          <span :class="loadingPreviewArtist === artist.name ? '' : 'ml-1'">{{ loadingPreviewArtist === artist.name ? 'Loading...' : (currentlyPreviewingArtist === artist.name ? 'Close' : (hasListenedTracks(artist) ? 'Listened' : 'Listen')) }}</span>
                         </button>
                       </div>
                     </td>
@@ -880,7 +879,7 @@ const saveTrack = async (track: SpotifyTrack) => {
 
     try {
       window.dispatchEvent(new CustomEvent('track-unsaved', {
-        detail: { track, trackKey }
+        detail: { track, trackKey },
       }))
     } catch (e) {
       // ignore dispatch errors
@@ -889,7 +888,7 @@ const saveTrack = async (track: SpotifyTrack) => {
     // Reload client unsaved tracks from localStorage first to get the latest list
     // This ensures we don't lose tracks that were trashed in other screens
     loadClientUnsavedTracks()
-    
+
     // Save track - Update UI immediately for instant feedback
     savedTracks.value.add(trackKey)
     clientUnsavedTracks.value.delete(trackKey)
@@ -973,7 +972,7 @@ const saveTrack = async (track: SpotifyTrack) => {
 
         try {
           window.dispatchEvent(new CustomEvent('track-saved', {
-            detail: { track, trackKey }
+            detail: { track, trackKey },
           }))
         } catch (e) {
           // ignore dispatch errors
@@ -1014,7 +1013,7 @@ const autoBlacklistListenedTrack = async (track: SpotifyTrack) => {
     const response = await http.post('music-preferences/blacklist-track', {
       isrc: track.id,
       track_name: track.name,
-      artist_name: track.artists?.[0]?.name || 'Unknown'
+      artist_name: track.artists?.[0]?.name || 'Unknown',
     })
 
     if (response.success) {
@@ -1142,8 +1141,7 @@ const findSimilarArtists = async (artist?: LastfmArtist) => {
         },
       })
     } else if (hasMbid) {
-      console.log('🎵 [FRONTEND] Using Last.fm API for similar artists')
-      // Fallback to Last.fm
+      console.log('🎵 [FRONTEND] Using MBID for similar artists')
       response = await http.get('similar-artists/similar', {
         params: {
           mbid: targetArtist.mbid,
