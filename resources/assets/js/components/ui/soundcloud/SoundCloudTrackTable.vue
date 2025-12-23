@@ -70,10 +70,10 @@
               <td class="p-3 align-middle text-center">
                 <span
                   v-if="track.genre"
-                  class="px-2 py-1 bg-white/10 text-white rounded text-sm whitespace-nowrap inline-block"
+                  class="px-2 py-1 bg-white/10 text-white rounded text-sm inline-block max-w-[120px] break-words leading-tight"
                   :title="track.genre"
                 >
-                  {{ track.genre.length > 12 ? `${track.genre.substring(0, 12)}...` : track.genre }}
+                  {{ track.genre }}
                 </span>
                 <span v-else class="text-white/40">-</span>
               </td>

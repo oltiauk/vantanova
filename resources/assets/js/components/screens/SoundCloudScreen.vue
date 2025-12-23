@@ -8,7 +8,7 @@
 
     <div class="p-6 space-y-6">
       <!-- Enhanced Search Controls -->
-      <div class="rounded-lg p-4">
+      <div class="rounded-lg p-4" style="margin-bottom: 80px;">
         <!-- Main Layout: Search Controls Left, Advanced Filters Right -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Left Side: Search Controls (50% width) -->
@@ -17,12 +17,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Artist Input -->
               <div>
-                <label class="block text-sm font-medium mb-2 text-white/80">Artist(s)</label>
+                <label class="block text-sm font-medium mb-2 text-white/80">Search Artist</label>
                 <input
                   v-model="artistFilter"
                   type="text"
                   class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
-                  placeholder="Type artist(s) name(s)"
+                  placeholder="Search for artists"
                   @keyup.enter="search"
                 >
               </div>
@@ -34,7 +34,7 @@
                   v-model="searchQuery"
                   type="text"
                   class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg search-input"
-                  placeholder="Type a title or keyword(s)"
+                  placeholder="Search for tracks, albums..."
                   @keyup.enter="search"
                 >
                 <div class="mt-2 flex flex-wrap gap-1">
@@ -50,7 +50,7 @@
               </div>
             </div>
 
-            <!-- Top Row: Genres and Tags -->
+            <!-- Middle Row: Genres and Tags -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Genre Input -->
               <div>
@@ -70,109 +70,17 @@
                   v-model="searchTags"
                   type="text"
                   class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
-                  placeholder="Type other genre(s) or keyword(s)"
+                  placeholder="Add another genre or keyword"
                 >
-              </div>
-            </div>
-
-            <!-- Second Row: Time Period and Content Type -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <!-- Time Period -->
-              <div>
-                <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
-                <select
-                  v-model="timePeriod"
-                  class="time-period-select w-full py-3 pl-4 pr-4 rounded-lg border-0 focus:outline-none text-white/80 text-lg font-medium transition"
-                  style="background-color: rgba(47, 47, 47, 255) !important;"
-                >
-                  <option value="">All Time</option>
-                  <option value="1d">Last Day</option>
-                  <option value="1w">Last Week</option>
-                  <option value="1m">Last Month</option>
-                  <option value="3m">Last 3 Months</option>
-                  <option value="6m">Last 6 Months</option>
-                  <option value="1y">Last Year</option>
-                </select>
-              </div>
-
-              <!-- Content Type -->
-              <div>
-                <label class="block text-sm font-medium mb-3 text-white/80">Content Type</label>
-                <div class="flex gap-3">
-                  <label class="flex-1 cursor-pointer">
-                    <input
-                      v-model="contentType"
-                      type="radio"
-                      value="tracks"
-                      class="sr-only"
-                    >
-                    <div
-                      class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
-                      :class="contentType === 'tracks'
-                        ? 'border-k-accent bg-k-accent/20 text-white'
-                        : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
-                    >
-                      Tracks
-                    </div>
-                  </label>
-                  <label class="flex-1 cursor-pointer">
-                    <input
-                      v-model="contentType"
-                      type="radio"
-                      value="mixes"
-                      class="sr-only"
-                    >
-                    <div
-                      class="px-4 py-2.5 rounded-lg border-2 transition-all duration-200 text-center text-sm font-medium"
-                      :class="contentType === 'mixes'
-                        ? 'border-k-accent bg-k-accent/20 text-white'
-                        : 'border-white/20 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'"
-                    >
-                      Mixes
-                    </div>
-                  </label>
-                </div>
               </div>
             </div>
           </div>
 
           <!-- Right Side: Advanced Filters (50% width) -->
           <div>
-            <div class="p-4 bg-white/5 rounded-lg h-full flex flex-col">
-              <div class="flex items-center gap-2 mb-4">
-                <Icon :icon="faFilter" class="text-white/80" />
-                <h3 class="text-sm font-medium text-white/80">Advanced Filters</h3>
-              </div>
-
-              <!-- Min/Max Plays -->
-              <div class="grid grid-cols-2 gap-4 mb-auto">
-                <!-- Minimum Plays -->
-                <div>
-                  <label class="block text-sm font-medium mb-2 text-white/80">Minimum Streams</label>
-                  <input
-                    v-model="minPlaysFormatted"
-                    type="text"
-                    placeholder="e.g. 10,000"
-                    class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
-                    @input="handleMinPlaysInput"
-                  >
-                </div>
-
-                <!-- Maximum Plays -->
-                <div>
-                  <label class="block text-sm font-medium mb-2 text-white/80">Maximum Streams</label>
-                  <input
-                    v-model="maxPlaysFormatted"
-                    type="text"
-                    placeholder="e.g. 1,000,000"
-                    class="w-full py-3 pl-4 pr-4 bg-white/10 rounded-lg border-0 focus:outline-none text-white text-lg"
-                    @input="handleMaxPlaysInput"
-                  >
-                </div>
-              </div>
-
-              <!-- BPM Range - Pushed to bottom -->
-              <div class="mt-auto">
+            <div class="p-4 rounded-lg h-full flex flex-col">
+              <!-- BPM Range -->
+              <div class="mb-auto">
                 <label class="block text-sm font-medium mb-2 text-white/80">
                   BPM Range: {{ bpmFrom }} - {{ bpmTo }}
                 </label>
@@ -186,6 +94,68 @@
                     @update:from="bpmFrom = $event"
                     @update:to="bpmTo = $event"
                   />
+                </div>
+              </div>
+
+              <!-- Time Period and Content Type - Aligned with Genre/Tags -->
+              <div class="mt-auto pt-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <!-- Time Period -->
+                  <div>
+                    <label class="block text-sm font-medium mb-2 text-white/80">Time Period</label>
+                    <select
+                      v-model="timePeriod"
+                      class="time-period-select w-full py-3 pl-4 pr-4 rounded-lg border-0 focus:outline-none text-white/80 text-lg font-medium transition"
+                      style="background-color: rgba(47, 47, 47, 255) !important;"
+                    >
+                      <option value="">All Time</option>
+                      <option value="1d">Last Day</option>
+                      <option value="1w">Last Week</option>
+                      <option value="1m">Last Month</option>
+                      <option value="3m">Last 3 Months</option>
+                      <option value="6m">Last 6 Months</option>
+                      <option value="1y">Last Year</option>
+                    </select>
+                  </div>
+
+                  <!-- Content Type -->
+                  <div>
+                    <label class="block text-sm font-medium mb-2 text-white/80">Content Type</label>
+                    <div class="flex gap-3">
+                      <label class="flex-1 cursor-pointer">
+                        <input
+                          v-model="contentType"
+                          type="radio"
+                          value="tracks"
+                          class="sr-only"
+                        >
+                        <div
+                          class="px-4 py-3 rounded-lg transition-all duration-200 text-center text-lg font-medium"
+                          :class="contentType === 'tracks'
+                            ? 'bg-white/10 text-white'
+                            : 'bg-white/5 text-white/70 hover:bg-white/10'"
+                        >
+                          Tracks
+                        </div>
+                      </label>
+                      <label class="flex-1 cursor-pointer">
+                        <input
+                          v-model="contentType"
+                          type="radio"
+                          value="mixes"
+                          class="sr-only"
+                        >
+                        <div
+                          class="px-4 py-3 rounded-lg transition-all duration-200 text-center text-lg font-medium"
+                          :class="contentType === 'mixes'
+                            ? 'bg-white/10 text-white'
+                            : 'bg-white/5 text-white/70 hover:bg-white/10'"
+                        >
+                          Mixes
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -223,10 +193,56 @@
         </div>
       </div>
 
-      <!-- Enhanced Results Table -->
-      <div v-else-if="tracks.length > 0">
-        <!-- Sort by Dropdown -->
-        <div class="flex justify-end mb-4 relative">
+      <!-- Min/Max Streams Filters and Sort Dropdown (shown after initial search) -->
+      <div v-if="searched && !loading" class="flex items-end justify-between mb-4 relative">
+        <!-- Ban Listened Tracks Toggle - Left aligned -->
+        <div v-if="tracks.length > 0" class="flex items-end gap-3">
+          <span class="text-sm text-white/80">Ban listened tracks</span>
+          <button
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            :class="banListenedTracks ? 'bg-green-500' : 'bg-gray-600'"
+            @click="banListenedTracks = !banListenedTracks"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
+        <!-- Min/Max Streams - Centered -->
+        <div class="flex-1 flex justify-center gap-4 ml-16">
+          <!-- Minimum Streams -->
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-white/80 whitespace-nowrap">Minimum Streams</label>
+            <input
+              v-model="minPlaysFormatted"
+              type="text"
+              placeholder="e.g. 10,000"
+              class="w-36 px-4 py-2 rounded-lg font-medium transition bg-white/10 text-white/80 hover:bg-white/20 border-0 focus:outline-none"
+              style="background-color: rgba(47, 47, 47, 255) !important;"
+              @input="handleMinPlaysInput"
+              @blur="handleMinPlaysBlur"
+            >
+          </div>
+
+          <!-- Maximum Streams -->
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-white/80 whitespace-nowrap">Maximum Streams</label>
+            <input
+              v-model="maxPlaysFormatted"
+              type="text"
+              placeholder="e.g. 1,000,000"
+              class="w-36 px-4 py-2 rounded-lg font-medium transition bg-white/10 text-white/80 hover:bg-white/20 border-0 focus:outline-none"
+              style="background-color: rgba(47, 47, 47, 255) !important;"
+              @input="handleMaxPlaysInput"
+              @blur="handleMaxPlaysBlur"
+            >
+          </div>
+        </div>
+
+        <!-- Sort by Dropdown - Right aligned -->
+        <div v-if="tracks.length > 0" class="relative">
           <button
             class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
             style="background-color: rgba(47, 47, 47, 255) !important;"
@@ -240,7 +256,7 @@
           <!-- Dropdown Menu -->
           <div
             v-if="showLikesRatioDropdown"
-            class="absolute right-0 mt-12 w-52  rounded-lg shadow-lg z-10"
+            class="absolute right-0 mt-2 w-52 rounded-lg shadow-lg z-10"
             style="background-color: rgb(67,67,67,255);"
           >
             <button
@@ -259,7 +275,10 @@
             </button>
           </div>
         </div>
+      </div>
 
+      <!-- Enhanced Results Table -->
+      <div v-if="searched && tracks.length > 0">
         <SoundCloudTrackTable
           ref="soundcloudTable"
           :tracks="tracks"
@@ -397,6 +416,8 @@ const blacklistedTracks = ref<Set<string>>(new Set())
 const clientUnsavedTracks = ref<Set<string>>(new Set()) // Tracks unsaved by client
 const processingTrack = ref<string | number | null>(null)
 const listenedTracks = ref<Set<string>>(new Set()) // Tracks that have been listened to
+const banListenedTracks = ref(false)
+const pendingAutoBannedTracks = ref(new Set<string>())
 
 // Player state (now using global store)
 // Note: Player will show in footer when this component is mounted (SoundCloud page)
@@ -685,6 +706,54 @@ const getFilteredTracks = () => {
     })
   }
 
+  // Apply time period filtering (client-side backup to ensure accuracy)
+  if (timePeriod.value && timePeriod.value !== '') {
+    const now = new Date()
+    let cutoffDate: Date
+
+    switch (timePeriod.value) {
+      case '1d':
+        cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+        break
+      case '1w':
+        cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case '1m':
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break
+      case '3m':
+        cutoffDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        break
+      case '6m':
+        cutoffDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
+        break
+      case '1y':
+        cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+        break
+      default:
+        cutoffDate = new Date(0) // No filter
+    }
+
+    if (cutoffDate.getTime() > 0) {
+      const beforeCount = filteredTracks.length
+      filteredTracks = filteredTracks.filter(track => {
+        if (!track.created_at) {
+          return false // Exclude tracks without creation date
+        }
+        const trackDate = new Date(track.created_at)
+        return trackDate >= cutoffDate
+      })
+
+      console.log('🔍 After time period filtering:', {
+        timePeriod: timePeriod.value,
+        cutoffDate: cutoffDate.toISOString(),
+        beforeCount,
+        afterCount: filteredTracks.length,
+        filteredOut: beforeCount - filteredTracks.length,
+      })
+    }
+  }
+
   // Note: Artist filter is now included in the API search query, so no need to filter client-side
 
   // Then apply sorting
@@ -746,9 +815,14 @@ const handleMinPlaysInput = (event: Event) => {
   // Remove all non-digits first
   const digitsOnly = value.replace(/\D/g, '')
 
+  // Clear existing timeout
+  if (minPlaysTimeout) {
+    clearTimeout(minPlaysTimeout)
+  }
+
   if (digitsOnly === '') {
     minPlaysFormatted.value = ''
-    minPlays.value = undefined
+    // Don't clear filter immediately - wait for blur event
     return
   }
 
@@ -756,8 +830,13 @@ const handleMinPlaysInput = (event: Event) => {
   const num = Number.parseInt(digitsOnly, 10)
   const formatted = formatNumberWithCommas(num)
 
+  // Update formatted display immediately
   minPlaysFormatted.value = formatted
-  minPlays.value = num
+
+  // Debounce the actual filter value update to prevent filtering while typing
+  minPlaysTimeout = setTimeout(() => {
+    minPlays.value = num
+  }, 500) // 500ms debounce
 
   // Restore cursor position (adjust for added commas)
   setTimeout(() => {
@@ -775,9 +854,14 @@ const handleMaxPlaysInput = (event: Event) => {
   // Remove all non-digits first
   const digitsOnly = value.replace(/\D/g, '')
 
+  // Clear existing timeout
+  if (maxPlaysTimeout) {
+    clearTimeout(maxPlaysTimeout)
+  }
+
   if (digitsOnly === '') {
     maxPlaysFormatted.value = ''
-    maxPlays.value = undefined
+    // Don't clear filter immediately - wait for blur event
     return
   }
 
@@ -785,8 +869,13 @@ const handleMaxPlaysInput = (event: Event) => {
   const num = Number.parseInt(digitsOnly, 10)
   const formatted = formatNumberWithCommas(num)
 
+  // Update formatted display immediately
   maxPlaysFormatted.value = formatted
-  maxPlays.value = num
+
+  // Debounce the actual filter value update to prevent filtering while typing
+  maxPlaysTimeout = setTimeout(() => {
+    maxPlays.value = num
+  }, 500) // 500ms debounce
 
   // Restore cursor position (adjust for added commas)
   setTimeout(() => {
@@ -796,9 +885,34 @@ const handleMaxPlaysInput = (event: Event) => {
   }, 0)
 }
 
+// Handle blur events to clear filter only when user leaves the field
+const handleMinPlaysBlur = () => {
+  if (minPlaysTimeout) {
+    clearTimeout(minPlaysTimeout)
+  }
+  // Clear filter only if field is empty when user leaves it
+  if (!minPlaysFormatted.value || minPlaysFormatted.value.trim() === '') {
+    minPlays.value = undefined
+  }
+}
+
+const handleMaxPlaysBlur = () => {
+  if (maxPlaysTimeout) {
+    clearTimeout(maxPlaysTimeout)
+  }
+  // Clear filter only if field is empty when user leaves it
+  if (!maxPlaysFormatted.value || maxPlaysFormatted.value.trim() === '') {
+    maxPlays.value = undefined
+  }
+}
+
 // BPM input handlers with debouncing to prevent slider jumping
 let bpmFromTimeout: NodeJS.Timeout | null = null
 let bpmToTimeout: NodeJS.Timeout | null = null
+
+// Plays input handlers with debouncing to prevent filtering while typing
+let minPlaysTimeout: NodeJS.Timeout | null = null
+let maxPlaysTimeout: NodeJS.Timeout | null = null
 
 const handleBpmFromInput = (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -851,6 +965,28 @@ watch([minPlays, maxPlays], () => {
   // Only re-filter if we have tracks AND a search has been performed
   if (originalTracks.value.length > 0 && searched.value && !loading.value) {
     applyFiltering()
+  }
+})
+
+// Watch for time period filter changes to re-apply filtering
+watch([timePeriod], () => {
+  // Only re-filter if we have tracks AND a search has been performed
+  if (originalTracks.value.length > 0 && searched.value && !loading.value) {
+    applyFiltering()
+  }
+})
+
+// Auto-ban already listened tracks when toggle is turned on
+watch(banListenedTracks, async (newValue, oldValue) => {
+  if (newValue && !oldValue) {
+    const targets = tracks.value.filter(track => {
+      const trackKey = getTrackKey(track)
+      return listenedTracks.value.has(trackKey) && !blacklistedTracks.value.has(trackKey)
+    })
+
+    for (const track of targets) {
+      await autoBlacklistListenedTrack(track)
+    }
   }
 })
 
@@ -911,7 +1047,7 @@ const search = async () => {
       durationTo: durationToFilter,
       minPlays: minPlays.value || undefined,
       maxPlays: maxPlays.value || undefined,
-      timePeriod: timePeriod.value || undefined,
+      timePeriod: timePeriod.value && timePeriod.value !== '' ? timePeriod.value : undefined,
       limit: 200,
     }
 
@@ -1004,11 +1140,6 @@ const loadMoreResults = async () => {
   // If we already have more locally, just reveal the next chunk
   if (displayLimit.value < filteredTracks.length) {
     updateVisibleTracks(filteredTracks, true)
-    if (tracks.value.length > currentVisibleCount) {
-      setTimeout(() => {
-        triggerRowAnimations(currentVisibleCount)
-      }, 50)
-    }
     return
   }
 
@@ -1040,7 +1171,10 @@ const loadMoreResults = async () => {
       const filteredTracksApi = filterBannedArtists(globalFiltered)
       const uniqueTracks = dedupeTracks(filteredTracksApi)
 
-      originalTracks.value = [...originalTracks.value, ...uniqueTracks]
+      // Append new tracks and remove any duplicates from the entire list
+      const combinedTracks = [...originalTracks.value, ...uniqueTracks]
+      originalTracks.value = removeDuplicatesFromList(combinedTracks)
+
       serverHasMore.value = response.hasMore || response.tracks.length >= limit
 
       const refreshedFiltered = getFilteredTracks()
@@ -1417,6 +1551,53 @@ const markTrackAsListened = async (track: SoundCloudTrack) => {
       localStorage.setItem('koel-listened-tracks', JSON.stringify(keys))
     } catch {}
   }
+
+  if (banListenedTracks.value) {
+    autoBlacklistListenedTrack(track)
+  }
+}
+
+// Auto-blacklist a track when "Ban listened tracks" is enabled
+const autoBlacklistListenedTrack = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+  const identifier = `soundcloud:${track.id}` || trackKey
+
+  if (blacklistedTracks.value.has(trackKey) || pendingAutoBannedTracks.value.has(identifier)) {
+    return
+  }
+
+  pendingAutoBannedTracks.value.add(identifier)
+  pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+
+  try {
+    const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    const response = await http.post('music-preferences/blacklist-track', {
+      spotify_id: null,
+      isrc: isrcValue,
+      track_name: track.title,
+      artist_name: track.user?.username || 'Unknown',
+    })
+
+    if (response.success) {
+      blacklistedTracks.value.add(trackKey)
+      addTrackToBlacklist({
+        id: String(track.id),
+        name: track.title,
+        artist: track.user?.username || 'Unknown',
+      } as any)
+
+      window.dispatchEvent(new CustomEvent('track-blacklisted', {
+        detail: { track, trackKey },
+      }))
+      localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+    }
+  } catch (error) {
+    console.warn('Failed to auto-ban listened track:', error)
+  } finally {
+    pendingAutoBannedTracks.value.delete(identifier)
+    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+  }
 }
 
 // Load user preferences
@@ -1503,6 +1684,21 @@ const dedupeTracks = (incoming: SoundCloudTrack[]) => {
       return false
     }
     existingIds.add(track.id)
+    return true
+  })
+}
+
+// Remove duplicate tracks from an entire array (used after appending)
+const removeDuplicatesFromList = (trackList: SoundCloudTrack[]): SoundCloudTrack[] => {
+  const seenIds = new Set<number | string>()
+  return trackList.filter(track => {
+    if (!track || track.id == null) {
+      return false
+    }
+    if (seenIds.has(track.id)) {
+      return false
+    }
+    seenIds.add(track.id)
     return true
   })
 }

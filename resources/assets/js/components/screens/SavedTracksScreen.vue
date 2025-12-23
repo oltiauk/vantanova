@@ -250,7 +250,7 @@
                         <div
                           v-if="openActionsDropdown === track.id"
                           class="absolute w-48 rounded-lg shadow-lg z-[9999] flex flex-col actions-dropdown"
-                          :class="index === 0 ? 'right-full mr-1 bottom-full translate-y-10' : 'left-0 top-full mt-4'"
+                          :class="(index === 0 || index === paginatedTracks.length - 1) ? 'right-full mr-1 bottom-full translate-y-10' : 'left-0 top-full mt-4'"
                           style="background-color: rgb(67,67,67,255);"
                         >
                           <button

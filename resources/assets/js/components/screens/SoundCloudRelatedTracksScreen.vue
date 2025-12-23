@@ -140,6 +140,20 @@
 
       <!-- Seed Search Results (when searching for seed track) - Table view -->
       <div v-if="showingSeedResults && !loading && seedSearchResults.length > 0">
+        <div class="flex items-center gap-3 mb-6 px-3">
+          <span class="text-sm text-white/80">Ban listened tracks</span>
+          <button
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            :class="banListenedTracks ? 'bg-green-500' : 'bg-gray-600'"
+            @click="banListenedTracks = !banListenedTracks"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
         <SoundCloudTrackTable
           ref="seedTracksTable"
           :tracks="displayedSeedTracks"
@@ -169,42 +183,58 @@
 
       <!-- Related Tracks Results -->
       <div v-if="!showingSeedResults && tracks.length > 0">
-        <div class="flex items-center justify-between mb-6" />
-
-        <!-- Sort by Dropdown -->
-        <div class="flex justify-end mb-4 relative">
-          <button
-            class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
-            style="background-color: rgba(47, 47, 47, 255) !important;"
-            @click="toggleLikesRatioDropdown"
-            @blur="hideLikesRatioDropdown"
-          >
-            {{ getSortText() }}
-            <Icon :icon="faChevronDown" class="text-xs" />
-          </button>
-
-          <!-- Dropdown Menu -->
-          <div
-            v-if="showLikesRatioDropdown"
-            class="absolute right-0 mt-12 w-52 rounded-lg shadow-lg z-50"
-            style="background-color: rgb(67,67,67,255);"
-          >
+        <!-- Ban Listened Tracks Toggle and Sort by Dropdown -->
+        <div class="flex items-end justify-between mb-4 relative">
+          <!-- Ban Listened Tracks Toggle - Left aligned -->
+          <div class="flex items-end gap-3">
+            <span class="text-sm text-white/80">Ban listened tracks</span>
             <button
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition rounded-t-lg"
-              :class="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
-              :style="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
-              @mousedown.prevent="setLikesRatioFilter('newest')"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="banListenedTracks ? 'bg-green-500' : 'bg-gray-600'"
+              @click="banListenedTracks = !banListenedTracks"
             >
-              Most Recent
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="banListenedTracks ? 'translate-x-5' : 'translate-x-0'"
+              />
             </button>
+          </div>
+
+          <!-- Sort by Dropdown - Right aligned -->
+          <div class="relative">
             <button
-              class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition rounded-b-lg"
-              :class="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
-              :style="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
-              @mousedown.prevent="setLikesRatioFilter('none')"
+              class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white/10 text-white/80 hover:bg-white/20"
+              style="background-color: rgba(47, 47, 47, 255) !important;"
+              @click="toggleLikesRatioDropdown"
+              @blur="hideLikesRatioDropdown"
             >
-              Most Streams
+              {{ getSortText() }}
+              <Icon :icon="faChevronDown" class="text-xs" />
             </button>
+
+            <!-- Dropdown Menu -->
+            <div
+              v-if="showLikesRatioDropdown"
+              class="absolute right-0 mt-12 w-52 rounded-lg shadow-lg z-50"
+              style="background-color: rgb(67,67,67,255);"
+            >
+              <button
+                class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition rounded-t-lg"
+                :class="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
+                :style="likesRatioFilter === 'newest' ? 'background-color: rgb(67,67,67,255)' : ''"
+                @mousedown.prevent="setLikesRatioFilter('newest')"
+              >
+                Most Recent
+              </button>
+              <button
+                class="w-full px-4 py-2 text-left text-white hover:bg-white/10 transition rounded-b-lg"
+                :class="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
+                :style="likesRatioFilter === 'none' ? 'background-color: rgb(67,67,67,255)' : ''"
+                @mousedown.prevent="setLikesRatioFilter('none')"
+              >
+                Most Streams
+              </button>
+            </div>
           </div>
         </div>
 
@@ -317,6 +347,8 @@ const blacklistedTracks = ref<Set<string>>(new Set())
 const clientUnsavedTracks = ref<Set<string>>(new Set()) // Tracks unsaved by client
 const processingTrack = ref<string | number | null>(null)
 const listenedTracks = ref<Set<string>>(new Set()) // Tracks that have been listened to
+const banListenedTracks = ref(false)
+const pendingAutoBannedTracks = ref(new Set<string>())
 
 // Load-more computed helpers
 const totalTracks = computed(() => tracks.value.length)
@@ -370,7 +402,10 @@ const loadRelatedTracks = async (trackUrn: string) => {
     const globalFiltered = filterSoundCloudTracks(relatedTracks)
 
     // Apply local banned artists filtering (for Similar Artists compatibility)
-    const localFiltered = filterBannedArtists(globalFiltered)
+    const bannedArtistsFiltered = filterBannedArtists(globalFiltered)
+
+    // Apply local blacklisted tracks filtering (user preferences)
+    const localFiltered = filterBlacklistedTracks(bannedArtistsFiltered)
 
     allTracks.value = localFiltered // Store all tracks for sorting
     applyFiltering() // Apply current sort filter
@@ -423,9 +458,15 @@ const searchSeedTracks = async (query: string) => {
       offset: 0,
     })
 
-    // For NEW seed track searches: filter out banned artists from new results
+    // For NEW seed track searches: filter out banned artists and blacklisted tracks
+    // Apply global blacklist filtering (tracks + artists)
+    const globalFiltered = filterSoundCloudTracks(response.tracks || [])
+
     // Apply local banned artists filter (for Similar Artists compatibility)
-    const filteredResults = filterBannedArtists(response.tracks || [])
+    const bannedArtistsFiltered = filterBannedArtists(globalFiltered)
+
+    // Apply local blacklisted tracks filtering (user preferences)
+    const filteredResults = filterBlacklistedTracks(bannedArtistsFiltered)
 
     seedSearchResults.value = filteredResults
     seedHasMore.value = response.hasMore || (response.tracks?.length || 0) >= pageLimit
@@ -919,6 +960,53 @@ const markTrackAsListened = async (track: SoundCloudTrack) => {
       localStorage.setItem('koel-listened-tracks', JSON.stringify(keys))
     } catch {}
   }
+
+  if (banListenedTracks.value) {
+    autoBlacklistListenedTrack(track)
+  }
+}
+
+// Auto-blacklist a track when "Ban listened tracks" is enabled
+const autoBlacklistListenedTrack = async (track: SoundCloudTrack) => {
+  const trackKey = getTrackKey(track)
+  const identifier = `soundcloud:${track.id}` || trackKey
+
+  if (blacklistedTracks.value.has(trackKey) || pendingAutoBannedTracks.value.has(identifier)) {
+    return
+  }
+
+  pendingAutoBannedTracks.value.add(identifier)
+  pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+
+  try {
+    const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    const response = await http.post('music-preferences/blacklist-track', {
+      spotify_id: null,
+      isrc: isrcValue,
+      track_name: track.title,
+      artist_name: track.user?.username || 'Unknown',
+    })
+
+    if (response.success) {
+      blacklistedTracks.value.add(trackKey)
+      addTrackToBlacklist({
+        id: String(track.id),
+        name: track.title,
+        artist: track.user?.username || 'Unknown',
+      } as any)
+
+      window.dispatchEvent(new CustomEvent('track-blacklisted', {
+        detail: { track, trackKey },
+      }))
+      localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+    }
+  } catch (error) {
+    console.warn('Failed to auto-ban listened track:', error)
+  } finally {
+    pendingAutoBannedTracks.value.delete(identifier)
+    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+  }
 }
 
 // Load user preferences
@@ -1070,8 +1158,16 @@ const loadMoreSeedTracks = () => {
     offset,
   })
     .then(response => {
-      const incoming = filterBannedArtists(response.tracks || [])
-      const unique = dedupeSeedTracks(incoming)
+      // Apply global blacklist filtering (tracks + artists)
+      const globalFiltered = filterSoundCloudTracks(response.tracks || [])
+
+      // Apply local banned artists filter
+      const bannedArtistsFiltered = filterBannedArtists(globalFiltered)
+
+      // Apply local blacklisted tracks filtering
+      const blacklistedFiltered = filterBlacklistedTracks(bannedArtistsFiltered)
+
+      const unique = dedupeSeedTracks(blacklistedFiltered)
       seedSearchResults.value = [...seedSearchResults.value, ...unique]
       seedHasMore.value = response.hasMore || (response.tracks?.length || 0) >= pageLimit
       displayLimitSeed.value = Math.min(displayLimitSeed.value + 20, seedSearchResults.value.length)
@@ -1178,6 +1274,14 @@ const filterBannedArtists = (trackList: SoundCloudTrack[]): SoundCloudTrack[] =>
   })
 }
 
+// Filter function to remove blacklisted tracks
+const filterBlacklistedTracks = (trackList: SoundCloudTrack[]): SoundCloudTrack[] => {
+  return trackList.filter(track => {
+    const trackKey = getTrackKey(track)
+    return !blacklistedTracks.value.has(trackKey)
+  })
+}
+
 // Click outside handler to close dropdown
 const handleClickOutside = (event: MouseEvent) => {
   if (searchContainer.value && !searchContainer.value.contains(event.target as Node)) {
@@ -1239,6 +1343,22 @@ watch(seedTrack, (newValue, oldValue) => {
     isTruthy: !!newValue,
   })
 }, { immediate: true })
+
+// Auto-ban already listened tracks when toggle is turned on
+watch(banListenedTracks, async (newValue, oldValue) => {
+  if (newValue && !oldValue) {
+    // Get tracks from either displayed tracks (related) or displayed seed tracks (seed search)
+    const currentTracks = showingSeedResults.value ? displayedSeedTracks.value : displayedTracks.value
+    const targets = currentTracks.filter(track => {
+      const trackKey = getTrackKey(track)
+      return listenedTracks.value.has(trackKey) && !blacklistedTracks.value.has(trackKey)
+    })
+
+    for (const track of targets) {
+      await autoBlacklistListenedTrack(track)
+    }
+  }
+})
 
 onMounted(() => {
   console.log('🎵 [MOUNT] Component mounted, seedTrack initial value:', seedTrack.value)
