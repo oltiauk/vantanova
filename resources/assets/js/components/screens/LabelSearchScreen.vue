@@ -364,6 +364,9 @@ const blacklistedTracks = ref(new Set<string>())
 const banListenedTracks = ref(false)
 const pendingAutoBannedTracks = ref(new Set<string>())
 
+// Track which tracks were auto-banned by the toggle (for unbanning when toggle is turned off)
+const autoBlacklistedTracks = ref(new Set<string>())
+
 // Audio for previews
 let currentAudio: HTMLAudioElement | null = null
 
@@ -373,8 +376,10 @@ const hasMoreTracks = computed(() => visibleCount.value < tracks.value.length)
 const remainingTracksCount = computed(() => Math.max(tracks.value.length - visibleCount.value, 0))
 
 // Auto-ban already listened tracks when toggle is turned on
+// Auto-unban auto-blacklisted tracks when toggle is turned off
 watch(banListenedTracks, async (newValue, oldValue) => {
   if (newValue && !oldValue) {
+    // Toggle turned ON - auto-ban already-listened tracks
     const targets = displayTracks.value.filter(track => {
       const trackKey = getTrackKey(track)
       return listenedTracks.value.has(trackKey) && !blacklistedTracks.value.has(trackKey)
@@ -382,6 +387,44 @@ watch(banListenedTracks, async (newValue, oldValue) => {
 
     for (const track of targets) {
       await autoBlacklistListenedTrack(track)
+    }
+  } else if (!newValue && oldValue) {
+    // Toggle turned OFF - unban all auto-blacklisted tracks
+    const tracksToUnban = displayTracks.value.filter(track => {
+      const trackKey = getTrackKey(track)
+      return autoBlacklistedTracks.value.has(trackKey)
+    })
+
+    for (const track of tracksToUnban) {
+      const trackKey = getTrackKey(track)
+
+      try {
+        // Remove from UI immediately
+        track.isBanned = false
+        blacklistedTracks.value.delete(trackKey)
+        autoBlacklistedTracks.value.delete(trackKey)
+
+        // Remove from backend
+        const deleteData = {
+          isrc: track.isrc,
+          track_name: track.track_name,
+          artist_name: track.artist_name,
+        }
+        const params = new URLSearchParams(deleteData)
+        await http.delete(`music-preferences/blacklist-track?${params}`)
+
+        // Trigger UI refresh events
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track: track, trackKey: trackKey }
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch (error) {
+        logger.warn('Failed to unban auto-blacklisted track:', error)
+        // Revert UI change on failure
+        track.isBanned = true
+        blacklistedTracks.value.add(trackKey)
+        autoBlacklistedTracks.value.add(trackKey)
+      }
     }
   }
 })
@@ -494,8 +537,7 @@ const getTrackIdentifier = (track: any): string => {
 }
 
 const isBanButtonActive = (track: any): boolean => {
-  // Keep functionality but avoid showing red when the track is only saved
-  return !!(track && track.isBanned && !track.isSaved)
+  return !!(track && track.isBanned)
 }
 
 // Check if current label is in watchlist
@@ -670,7 +712,19 @@ const autoBlacklistListenedTrack = async (track: any) => {
   const trackKey = getTrackKey(track)
   const identifier = getTrackIdentifier(track)
 
+  console.log('🚫 [AUTO-BAN] Attempting to auto-ban track:', {
+    trackName: track.track_name,
+    artist: track.artist_name,
+    trackKey,
+    identifier,
+    hasSpotifyId: !!track.spotify_id,
+    hasIsrc: !!track.isrc,
+    alreadyBlacklisted: blacklistedTracks.value.has(trackKey),
+    isPending: pendingAutoBannedTracks.value.has(identifier)
+  })
+
   if (blacklistedTracks.value.has(trackKey) || pendingAutoBannedTracks.value.has(identifier)) {
+    console.log('⏭️ [AUTO-BAN] Skipping - already blacklisted or pending')
     return
   }
 
@@ -678,21 +732,46 @@ const autoBlacklistListenedTrack = async (track: any) => {
   pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
   try {
-    const response = await http.post('music-preferences/blacklist-track', {
+    const payload = {
       spotify_id: track.spotify_id,
       isrc: track.isrc,
       track_name: track.track_name,
       artist_name: track.artist_name,
-    })
+    }
+
+    console.log('📤 [AUTO-BAN] Sending blacklist request with payload:', payload)
+
+    const response = await http.post('music-preferences/blacklist-track', payload)
+
+    console.log('📥 [AUTO-BAN] Response received:', response)
 
     if (response.success) {
-      track.isBanned = true
+      // Force Vue reactivity by finding and updating the track in the array
+      const trackIndex = tracks.value.findIndex(t => getTrackKey(t) === trackKey)
+      if (trackIndex !== -1) {
+        tracks.value[trackIndex].isBanned = true
+        // Trigger reactivity by reassigning the array
+        tracks.value = [...tracks.value]
+      } else {
+        // Fallback: update the track object directly
+        track.isBanned = true
+      }
+
       blacklistedTracks.value.add(trackKey)
+
+      // Track that this was auto-banned (for later unbanning when toggle is turned off)
+      autoBlacklistedTracks.value.add(trackKey)
+
+      console.log('✅ [AUTO-BAN] Successfully banned track:', track.track_name)
+
       try {
         localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
       } catch {}
+    } else {
+      console.error('❌ [AUTO-BAN] Backend returned error:', response.error || 'Unknown error')
     }
   } catch (error) {
+    console.error('❌ [AUTO-BAN] Failed to auto-ban track:', track.track_name, error)
     logger.warn('Failed to auto-ban listened track:', error)
   } finally {
     pendingAutoBannedTracks.value.delete(identifier)
@@ -898,9 +977,21 @@ const banTrack = async track => {
 
   try {
     if (track.isBanned) {
-      // UNBAN TRACK
-      track.isBanned = false
+      // UNBAN TRACK - Update UI immediately for better UX
+      // Force Vue reactivity by updating the track in the array
+      const trackIndex = tracks.value.findIndex(t => getTrackKey(t) === trackKey)
+      if (trackIndex !== -1) {
+        tracks.value[trackIndex].isBanned = false
+        tracks.value = [...tracks.value]
+      } else {
+        track.isBanned = false
+      }
+
       blacklistedTracks.value.delete(trackKey)
+
+      // Also remove from auto-blacklist tracking (user manually unbanned it)
+      autoBlacklistedTracks.value.delete(trackKey)
+
       pendingAutoBannedTracks.value.delete(identifier)
       pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
@@ -915,12 +1006,17 @@ const banTrack = async track => {
 
       if (!response.success) {
         // Revert UI change if backend failed
-        track.isBanned = true
+        if (trackIndex !== -1) {
+          tracks.value[trackIndex].isBanned = true
+          tracks.value = [...tracks.value]
+        } else {
+          track.isBanned = true
+        }
         blacklistedTracks.value.add(trackKey)
         logger.error('Failed to remove track from blacklist:', response.error)
       }
     } else {
-      // BAN TRACK - Manual ban removes immediately
+      // BAN TRACK - Manual ban
       const response = await http.post('music-preferences/blacklist-track', {
         spotify_id: track.spotify_id,
         isrc: track.isrc,
@@ -929,8 +1025,21 @@ const banTrack = async track => {
       })
 
       if (response.success) {
-        track.isBanned = true
+        // Force Vue reactivity by updating the track in the array
+        const trackIndex = tracks.value.findIndex(t => getTrackKey(t) === trackKey)
+        if (trackIndex !== -1) {
+          tracks.value[trackIndex].isBanned = true
+          tracks.value = [...tracks.value]
+        } else {
+          track.isBanned = true
+        }
+
         blacklistedTracks.value.add(trackKey)
+
+        // Remove from auto-blacklist tracking - this is now a manual ban
+        // (so it won't be unbanned when toggle is turned off)
+        autoBlacklistedTracks.value.delete(trackKey)
+
         pendingAutoBannedTracks.value.delete(identifier)
         pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
       } else {

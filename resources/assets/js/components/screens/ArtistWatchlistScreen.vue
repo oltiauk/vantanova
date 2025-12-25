@@ -400,6 +400,7 @@ const listenedTracks = ref(new Set<string>())
 const banListenedTracks = ref(false)
 const pendingAutoBannedTracks = ref(new Set<string>())
 const sessionBannedReleases = ref(new Set<string>())
+const autoBlacklistedTracks = ref(new Set<string>())
 const notification = ref<string | null>(null)
 const autoRefreshRequested = ref(false)
 const currentPage = ref(1)
@@ -926,6 +927,8 @@ const autoBlacklistListenedRelease = async (release: WatchlistRelease) => {
 
     if (response.success) {
       release.isBanned = true
+      // Track that this was auto-banned (for later unbanning when toggle is turned off)
+      autoBlacklistedTracks.value.add(identifier)
       try {
         localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
       } catch {}
@@ -1310,6 +1313,8 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
       }
       pendingAutoBannedTracks.value.delete(identifier)
       pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+      // Remove from auto-blacklist tracking (user manually unbanned it)
+      autoBlacklistedTracks.value.delete(identifier)
       sessionBannedReleases.value.delete(identifier)
       persistSessionBanned()
     } else {
@@ -1340,6 +1345,9 @@ const banTrack = async (release: WatchlistRelease, index: number) => {
 
       pendingAutoBannedTracks.value.delete(identifier)
       pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+      // Remove from auto-blacklist tracking - this is now a manual ban
+      // (so it won't be unbanned when toggle is turned off)
+      autoBlacklistedTracks.value.delete(identifier)
       sessionBannedReleases.value.add(identifier)
       persistSessionBanned()
       console.log('🎨 [WATCHLIST] Ban applied', { identifier, isBanned: release.isBanned })
@@ -1449,6 +1457,7 @@ watch(releases, () => {
 
 watch(banListenedTracks, async (newValue, oldValue) => {
   if (newValue && !oldValue) {
+    // Toggle turned ON - auto-ban already-listened tracks
     const targets = paginatedReleases.value.filter(release => {
       const identifier = getReleaseIdentifier(release)
       return listenedTracks.value.has(identifier) && !release.isBanned
@@ -1456,6 +1465,38 @@ watch(banListenedTracks, async (newValue, oldValue) => {
 
     for (const release of targets) {
       await autoBlacklistListenedRelease(release)
+    }
+  } else if (!newValue && oldValue) {
+    // Toggle turned OFF - unban all auto-blacklisted tracks
+    const tracksToUnban = paginatedReleases.value.filter(release => {
+      const identifier = getReleaseIdentifier(release)
+      return autoBlacklistedTracks.value.has(identifier)
+    })
+
+    for (const release of tracksToUnban) {
+      const identifier = getReleaseIdentifier(release)
+
+      try {
+        // Update UI immediately
+        release.isBanned = false
+        autoBlacklistedTracks.value.delete(identifier)
+
+        // Remove from backend
+        const params = new URLSearchParams({
+          isrc: release.isrc || '',
+          track_name: release.track_title,
+          artist_name: release.artist_name,
+        })
+        await http.delete(`music-preferences/blacklist-track?${params.toString()}`)
+
+        // Trigger UI refresh events
+        localStorage.setItem('track-unblacklisted-timestamp', Date.now().toString())
+      } catch (error) {
+        console.warn('Failed to unban auto-blacklisted release:', error)
+        // Revert UI change on failure
+        release.isBanned = true
+        autoBlacklistedTracks.value.add(identifier)
+      }
     }
   }
 })

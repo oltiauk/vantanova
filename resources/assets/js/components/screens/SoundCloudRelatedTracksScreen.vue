@@ -349,6 +349,7 @@ const processingTrack = ref<string | number | null>(null)
 const listenedTracks = ref<Set<string>>(new Set()) // Tracks that have been listened to
 const banListenedTracks = ref(false)
 const pendingAutoBannedTracks = ref(new Set<string>())
+const autoBlacklistedTracks = ref(new Set<string>()) // Track which tracks were auto-banned by the toggle
 
 // Load-more computed helpers
 const totalTracks = computed(() => tracks.value.length)
@@ -722,7 +723,7 @@ const isTrackBlacklisted = (track: SoundCloudTrack): boolean => {
 
 // Check if ban button should be active (red)
 const isBanButtonActive = (track: SoundCloudTrack): boolean => {
-  return isTrackBlacklisted(track) && !isTrackSaved(track)
+  return isTrackBlacklisted(track)
 }
 
 // Save track function
@@ -876,6 +877,8 @@ const blacklistTrack = async (track: SoundCloudTrack) => {
   if (isTrackBlacklisted(track)) {
     // UNBAN TRACK - Update UI immediately
     blacklistedTracks.value.delete(trackKey)
+    // Remove from auto-blacklist tracking (user manually unbanned it)
+    autoBlacklistedTracks.value.delete(trackKey)
 
     try {
       const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -914,6 +917,9 @@ const blacklistTrack = async (track: SoundCloudTrack) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
+        // Remove from auto-blacklist tracking - this is now a manual ban
+        // (so it won't be unbanned when toggle is turned off)
+        autoBlacklistedTracks.value.delete(trackKey)
         addTrackToBlacklist({
           id: String(track.id),
           name: track.title,
@@ -990,6 +996,8 @@ const autoBlacklistListenedTrack = async (track: SoundCloudTrack) => {
 
     if (response.success) {
       blacklistedTracks.value.add(trackKey)
+      // Track that this was auto-banned (for later unbanning when toggle is turned off)
+      autoBlacklistedTracks.value.add(trackKey)
       addTrackToBlacklist({
         id: String(track.id),
         name: track.title,
@@ -1344,9 +1352,10 @@ watch(seedTrack, (newValue, oldValue) => {
   })
 }, { immediate: true })
 
-// Auto-ban already listened tracks when toggle is turned on
+// Auto-ban already listened tracks when toggle is turned on, and unban auto-banned tracks when toggle is turned off
 watch(banListenedTracks, async (newValue, oldValue) => {
   if (newValue && !oldValue) {
+    // Toggle turned ON - auto-ban already-listened tracks
     // Get tracks from either displayed tracks (related) or displayed seed tracks (seed search)
     const currentTracks = showingSeedResults.value ? displayedSeedTracks.value : displayedTracks.value
     const targets = currentTracks.filter(track => {
@@ -1356,6 +1365,45 @@ watch(banListenedTracks, async (newValue, oldValue) => {
 
     for (const track of targets) {
       await autoBlacklistListenedTrack(track)
+    }
+  } else if (!newValue && oldValue) {
+    // Toggle turned OFF - unban all auto-blacklisted tracks
+    // Get tracks from either displayed tracks (related) or displayed seed tracks (seed search)
+    const currentTracks = showingSeedResults.value ? seedSearchResults.value : tracks.value
+    const tracksToUnban = currentTracks.filter(track => {
+      const trackKey = getTrackKey(track)
+      return autoBlacklistedTracks.value.has(trackKey)
+    })
+
+    for (const track of tracksToUnban) {
+      const trackKey = getTrackKey(track)
+
+      try {
+        // Optimistically update UI
+        blacklistedTracks.value.delete(trackKey)
+        autoBlacklistedTracks.value.delete(trackKey)
+
+        const isrcValue = `soundcloud:${track.id}` || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+        const deleteData = {
+          isrc: isrcValue,
+          track_name: track.title,
+          artist_name: track.user?.username || 'Unknown',
+        }
+        const params = new URLSearchParams(deleteData)
+        await http.delete(`music-preferences/blacklist-track?${params}`)
+
+        // Dispatch event to notify other components
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track, trackKey },
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch (error) {
+        console.warn('Failed to unban auto-blacklisted track:', error)
+        // Rollback on error
+        blacklistedTracks.value.add(trackKey)
+        autoBlacklistedTracks.value.add(trackKey)
+      }
     }
   }
 })

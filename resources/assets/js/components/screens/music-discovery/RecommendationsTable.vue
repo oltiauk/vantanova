@@ -199,6 +199,22 @@
                         <Icon v-if="expandedTrackId === getTrackKey(track) && !(processingTrack === getTrackKey(track) && isPreviewProcessing)" :icon="faTimes" class="w-3 h-3" />
                         <span :class="(processingTrack === getTrackKey(track) && isPreviewProcessing) ? '' : 'ml-1'">{{ (processingTrack === getTrackKey(track) && isPreviewProcessing) ? 'Loading...' : (expandedTrackId === getTrackKey(track) ? 'Close' : (listenedTracks.has(getTrackKey(track)) ? 'Listened' : 'Listen')) }}</span>
                       </button>
+
+                      <!-- Preview Play Button -->
+                      <button
+                        @click="togglePreviewPlayback(track)"
+                        :disabled="processingTrack === getTrackKey(track) || !track.preview_url"
+                        :class="[
+                          'h-[34px] w-[34px] rounded text-sm font-medium transition disabled:opacity-50 flex items-center justify-center',
+                          currentlyPlayingTrackKey === getTrackKey(track) && isPreviewPlaying
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-[#484948] hover:bg-gray-500 text-white'
+                        ]"
+                        :title="track.preview_url ? (currentlyPlayingTrackKey === getTrackKey(track) && isPreviewPlaying ? 'Pause preview' : 'Play preview') : 'No preview available'"
+                      >
+                        <Icon v-if="currentlyPlayingTrackKey === getTrackKey(track) && isPreviewPlaying" :icon="faPause" class="text-sm" />
+                        <Icon v-else :icon="faPlay" class="text-sm" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -279,7 +295,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick, withDefaults } from 'vue'
-import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faRandom, faInfoCircle, faSearch, faChevronDown, faFilter, faArrowUp, faClock } from '@fortawesome/free-solid-svg-icons'
+import { faSpinner, faExclamationTriangle, faTimes, faHeart, faBan, faUserPlus, faUserMinus, faPlay, faPause, faRandom, faInfoCircle, faSearch, faChevronDown, faFilter, faArrowUp, faClock } from '@fortawesome/free-solid-svg-icons'
 import { http } from '@/services/http'
 import { useBlacklistFiltering } from '@/composables/useBlacklistFiltering'
 import { useRouter } from '@/composables/useRouter'
@@ -364,11 +380,19 @@ const banListenedTracks = ref(false)
 // Store track IDs that were auto-banned but should remain visible until flushed
 const pendingAutoBannedTracks = ref(new Set<string>())
 
+// Track which tracks were auto-banned by the toggle (for unbanning when toggle is turned off)
+const autoBlacklistedTracks = ref(new Set<string>())
+
 // Stats fetching tracking - to avoid duplicate API calls
 const tracksWithStatsFetched = ref(new Set<string>()) // Track keys that have had stats fetched
 
 // Banned artists tracking (shared with Similar Artists)
 const bannedArtists = ref(new Set<string>()) // Store artist names
+
+// Audio preview playback state
+const audioElement = ref<HTMLAudioElement | null>(null)
+const currentlyPlayingTrackKey = ref<string | null>(null)
+const isPreviewPlaying = ref(false)
 
 // Initialize global blacklist filtering composable
 const { 
@@ -879,6 +903,9 @@ const blacklistTrack = async (track: Track) => {
     // UNBAN TRACK - Update UI immediately for better UX
     blacklistedTracks.value.delete(trackKey)
 
+    // Also remove from auto-blacklist tracking (user manually unbanned it)
+    autoBlacklistedTracks.value.delete(trackKey)
+
     const wasPending = pendingAutoBannedTracks.value.has(trackIdentifier)
     if (wasPending) {
       pendingAutoBannedTracks.value.delete(trackIdentifier)
@@ -934,7 +961,7 @@ const blacklistTrack = async (track: Track) => {
   } else {
     // Block track - show processing state
     processingTrack.value = trackKey
-    
+
     try {
       // Generate a fallback ISRC if none exists
       const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -948,6 +975,10 @@ const blacklistTrack = async (track: Track) => {
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
         addTrackToBlacklist(track)
+
+        // Remove from auto-blacklist tracking - this is now a manual ban
+        // (so it won't be unbanned when toggle is turned off)
+        autoBlacklistedTracks.value.delete(trackKey)
       } else {
         throw new Error(response.error || 'Failed to blacklist track')
       }
@@ -1083,6 +1114,68 @@ const handlePreviewClick = (track: Track) => {
   }
 }
 
+// Toggle preview audio playback
+const togglePreviewPlayback = async (track: Track) => {
+  const trackKey = getTrackKey(track)
+  
+  // If no preview URL, do nothing
+  if (!track.preview_url) {
+    return
+  }
+
+  // If the same track is playing, pause it
+  if (currentlyPlayingTrackKey.value === trackKey && isPreviewPlaying.value) {
+    if (audioElement.value) {
+      audioElement.value.pause()
+      isPreviewPlaying.value = false
+    }
+    return
+  }
+
+  // If a different track is playing, stop it first
+  if (audioElement.value && currentlyPlayingTrackKey.value !== trackKey) {
+    audioElement.value.pause()
+    audioElement.value = null
+    isPreviewPlaying.value = false
+  }
+
+  // Start playing the new track
+  try {
+    // Create new audio element if needed
+    if (!audioElement.value) {
+      audioElement.value = new Audio()
+      
+      // Set up event listeners
+      audioElement.value.addEventListener('ended', () => {
+        isPreviewPlaying.value = false
+        currentlyPlayingTrackKey.value = null
+        audioElement.value = null
+      })
+      
+      audioElement.value.addEventListener('error', () => {
+        isPreviewPlaying.value = false
+        currentlyPlayingTrackKey.value = null
+        audioElement.value = null
+      })
+    }
+
+    // Set the source and play
+    audioElement.value.src = track.preview_url
+    currentlyPlayingTrackKey.value = trackKey
+    
+    await audioElement.value.play()
+    isPreviewPlaying.value = true
+    
+    // Mark track as listened when playback starts
+    markTrackAsListened(track)
+  } catch (error) {
+    console.error('Failed to play preview:', error)
+    isPreviewPlaying.value = false
+    currentlyPlayingTrackKey.value = null
+    audioElement.value = null
+  }
+}
+
 // Auto-blacklist a track that has been listened to (when toggle is enabled)
 const autoBlacklistListenedTrack = async (track: Track) => {
   const trackKey = getTrackKey(track)
@@ -1103,6 +1196,9 @@ const autoBlacklistListenedTrack = async (track: Track) => {
     if (response.success) {
       blacklistedTracks.value.add(trackKey)
       addTrackToBlacklist(track)
+
+      // Track that this was auto-banned (for later unbanning when toggle is turned off)
+      autoBlacklistedTracks.value.add(trackKey)
 
       const trackIdentifier = track.id || trackKey
       pendingAutoBannedTracks.value.add(trackIdentifier)
@@ -1615,6 +1711,14 @@ onRouteChanged((route) => {
   // Close any open preview when navigating away
   expandedTrackId.value = null
   
+  // Stop audio playback when navigating away
+  if (audioElement.value) {
+    audioElement.value.pause()
+    audioElement.value = null
+  }
+  isPreviewPlaying.value = false
+  currentlyPlayingTrackKey.value = null
+  
   // Enable animations when entering Music Discovery screen
   if (route.screen === 'MusicDiscovery' && props.recommendations.length > 0) {
     allowAnimations.value = true
@@ -1630,6 +1734,13 @@ onRouteChanged((route) => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  // Clean up audio element
+  if (audioElement.value) {
+    audioElement.value.pause()
+    audioElement.value = null
+  }
+  isPreviewPlaying.value = false
+  currentlyPlayingTrackKey.value = null
 })
 
 // Fetch LastFM stats for tracks
@@ -1908,8 +2019,10 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
 }, { immediate: true })
 
 // Auto-ban already-listened tracks when toggle is turned on
+// Auto-unban auto-blacklisted tracks when toggle is turned off
 watch(banListenedTracks, async (newValue, oldValue) => {
   if (newValue && !oldValue) {
+    // Toggle turned ON - auto-ban already-listened tracks
     const tracksToBan = displayRecommendations.value.filter(track => {
       const trackKey = getTrackKey(track)
       return listenedTracks.value.has(trackKey) && !isTrackBlacklisted(track)
@@ -1917,6 +2030,43 @@ watch(banListenedTracks, async (newValue, oldValue) => {
 
     for (const track of tracksToBan) {
       await autoBlacklistListenedTrack(track)
+    }
+  } else if (!newValue && oldValue) {
+    // Toggle turned OFF - unban all auto-blacklisted tracks
+    const tracksToUnban = displayRecommendations.value.filter(track => {
+      const trackKey = getTrackKey(track)
+      return autoBlacklistedTracks.value.has(trackKey)
+    })
+
+    for (const track of tracksToUnban) {
+      const trackKey = getTrackKey(track)
+
+      try {
+        // Remove from UI immediately
+        blacklistedTracks.value.delete(trackKey)
+        autoBlacklistedTracks.value.delete(trackKey)
+
+        // Remove from backend
+        const isrcValue = track.external_ids?.isrc || track.id || `generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        const deleteData = {
+          isrc: isrcValue,
+          track_name: track.name,
+          artist_name: track.artist
+        }
+        const params = new URLSearchParams(deleteData)
+        await http.delete(`music-preferences/blacklist-track?${params}`)
+
+        // Trigger UI refresh events
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track: track, trackKey: trackKey }
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch (error) {
+        console.warn('Failed to unban auto-blacklisted track:', error)
+        // Revert UI change on failure
+        blacklistedTracks.value.add(trackKey)
+        autoBlacklistedTracks.value.add(trackKey)
+      }
     }
   }
 })

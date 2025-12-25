@@ -73,15 +73,20 @@
           <div class="bg-white/5 rounded-xl">
             <div class="flex items-center justify-between px-6 pt-6 pb-4">
               <h3 class="text-lg font-semibold text-white">Releases in the past 2 weeks</h3>
-              <button
-                class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="isFetchingReleases || watchlist.length === 0"
-                title="Refresh releases"
-                @click="fetchReleases(true)"
-              >
-                <Icon :icon="faSync" class="w-4 h-4" />
-                <span>Refresh</span>
-              </button>
+              <div class="flex items-center gap-3">
+                <button
+                  class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="isFetchingReleases || watchlist.length === 0 || !canRefresh"
+                  :title="canRefresh ? 'Refresh releases' : `Refresh available in ${timeUntilRefresh || 'calculating...'}`"
+                  @click="fetchReleases(true)"
+                >
+                  <Icon :icon="faSync" class="w-4 h-4" />
+                  <span>Refresh</span>
+                </button>
+                <span v-if="!canRefresh && timeUntilRefresh" class="text-sm text-white/60">
+                  Available in {{ timeUntilRefresh }}
+                </span>
+              </div>
             </div>
 
             <div>
@@ -106,7 +111,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-if="releases.length === 0" class="text-center">
+                      <tr v-if="nonBannedReleases.length === 0" class="text-center">
                         <td colspan="6" class="py-8 text-white/70">No recent releases found. Try refreshing or following more labels.</td>
                       </tr>
                       <template v-else>
@@ -223,7 +228,7 @@
                   </table>
                 </div>
                 <div
-                  v-if="releases.length > releasesPerPage"
+                  v-if="nonBannedReleases.length > releasesPerPage"
                   class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5"
                 >
                   <button
@@ -321,6 +326,8 @@ const currentPage = ref(1)
 const releasesPerPage = 20
 const processingRelease = ref<string | null>(null)
 const notificationTimeout = ref<number | undefined>()
+const refreshCooldownTimer = ref<number | undefined>()
+const timeUntilRefresh = ref<string>('')
 
 const sortWatchlist = (entries: WatchlistLabel[]) => [...entries].sort((a, b) => a.label.localeCompare(b.label))
 
@@ -376,18 +383,60 @@ const handleWatchlistUpdated = (event: Event) => {
   applyWatchlistMutation(detail.action, detail.label)
 }
 
+// Filter out banned tracks
+const nonBannedReleases = computed(() => {
+  return releases.value.filter(release => !release.isBanned)
+})
+
 const totalPages = computed(() => {
-  if (releases.value.length === 0) {
+  if (nonBannedReleases.value.length === 0) {
     return 1
   }
-  return Math.max(1, Math.ceil(releases.value.length / releasesPerPage))
+  return Math.max(1, Math.ceil(nonBannedReleases.value.length / releasesPerPage))
 })
 
 const paginatedReleases = computed(() => {
   const start = (currentPage.value - 1) * releasesPerPage
   const end = start + releasesPerPage
-  return releases.value.slice(start, end)
+  return nonBannedReleases.value.slice(start, end)
 })
+
+const canRefresh = computed(() => {
+  return isRefreshStale()
+})
+
+const getTimeUntilRefresh = (): string => {
+  try {
+    const raw = localStorage.getItem(LABEL_WATCHLIST_LAST_REFRESH_KEY)
+    if (!raw) {
+      return ''
+    }
+    const last = Number.parseInt(raw, 10)
+    if (!Number.isFinite(last)) {
+      return ''
+    }
+    const elapsed = Date.now() - last
+    const remaining = TWENTY_FOUR_HOURS - elapsed
+    
+    if (remaining <= 0) {
+      return ''
+    }
+    
+    const hours = Math.floor(remaining / (1000 * 60 * 60))
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60))
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`
+    }
+    return `${minutes}m`
+  } catch {
+    return ''
+  }
+}
+
+const updateRefreshCooldown = () => {
+  timeUntilRefresh.value = getTimeUntilRefresh()
+}
 
 const goToPage = (page: number) => {
   const clamped = Math.min(Math.max(1, page), totalPages.value)
@@ -913,6 +962,14 @@ const fetchReleases = async (force = false) => {
     return
   }
 
+  // Check 24-hour cooldown limit only for manual refreshes (force = true)
+  // Initial loads (force = false) should always fetch to show existing releases
+  if (force && !isRefreshStale()) {
+    const timeRemaining = getTimeUntilRefresh()
+    showNotification(`Refresh is only available once every 24 hours. Please wait ${timeRemaining || 'a bit longer'}.`)
+    return
+  }
+
   isFetchingReleases.value = true
   try {
     const response = await http.post<{
@@ -989,6 +1046,7 @@ const fetchReleases = async (force = false) => {
       }
 
       markLastRefresh()
+      updateRefreshCooldown() // Update cooldown display after successful refresh
     }
   } catch (error: any) {
     console.error('Failed to fetch releases:', error)
@@ -1022,6 +1080,13 @@ onMounted(async () => {
   await loadWatchlist()
   loadSessionBanned()
   await loadListenedTracks()
+  
+  // Initialize and start cooldown timer
+  updateRefreshCooldown()
+  refreshCooldownTimer.value = window.setInterval(() => {
+    updateRefreshCooldown()
+  }, 60000) // Update every minute
+  
   const refreshedFromSidebar = await refreshIfRequested()
   if (!refreshedFromSidebar) {
     await fetchReleases()
@@ -1031,6 +1096,10 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener(WATCHLIST_EVENT, handleWatchlistUpdated as EventListener)
   window.removeEventListener('label-watchlist-sidebar-click', handleSidebarRefreshEvent)
+  if (refreshCooldownTimer.value) {
+    clearInterval(refreshCooldownTimer.value)
+    refreshCooldownTimer.value = undefined
+  }
 })
 </script>
 

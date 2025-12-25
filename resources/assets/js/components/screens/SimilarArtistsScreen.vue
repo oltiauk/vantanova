@@ -495,6 +495,9 @@ const listenedTracks = ref(new Set<string>())
 const banListenedTracks = ref(false)
 const pendingAutoBannedTracks = ref(new Set<string>())
 
+// Track which tracks were auto-banned by the toggle (for unbanning when toggle is turned off)
+const autoBlacklistedTracks = ref(new Set<string>())
+
 // Track locally hidden artists (session-only, not global ban)
 const locallyHiddenArtists = ref(new Set<string>())
 
@@ -612,8 +615,10 @@ const loadMore = () => {
 watch([sortedArtists, visibleCount], applyDisplayedArtists, { immediate: true })
 
 // Auto-ban already listened tracks when the toggle is turned on
+// Auto-unban auto-blacklisted tracks when the toggle is turned off
 watch(banListenedTracks, async (newValue, oldValue) => {
   if (newValue && !oldValue) {
+    // Toggle turned ON - auto-ban already-listened tracks
     const tracksToBan = getKnownTracks().filter(track => {
       const trackKey = getTrackKey(track)
       return listenedTracks.value.has(trackKey) && !isTrackBanned(track)
@@ -622,6 +627,45 @@ watch(banListenedTracks, async (newValue, oldValue) => {
     for (const track of tracksToBan) {
       await autoBlacklistListenedTrack(track)
     }
+  } else if (!newValue && oldValue) {
+    // Toggle turned OFF - unban all auto-blacklisted tracks
+    const tracksToUnban = getKnownTracks().filter(track => {
+      const trackKey = getTrackKey(track)
+      return autoBlacklistedTracks.value.has(trackKey)
+    })
+
+    for (const track of tracksToUnban) {
+      const trackKey = getTrackKey(track)
+
+      try {
+        // Remove from UI immediately
+        blacklistedTracks.value.delete(trackKey)
+        autoBlacklistedTracks.value.delete(trackKey)
+
+        // Remove from backend
+        const deleteData = {
+          isrc: track.id,
+          track_name: track.name,
+          artist_name: track.artists?.[0]?.name || 'Unknown',
+        }
+        const params = new URLSearchParams(deleteData)
+        await http.delete(`music-preferences/blacklist-track?${params}`)
+
+        // Trigger UI refresh events
+        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
+          detail: { track: track, trackKey: trackKey }
+        }))
+        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
+      } catch (error) {
+        console.warn('Failed to unban auto-blacklisted track:', error)
+        // Revert UI change on failure
+        blacklistedTracks.value.add(trackKey)
+        autoBlacklistedTracks.value.add(trackKey)
+      }
+    }
+
+    // Refresh any currently open previews to show unbanned tracks
+    refreshCurrentPreview()
   }
 })
 
@@ -1018,6 +1062,10 @@ const autoBlacklistListenedTrack = async (track: SpotifyTrack) => {
 
     if (response.success) {
       blacklistedTracks.value.add(trackKey)
+
+      // Track that this was auto-banned (for later unbanning when toggle is turned off)
+      autoBlacklistedTracks.value.add(trackKey)
+
       refreshCurrentPreview()
       try {
         localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
@@ -1036,8 +1084,12 @@ const banTrack = async (track: SpotifyTrack) => {
   const trackIdentifier = track.id || trackKey
 
   if (isTrackBanned(track)) {
-    // Update UI immediately for better UX
+    // UNBAN TRACK - Update UI immediately for better UX
     blacklistedTracks.value.delete(trackKey)
+
+    // Also remove from auto-blacklist tracking (user manually unbanned it)
+    autoBlacklistedTracks.value.delete(trackKey)
+
     pendingAutoBannedTracks.value.delete(trackIdentifier)
     pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
@@ -1065,7 +1117,7 @@ const banTrack = async (track: SpotifyTrack) => {
       refreshCurrentPreview()
     }
   } else {
-    // Block track - show processing state
+    // BAN TRACK - show processing state
     processingTrack.value = trackKey
 
     try {
@@ -1077,6 +1129,11 @@ const banTrack = async (track: SpotifyTrack) => {
 
       if (response.success) {
         blacklistedTracks.value.add(trackKey)
+
+        // Remove from auto-blacklist tracking - this is now a manual ban
+        // (so it won't be unbanned when toggle is turned off)
+        autoBlacklistedTracks.value.delete(trackKey)
+
         pendingAutoBannedTracks.value.delete(trackIdentifier)
         pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
 
