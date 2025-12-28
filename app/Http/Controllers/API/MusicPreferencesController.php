@@ -239,8 +239,9 @@ class MusicPreferencesController extends Controller
     }
 
     /**
-     * Save a track by ISRC (24-hour expiration)
+     * Save a track (permanent storage)
      * Fetches track and artist stats via RapidAPI if enabled
+     * Stores user_id, spotify_id, and spotify_artist_id for permanent tracking
      */
     public function saveTrack(Request $request): JsonResponse
     {
@@ -388,7 +389,7 @@ class MusicPreferencesController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Track saved successfully (expires in 24 hours)',
+                'message' => 'Track saved successfully (permanent storage)',
                 'data' => [
                     'spotify_id' => $spotifyId,
                     'spotify_artist_id' => $spotifyArtistId,
@@ -594,7 +595,7 @@ class MusicPreferencesController extends Controller
     }
 
     /**
-     * Get user's saved tracks (non-expired)
+     * Get user's saved tracks (not hidden - permanent storage)
      */
     public function getSavedTracks(): JsonResponse
     {
@@ -607,7 +608,7 @@ class MusicPreferencesController extends Controller
             ], 401);
         }
         $tracks = SavedTrack::where('user_id', $userId)
-            ->where('expires_at', '>', now())
+            ->where('is_hidden', false)
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -628,6 +629,71 @@ class MusicPreferencesController extends Controller
             'success' => true,
             'data' => $tracks
         ]);
+    }
+
+    /**
+     * Hide a saved track (permanent storage - track stays in DB)
+     */
+    public function hideSavedTrack(Request $request): JsonResponse
+    {
+        if (!$this->tablesExist()) {
+            return $this->missingTablesResponse();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'track_id' => 'required|integer',
+            'isrc' => 'sometimes|string|nullable',
+            'spotify_id' => 'sometimes|string|nullable',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $userId = Auth::id();
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Authentication required'
+            ], 401);
+        }
+
+        try {
+            $trackId = $request->track_id;
+            $hidden = SavedTrack::hideTrack($userId, $trackId);
+
+            if (!$hidden) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Track not found or already hidden'
+                ], 404);
+            }
+
+            \Log::info('💾 Hide Track: Successfully hidden', [
+                'track_id' => $trackId,
+                'user_id' => $userId,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Track hidden successfully (permanently stored in database)'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Hide track failed: ' . $e->getMessage(), [
+                'track_id' => $request->track_id,
+                'user_id' => $userId,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to hide track: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

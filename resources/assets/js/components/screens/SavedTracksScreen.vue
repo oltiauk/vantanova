@@ -80,11 +80,6 @@
 
       <!-- Liked Tracks Table -->
       <div v-if="sortedTracks.length > 0 && !isLoading">
-        <div class="text-center mb-4">
-          <p class="text-k-text-secondary text-sm">
-            Liked tracks remain in the list for 24h only.
-          </p>
-        </div>
         <div class="bg-white/5 rounded-lg overflow-visible relative z-20">
           <div class="overflow-x-auto overflow-y-visible scrollbar-hide" style="overflow-y: visible !important;">
             <table class="w-full">
@@ -100,7 +95,6 @@
                   <th class="text-center px-2 font-medium">Streams</th>
                   <th class="text-center px-2 font-medium">Shazams</th>
                   <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
-                  <th class="text-center px-2 font-medium whitespace-nowrap" />
                   <th class="text-center px-1 font-medium whitespace-nowrap w-20" />
                   <th class="text-center px-1 font-medium w-20" />
                 </tr>
@@ -222,15 +216,6 @@
                       <span class="text-white/80 text-sm">{{ formatDate(track.release_date || '', track) }}</span>
                     </td>
 
-                    <!-- Countdown -->
-                    <td class="p-3 align-middle text-center">
-                      <div class="flex flex-col items-center mt-4">
-                        <span class="text-white/80 font-medium text-sm">
-                          {{ getTimeRemaining(track.expires_at) }}
-                        </span>
-                        <span class="text-white/40 text-xs">remaining</span>
-                      </div>
-                    </td>
 
                     <!-- Actions Dropdown -->
                     <td class="px-1 py-3 align-middle">
@@ -319,7 +304,7 @@
                   <!-- Player Dropdown Row with Animation -->
                   <Transition name="spotify-dropdown" mode="out-in">
                     <tr v-if="expandedTrackId === getTrackKey(track)" :key="`player-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                      <td colspan="14" class="p-0 overflow-hidden">
+                      <td colspan="13" class="p-0 overflow-hidden">
                         <div class="spotify-player-container p-6 bg-white/3 relative">
                           <div class="mx-auto w-full max-w-[94%]">
                             <!-- SoundCloud Player -->
@@ -667,24 +652,6 @@ const formatNumber = (num: number): string => {
   return num.toString()
 }
 
-const getTimeRemaining = (expiresAt: string): string => {
-  const now = new Date().getTime()
-  const expiry = new Date(expiresAt).getTime()
-  const diff = expiry - now
-
-  if (diff <= 0) {
-    return 'Expired'
-  }
-
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  } else {
-    return `${minutes}m`
-  }
-}
 
 const isTrackPlaying = (track: SavedTrack): boolean => {
   return currentPlayingTrack.value?.id === track.id
@@ -809,6 +776,10 @@ const loadTracks = async () => {
         }
         if (!track.followers) {
           track.followers = 0
+        } else if (track.followers > 0) {
+          // Multiply followers by random value between 1.12 and 1.15, rounded to whole number
+          const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+          track.followers = Math.round(track.followers * multiplier)
         }
       })
 
@@ -957,6 +928,22 @@ const unsaveTrack = async (track: SavedTrack) => {
   try {
     const trackKey = getTrackKey(track)
 
+    // Mark track as hidden on backend (permanent storage - track stays in DB)
+    try {
+      const response = await http.post('music-preferences/hide-saved-track', {
+        track_id: track.id,
+        isrc: track.isrc,
+        spotify_id: track.spotify_id,
+      })
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to hide track')
+      }
+    } catch (error: any) {
+      console.error('Failed to hide track on backend:', error)
+      // Continue with client-side hiding even if backend fails
+    }
+
     // Add to client-side unsaved tracks to prevent it from reappearing
     clientUnsavedTracks.value.add(trackKey)
 
@@ -976,7 +963,7 @@ const unsaveTrack = async (track: SavedTrack) => {
       currentPage.value = Math.max(1, currentPage.value - 1)
     }
 
-    console.log(`Track ${track.track_name} has been removed from saved tracks`)
+    console.log(`Track ${track.track_name} has been hidden from saved tracks (permanently stored in DB)`)
 
     // Dispatch event to update sidebar count immediately
     try {
@@ -987,11 +974,6 @@ const unsaveTrack = async (track: SavedTrack) => {
     } catch (error) {
       // Event dispatch failed, not critical
     }
-
-    // Since there's no DELETE endpoint for saved tracks in the current implementation,
-    // tracks will naturally expire in 24 hours anyway
-    // In a full implementation, you would call:
-    // await http.delete(`music-preferences/saved-tracks/${track.id}`)
   } catch (error: any) {
     console.error('Failed to unsave track:', error)
     // Restore tracks on error
@@ -1526,7 +1508,13 @@ const followArtist = async (track: SavedTrack) => {
       if (response.success && response.data.length > 0) {
         spotifyArtistId = response.data[0].id
         artistImage = response.data[0].image || null
-        followers = response.data[0].followers
+        // Multiply followers by random value between 1.12 and 1.15, rounded to whole number
+        if (response.data[0].followers) {
+          const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+          followers = Math.round(response.data[0].followers * multiplier)
+        } else {
+          followers = undefined
+        }
       }
     }
 

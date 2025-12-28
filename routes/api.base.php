@@ -269,6 +269,7 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             
             Route::get('blacklisted-tracks', [MusicPreferencesController::class, 'getBlacklistedTracks'])->name('blacklisted-tracks');
             Route::get('saved-tracks', [MusicPreferencesController::class, 'getSavedTracks'])->name('saved-tracks');
+            Route::post('hide-saved-track', [MusicPreferencesController::class, 'hideSavedTrack'])->name('hide-saved-track');
             Route::get('blacklisted-artists', [MusicPreferencesController::class, 'getBlacklistedArtists'])->name('blacklisted-artists');
             Route::get('saved-artists', [MusicPreferencesController::class, 'getSavedArtists'])->name('saved-artists');
             

@@ -25,11 +25,13 @@ class SavedTrack extends Model
         'is_single_track',
         'album_id',
         'expires_at',
+        'is_hidden',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
         'is_single_track' => 'boolean',
+        'is_hidden' => 'boolean',
     ];
 
     public function user(): BelongsTo
@@ -38,29 +40,30 @@ class SavedTrack extends Model
     }
 
     /**
-     * Check if a track is saved for a user (and not expired)
+     * Check if a track is saved for a user (and not hidden)
      */
     public static function isSaved(int $userId, string $isrc): bool
     {
         return static::where('user_id', $userId)
             ->where('isrc', $isrc)
-            ->where('expires_at', '>', now())
+            ->where('is_hidden', false)
             ->exists();
     }
 
     /**
-     * Get all saved ISRCs for a user (non-expired)
+     * Get all saved ISRCs for a user (not hidden)
      */
     public static function getSavedIsrcs(int $userId): array
     {
         return static::where('user_id', $userId)
-            ->where('expires_at', '>', now())
+            ->where('is_hidden', false)
             ->pluck('isrc')
             ->toArray();
     }
 
     /**
-     * Create a saved track with 24-hour expiration
+     * Create or update a saved track (permanent storage)
+     * Ensures user_id, spotify_id, and spotify_artist_id are always stored
      */
     public static function saveTrack(
         string|int $userId,
@@ -101,16 +104,19 @@ class SavedTrack extends Model
                 'track_count' => $trackCount,
                 'is_single_track' => $isSingleTrack,
                 'album_id' => $albumId,
-                'expires_at' => now()->addHours(24),
+                'is_hidden' => false, // When saving, ensure it's visible
+                'expires_at' => null, // Permanent storage - no expiration
             ]
         );
     }
 
     /**
-     * Remove expired saved tracks
+     * Hide a saved track (permanent storage - track stays in DB)
      */
-    public static function removeExpired(): int
+    public static function hideTrack(int $userId, int $trackId): bool
     {
-        return static::where('expires_at', '<', now())->delete();
+        return static::where('user_id', $userId)
+            ->where('id', $trackId)
+            ->update(['is_hidden' => true]) > 0;
     }
 }

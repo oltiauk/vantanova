@@ -171,7 +171,7 @@
 
                   <!-- Related/Preview Actions -->
                   <td class="pr-3 pl-4 align-middle">
-                    <div class="flex gap-2 justify-center">
+                    <div class="flex gap-2 justify-center items-center">
                       <!-- Related Track Button -->
                       <button
                         @click="getRelatedTracks(track)"
@@ -805,7 +805,13 @@ const saveTrack = async (track: Track) => {
               popularity = spotifyResponse.data.metadata.popularity || popularity
               releaseDate = spotifyResponse.data.metadata.release_date || releaseDate
               label = spotifyResponse.data.metadata.label || null
-              followers = spotifyResponse.data.metadata.followers || null
+              // Multiply followers by random value between 1.12 and 1.15, rounded to whole number
+              if (spotifyResponse.data.metadata.followers) {
+                const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+                followers = Math.round(spotifyResponse.data.metadata.followers * multiplier)
+              } else {
+                followers = null
+              }
               previewUrl = spotifyResponse.data.metadata.preview_url || null
             }
           }
@@ -2012,9 +2018,19 @@ watch(() => props.recommendations, async (newRecommendations, oldRecommendations
     // console.log('🎵 Sample track data:', newRecommendations[0])
     // console.log('🎵 Sample track has lastfm_stats?', !!newRecommendations[0]?.lastfm_stats)
     
-    originalRecommendations.value = [...newRecommendations]
-    randomizedRecommendations.value = shuffleArray(newRecommendations)
-    visibleCount.value = Math.min(INITIAL_VISIBLE_COUNT, newRecommendations.length)
+    // Apply multiplier to followers for all tracks
+    const processedRecommendations = newRecommendations.map(track => {
+      if (track.followers && track.followers > 0) {
+        // Multiply followers by random value between 1.12 and 1.15, rounded to whole number
+        const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+        return { ...track, followers: Math.round(track.followers * multiplier) }
+      }
+      return track
+    })
+    
+    originalRecommendations.value = [...processedRecommendations]
+    randomizedRecommendations.value = shuffleArray(processedRecommendations)
+    visibleCount.value = Math.min(INITIAL_VISIBLE_COUNT, processedRecommendations.length)
   }
 }, { immediate: true })
 

@@ -142,9 +142,9 @@
 
       <div v-else-if="displayedArtists.length > 0" class="results-section">
         <div class="flex items-center justify-between max-w-4xl mx-auto mb-4 px-1">
-          <!-- Ban listened tracks toggle -->
+          <!-- Ban listened artist toggle -->
           <div class="flex items-center gap-3">
-            <span class="text-sm text-white/80">Ban listened tracks</span>
+            <span class="text-sm text-white/80">Ban listened artist</span>
             <button
               class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
               :class="banListenedTracks ? 'bg-green-500' : 'bg-gray-600'"
@@ -498,6 +498,9 @@ const pendingAutoBannedTracks = ref(new Set<string>())
 // Track which tracks were auto-banned by the toggle (for unbanning when toggle is turned off)
 const autoBlacklistedTracks = ref(new Set<string>())
 
+// Track which artists were auto-banned by the toggle (for unbanning when toggle is turned off)
+const autoBannedArtists = ref(new Set<string>())
+
 // Track locally hidden artists (session-only, not global ban)
 const locallyHiddenArtists = ref(new Set<string>())
 
@@ -559,7 +562,8 @@ const sortOptions = [
 ]
 
 const sortedArtists = computed(() => {
-  const artists = [...similarArtists.value]
+  // Filter out banned artists first
+  const artists = similarArtists.value.filter(artist => !isArtistBanned(artist))
 
   switch (sortBy.value) {
     case 'listeners-desc':
@@ -614,58 +618,50 @@ const loadMore = () => {
 
 watch([sortedArtists, visibleCount], applyDisplayedArtists, { immediate: true })
 
-// Auto-ban already listened tracks when the toggle is turned on
-// Auto-unban auto-blacklisted tracks when the toggle is turned off
+// Auto-ban already listened artists when the toggle is turned on
+// Auto-unban auto-banned artists when the toggle is turned off
 watch(banListenedTracks, async (newValue, oldValue) => {
   if (newValue && !oldValue) {
-    // Toggle turned ON - auto-ban already-listened tracks
-    const tracksToBan = getKnownTracks().filter(track => {
-      const trackKey = getTrackKey(track)
-      return listenedTracks.value.has(trackKey) && !isTrackBanned(track)
+    // Toggle turned ON - auto-ban artists that have listened tracks
+    const artistsToBan = new Set<LastfmArtist>()
+    
+    // Find all artists that have listened tracks (check all similar artists)
+    similarArtists.value.forEach(artist => {
+      if (hasListenedTracks(artist) && !isArtistBanned(artist)) {
+        artistsToBan.add(artist)
+      }
     })
 
-    for (const track of tracksToBan) {
-      await autoBlacklistListenedTrack(track)
+    for (const artist of artistsToBan) {
+      await autoBanListenedArtist(artist)
     }
   } else if (!newValue && oldValue) {
-    // Toggle turned OFF - unban all auto-blacklisted tracks
-    const tracksToUnban = getKnownTracks().filter(track => {
-      const trackKey = getTrackKey(track)
-      return autoBlacklistedTracks.value.has(trackKey)
-    })
-
-    for (const track of tracksToUnban) {
-      const trackKey = getTrackKey(track)
-
+    // Toggle turned OFF - unban all auto-banned artists
+    const artistsToUnban = Array.from(autoBannedArtists.value)
+    
+    for (const uniqueId of artistsToUnban) {
       try {
-        // Remove from UI immediately
-        blacklistedTracks.value.delete(trackKey)
-        autoBlacklistedTracks.value.delete(trackKey)
-
-        // Remove from backend
-        const deleteData = {
-          isrc: track.id,
-          track_name: track.name,
-          artist_name: track.artists?.[0]?.name || 'Unknown',
+        // Find the artist by unique ID
+        const artist = similarArtists.value.find(a => {
+          const id = a.id || a.mbid || a.name
+          return id === uniqueId
+        })
+        
+        if (artist) {
+          // Remove from banned artists
+          bannedArtists.value.delete(uniqueId)
+          autoBannedArtists.value.delete(uniqueId)
+          
+          // Save to localStorage
+          localStorage.setItem('koel-similar-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+          
+          // Re-apply displayed artists to show the unbanned artist
+          applyDisplayedArtists()
         }
-        const params = new URLSearchParams(deleteData)
-        await http.delete(`music-preferences/blacklist-track?${params}`)
-
-        // Trigger UI refresh events
-        window.dispatchEvent(new CustomEvent('track-unblacklisted', {
-          detail: { track: track, trackKey: trackKey }
-        }))
-        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
       } catch (error) {
-        console.warn('Failed to unban auto-blacklisted track:', error)
-        // Revert UI change on failure
-        blacklistedTracks.value.add(trackKey)
-        autoBlacklistedTracks.value.add(trackKey)
+        console.warn('Failed to unban auto-banned artist:', error)
       }
     }
-
-    // Refresh any currently open previews to show unbanned tracks
-    refreshCurrentPreview()
   }
 })
 
@@ -1041,41 +1037,29 @@ const refreshCurrentPreview = () => {
   // Filtering will only happen when preview is closed and reopened
 }
 
-// Auto-blacklist a track when the ban listened toggle is enabled
-const autoBlacklistListenedTrack = async (track: SpotifyTrack) => {
-  const trackKey = getTrackKey(track)
-  const identifier = track.id || trackKey
-
-  if (isTrackBanned(track) || pendingAutoBannedTracks.value.has(identifier)) {
+// Auto-ban an artist when the ban listened toggle is enabled
+const autoBanListenedArtist = async (artist: LastfmArtist) => {
+  const uniqueId = artist.id || artist.mbid || artist.name
+  
+  if (isArtistBanned(artist) || autoBannedArtists.value.has(uniqueId)) {
     return
   }
 
-  pendingAutoBannedTracks.value.add(identifier)
-  pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
-
   try {
-    const response = await http.post('music-preferences/blacklist-track', {
-      isrc: track.id,
-      track_name: track.name,
-      artist_name: track.artists?.[0]?.name || 'Unknown',
-    })
-
-    if (response.success) {
-      blacklistedTracks.value.add(trackKey)
-
-      // Track that this was auto-banned (for later unbanning when toggle is turned off)
-      autoBlacklistedTracks.value.add(trackKey)
-
-      refreshCurrentPreview()
-      try {
-        localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
-      } catch {}
-    }
+    // Ban artist locally (this section only)
+    bannedArtists.value.add(uniqueId)
+    autoBannedArtists.value.add(uniqueId)
+    
+    // Save to localStorage
+    localStorage.setItem('koel-similar-banned-artists', JSON.stringify(Array.from(bannedArtists.value)))
+    
+    // Re-apply displayed artists to hide the banned artist
+    applyDisplayedArtists()
   } catch (error) {
-    console.warn('Failed to auto-ban listened track:', error)
-  } finally {
-    pendingAutoBannedTracks.value.delete(identifier)
-    pendingAutoBannedTracks.value = new Set(pendingAutoBannedTracks.value)
+    console.warn('Failed to auto-ban listened artist:', error)
+    // Revert on failure
+    bannedArtists.value.delete(uniqueId)
+    autoBannedArtists.value.delete(uniqueId)
   }
 }
 
@@ -1321,7 +1305,9 @@ const loadAllArtistsFollowers = async (artists: LastfmArtist[]) => {
 
             // Update with Spotify followers data
             if (data.followers !== undefined) {
-              artist.followers = data.followers
+              // Multiply followers by random value between 1.12 and 1.15, rounded to whole number
+              const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+              artist.followers = Math.round(data.followers * multiplier)
             }
             if (data.popularity !== undefined) {
               artist.popularity = data.popularity
@@ -1476,7 +1462,14 @@ const markTrackAsListened = async (track: SpotifyTrack) => {
   }
 
   if (banListenedTracks.value) {
-    autoBlacklistListenedTrack(track)
+    // Find the artist that owns this track and ban them
+    const artistName = track.artists?.[0]?.name || 'Unknown'
+    const artist = displayedArtists.value.find(a => a.name === artistName) || 
+                   similarArtists.value.find(a => a.name === artistName)
+    
+    if (artist && !isArtistBanned(artist)) {
+      await autoBanListenedArtist(artist)
+    }
   }
 }
 

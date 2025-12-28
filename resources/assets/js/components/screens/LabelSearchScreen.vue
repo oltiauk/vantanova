@@ -415,7 +415,7 @@ watch(banListenedTracks, async (newValue, oldValue) => {
 
         // Trigger UI refresh events
         window.dispatchEvent(new CustomEvent('track-unblacklisted', {
-          detail: { track: track, trackKey: trackKey }
+          detail: { track, trackKey },
         }))
         localStorage.setItem('track-blacklisted-timestamp', Date.now().toString())
       } catch (error) {
@@ -639,12 +639,21 @@ const performSearch = async () => {
     console.log('After filtering banned tracks (backend):', filteredTracks.length)
 
     const allTracks = filteredTracks
-      .map(track => ({
-        ...track,
-        isPlaying: false,
-        isSaved: track.is_saved || false,
-        isBanned: track.is_banned || false,
-      }))
+      .map(track => {
+        // Multiply followers by random value between 1.12 and 1.15, rounded to whole number
+        let followers = track.followers || 0
+        if (followers > 0) {
+          const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+          followers = Math.round(followers * multiplier)
+        }
+        return {
+          ...track,
+          followers,
+          isPlaying: false,
+          isSaved: track.is_saved || false,
+          isBanned: track.is_banned || false,
+        }
+      })
       .sort((a, b) => {
         const dateA = new Date(a.release_date || 0).getTime()
         const dateB = new Date(b.release_date || 0).getTime()
@@ -720,7 +729,7 @@ const autoBlacklistListenedTrack = async (track: any) => {
     hasSpotifyId: !!track.spotify_id,
     hasIsrc: !!track.isrc,
     alreadyBlacklisted: blacklistedTracks.value.has(trackKey),
-    isPending: pendingAutoBannedTracks.value.has(identifier)
+    isPending: pendingAutoBannedTracks.value.has(identifier),
   })
 
   if (blacklistedTracks.value.has(trackKey) || pendingAutoBannedTracks.value.has(identifier)) {
@@ -892,7 +901,13 @@ const saveTrack = async track => {
 
               label = metadata.label || label
               popularity = metadata.popularity || popularity
-              followers = metadata.followers || followers
+              // Multiply followers by random value between 1.12 and 1.15, rounded to whole number
+              if (metadata.followers) {
+                const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+                followers = Math.round(metadata.followers * multiplier)
+              } else {
+                followers = followers || 0
+              }
               releaseDate = metadata.release_date || releaseDate
               previewUrl = metadata.preview_url || previewUrl
             }

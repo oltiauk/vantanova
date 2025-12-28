@@ -278,7 +278,39 @@ class ArtistWatchlistController extends Controller
                 $entry['is_listened'] = $isListened;
 
                 return $entry;
-            })->toArray();
+            })->filter(function ($entry) use ($blacklistedIsrcs, $blacklistedSpotifyIds, $blacklistedArtistIds, $blacklistedArtistNames) {
+                // Filter out banned tracks
+                $isrc = $entry['isrc'] ?? null;
+                $spotifyTrackId = $entry['spotify_track_id'] ?? null;
+                $spotifyAlbumId = $entry['spotify_album_id'] ?? null;
+
+                // Check if track is banned by ISRC
+                if ($isrc && in_array($isrc, $blacklistedIsrcs)) {
+                    return false;
+                }
+
+                // Check if track is banned by Spotify track ID
+                if ($spotifyTrackId && in_array($spotifyTrackId, $blacklistedSpotifyIds)) {
+                    return false;
+                }
+
+                // Check if album is banned by Spotify album ID
+                if ($spotifyAlbumId && in_array($spotifyAlbumId, $blacklistedSpotifyIds)) {
+                    return false;
+                }
+
+                // Check if artist is banned by Spotify artist ID
+                if (!empty($entry['spotify_artist_id']) && in_array($entry['spotify_artist_id'], $blacklistedArtistIds)) {
+                    return false;
+                }
+
+                // Check if artist is banned by artist name
+                if (in_array(mb_strtolower($entry['artist_name'] ?? ''), $blacklistedArtistNames)) {
+                    return false;
+                }
+
+                return true;
+            })->values()->toArray();
 
             $secondsSinceLast = now()->diffInSeconds($cache->last_executed_at);
             $remaining = max(0, 86400 - $secondsSinceLast);
@@ -288,7 +320,7 @@ class ArtistWatchlistController extends Controller
                 'data' => $cachedResults,
                 'cached' => true,
                 'artist_count' => $cache->artist_count ?? 0,
-                'track_count' => $cache->track_count ?? 0,
+                'track_count' => count($cachedResults),
                 'cooldown_seconds' => $remaining,
                 'last_executed_at' => $cache->last_executed_at,
             ]);
@@ -374,15 +406,49 @@ class ArtistWatchlistController extends Controller
                 'cached_results_count' => count($cache->results ?? []),
             ]);
 
+            // Filter out banned tracks from cached results
+            $filteredCachedResults = array_values(array_filter($cache->results ?? [], function ($release) use ($blacklistedIsrcs, $blacklistedSpotifyIds, $blacklistedArtistIds, $blacklistedArtistNames) {
+                $isrc = $release['isrc'] ?? null;
+                $spotifyTrackId = $release['spotify_track_id'] ?? null;
+                $spotifyAlbumId = $release['spotify_album_id'] ?? null;
+
+                // Check if track is banned by ISRC
+                if ($isrc && in_array($isrc, $blacklistedIsrcs)) {
+                    return false;
+                }
+
+                // Check if track is banned by Spotify track ID
+                if ($spotifyTrackId && in_array($spotifyTrackId, $blacklistedSpotifyIds)) {
+                    return false;
+                }
+
+                // Check if album is banned by Spotify album ID
+                if ($spotifyAlbumId && in_array($spotifyAlbumId, $blacklistedSpotifyIds)) {
+                    return false;
+                }
+
+                // Check if artist is banned by Spotify artist ID
+                if (!empty($release['spotify_artist_id']) && in_array($release['spotify_artist_id'], $blacklistedArtistIds)) {
+                    return false;
+                }
+
+                // Check if artist is banned by artist name
+                if (in_array(mb_strtolower($release['artist_name'] ?? ''), $blacklistedArtistNames)) {
+                    return false;
+                }
+
+                return true;
+            }));
+
             $secondsSinceLast = $cache->last_executed_at ? now()->diffInSeconds($cache->last_executed_at) : 0;
             $remaining = max(0, 86400 - $secondsSinceLast);
 
             return response()->json([
                 'success' => true,
-                'data' => $cache->results ?? [],
+                'data' => $filteredCachedResults,
                 'cached' => true,
                 'artist_count' => $cache->artist_count ?? 0,
-                'track_count' => $cache->track_count ?? 0,
+                'track_count' => count($filteredCachedResults),
                 'cooldown_seconds' => $remaining,
                 'last_executed_at' => $cache->last_executed_at,
                 'api_error' => true,
@@ -390,17 +456,32 @@ class ArtistWatchlistController extends Controller
             ]);
         }
 
-        $filtered = array_values(array_filter($results, function ($release) use ($blacklistedIsrcs, $blacklistedArtistIds, $blacklistedArtistNames) {
+        $filtered = array_values(array_filter($results, function ($release) use ($blacklistedIsrcs, $blacklistedSpotifyIds, $blacklistedArtistIds, $blacklistedArtistNames) {
             $isrc = $release['isrc'] ?? null;
+            $spotifyTrackId = $release['spotify_track_id'] ?? null;
+            $spotifyAlbumId = $release['spotify_album_id'] ?? null;
 
+            // Check if track is banned by ISRC
             if ($isrc && in_array($isrc, $blacklistedIsrcs)) {
                 return false;
             }
 
+            // Check if track is banned by Spotify track ID
+            if ($spotifyTrackId && in_array($spotifyTrackId, $blacklistedSpotifyIds)) {
+                return false;
+            }
+
+            // Check if album is banned by Spotify album ID
+            if ($spotifyAlbumId && in_array($spotifyAlbumId, $blacklistedSpotifyIds)) {
+                return false;
+            }
+
+            // Check if artist is banned by Spotify artist ID
             if (!empty($release['spotify_artist_id']) && in_array($release['spotify_artist_id'], $blacklistedArtistIds)) {
                 return false;
             }
 
+            // Check if artist is banned by artist name
             if (in_array(mb_strtolower($release['artist_name']), $blacklistedArtistNames)) {
                 return false;
             }

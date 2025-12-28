@@ -969,13 +969,8 @@ watch([minPlays, maxPlays], () => {
   }
 })
 
-// Watch for time period filter changes to re-apply filtering
-watch([timePeriod], () => {
-  // Only re-filter if we have tracks AND a search has been performed
-  if (originalTracks.value.length > 0 && searched.value && !loading.value) {
-    applyFiltering()
-  }
-})
+// Note: Time period filter changes require a new search (user must click Search button)
+// This is because time period filtering is primarily done server-side via API
 
 // Auto-ban already listened tracks when toggle is turned on
 // Auto-unban auto-blacklisted tracks when toggle is turned off
