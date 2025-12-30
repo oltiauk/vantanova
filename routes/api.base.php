@@ -298,6 +298,7 @@ Route::prefix('api')->middleware('api')->group(static function (): void {
             Route::get('spotify/track/{trackId}', [MusicPreferencesController::class, 'getSpotifyTrack'])->name('spotify-track');
             Route::get('spotify/artist/{artistId}', [MusicPreferencesController::class, 'getSpotifyArtist'])->name('spotify-artist');
             Route::get('spotify/album/{albumId}', [MusicPreferencesController::class, 'getSpotifyAlbum'])->name('spotify-album');
+            Route::get('spotify/track-streams', [MusicPreferencesController::class, 'getTrackStreams'])->name('spotify-track-streams');
             Route::get('spotify/search', [MusicPreferencesController::class, 'searchSpotifyTrack'])->name('spotify-search');
         });
 

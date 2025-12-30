@@ -208,6 +208,7 @@
                     class="hover:bg-white/5 transition h-16 border-b border-white/5"
                     :class="[
                       currentlyPreviewingArtist === artist.name ? 'bg-white/5' : '',
+                      isArtistBanned(artist) ? 'bg-red-500/10 hover:bg-red-500/15' : '',
                     ]"
                   >
                     <!-- Index -->
@@ -562,8 +563,8 @@ const sortOptions = [
 ]
 
 const sortedArtists = computed(() => {
-  // Filter out banned artists first
-  const artists = similarArtists.value.filter(artist => !isArtistBanned(artist))
+  // Keep all artists visible (banned artists will be highlighted instead of removed)
+  const artists = [...similarArtists.value]
 
   switch (sortBy.value) {
     case 'listeners-desc':

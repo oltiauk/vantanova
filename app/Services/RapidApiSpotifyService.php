@@ -2058,6 +2058,59 @@ class RapidApiSpotifyService
     }
 
     /**
+     * Get track streams count from RapidAPI
+     * 
+     * @param string $spotifyTrackId Spotify track ID
+     * @param string|null $isrc ISRC code (optional)
+     * @return array
+     */
+    public function getTrackStreams(string $spotifyTrackId, ?string $isrc = null): array
+    {
+        try {
+            $params = [
+                'spotify_track_id' => $spotifyTrackId,
+            ];
+            
+            if ($isrc) {
+                $params['isrc'] = $isrc;
+            }
+
+            $result = $this->makeRequest(
+                '/partner/track/count',
+                $params,
+                'spotify81.p.rapidapi.com',
+                config('services.rapidapi.key'),
+                'Spotify81'
+            );
+
+            if ($result['success'] && isset($result['data'])) {
+                $data = $result['data'];
+                return [
+                    'success' => true,
+                    'streams' => $data['streams'] ?? 0,
+                    'spotify_track_id' => $data['spotify_track_id'] ?? $spotifyTrackId,
+                    'isrc' => $data['isrc'] ?? $isrc,
+                ];
+            }
+
+            return [
+                'success' => false,
+                'error' => $result['error'] ?? 'Failed to fetch track streams',
+            ];
+        } catch (\Exception $e) {
+            \Log::error('RapidAPI Spotify track streams failed', [
+                'track_id' => $spotifyTrackId,
+                'isrc' => $isrc,
+                'error' => $e->getMessage()
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Format artists array from Spotify API response
      */
     private function formatArtistsArray(array $artists): array

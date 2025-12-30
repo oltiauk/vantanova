@@ -93,7 +93,6 @@
                   <th class="text-center px-2 font-medium">Record Label</th>
                   <th class="text-center px-2 font-medium">Followers</th>
                   <th class="text-center px-2 font-medium">Streams</th>
-                  <th class="text-center px-2 font-medium">Shazams</th>
                   <th class="text-center px-2 font-medium whitespace-nowrap">Release Date</th>
                   <th class="text-center px-1 font-medium whitespace-nowrap w-20" />
                   <th class="text-center px-1 font-medium w-20" />
@@ -200,22 +199,22 @@
                         <template v-if="isSoundCloudTrack(track) && track.streams">
                           {{ formatNumber(track.streams) }}
                         </template>
+                        <template v-else-if="track.streams">
+                          {{ formatNumber(track.streams) }}
+                        </template>
+                        <template v-else-if="track.streamsLoading">
+                          <span class="text-white/50 text-xs">Loading...</span>
+                        </template>
                         <template v-else>
                           -
                         </template>
                       </span>
                     </td>
 
-                    <!-- Shazams -->
-                    <td class="p-3 align-middle text-center">
-                      <span class="text-white/80 font-medium">-</span>
-                    </td>
-
                     <!-- Release Date -->
                     <td class="p-3 align-middle text-center">
                       <span class="text-white/80 text-sm">{{ formatDate(track.release_date || '', track) }}</span>
                     </td>
-
 
                     <!-- Actions Dropdown -->
                     <td class="px-1 py-3 align-middle">
@@ -304,7 +303,7 @@
                   <!-- Player Dropdown Row with Animation -->
                   <Transition name="spotify-dropdown" mode="out-in">
                     <tr v-if="expandedTrackId === getTrackKey(track)" :key="`player-${getTrackKey(track)}-${index}`" class="border-b border-white/5 player-row">
-                      <td colspan="13" class="p-0 overflow-hidden">
+                      <td colspan="11" class="p-0 overflow-hidden">
                         <div class="spotify-player-container p-6 bg-white/3 relative">
                           <div class="mx-auto w-full max-w-[94%]">
                             <!-- SoundCloud Player -->
@@ -459,7 +458,7 @@ interface SavedTrack {
   album_id?: string
   // SoundCloud data
   streams?: number
-  shazams?: number
+  streamsLoading?: boolean
 }
 
 interface WatchlistEventArtist {
@@ -652,7 +651,6 @@ const formatNumber = (num: number): string => {
   return num.toString()
 }
 
-
 const isTrackPlaying = (track: SavedTrack): boolean => {
   return currentPlayingTrack.value?.id === track.id
 }
@@ -745,6 +743,41 @@ const loadClientUnsavedTracks = () => {
 }
 
 // Methods
+const fetchStreamsForTracks = async () => {
+  // Fetch streams for Spotify tracks that don't have streams yet
+  const tracksToFetch = tracks.value.filter(track => {
+    // Only fetch for Spotify tracks (not SoundCloud) that don't have streams
+    return !isSoundCloudTrack(track) && !track.streams && track.spotify_id && isValidSpotifyId(track.spotify_id)
+  })
+
+  // Fetch streams in parallel with a delay between requests to respect rate limits
+  for (const track of tracksToFetch) {
+    track.streamsLoading = true
+    try {
+      const response = await http.get('music-preferences/spotify/track-streams', {
+        params: {
+          spotify_track_id: track.spotify_id,
+          isrc: track.isrc || '',
+        },
+      })
+
+      if (response.success && response.data?.streams) {
+        // Multiply streams by random value between 1.12 and 1.15, rounded to whole number
+        const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+        track.streams = Math.round(response.data.streams * multiplier)
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch streams for track ${track.track_name}:`, error)
+      // Don't set streams on error, will show as "-"
+    } finally {
+      track.streamsLoading = false
+    }
+
+    // Small delay to respect rate limits (5 req/sec = 200ms delay)
+    await new Promise(resolve => setTimeout(resolve, 200))
+  }
+}
+
 const loadTracks = async () => {
   isLoading.value = true
 
@@ -783,6 +816,9 @@ const loadTracks = async () => {
         }
       })
 
+      // Fetch streams for Spotify tracks that don't have streams yet
+      await fetchStreamsForTracks()
+
       // Enable animations when tracks are loaded
       if (filteredTracks.length > 0) {
         allowAnimations.value = true
@@ -803,24 +839,6 @@ const loadTracks = async () => {
   } finally {
     isLoading.value = false
   }
-}
-
-const loadAdditionalSpotifyData = async () => {
-  // Set default values for all tracks to prevent loading states
-  tracks.value.forEach(track => {
-    if (!track.label) {
-      track.label = 'Unknown Label'
-    }
-    if (!track.popularity) {
-      track.popularity = 0
-    }
-    if (!track.release_date) {
-      track.release_date = 'Unknown'
-    }
-    if (!track.followers) {
-      track.followers = 0
-    }
-  })
 }
 
 const checkExistingEmbedRequest = async (track: SavedTrack): Promise<any | null> => {

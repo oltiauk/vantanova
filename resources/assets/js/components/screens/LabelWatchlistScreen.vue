@@ -83,9 +83,6 @@
                   <Icon :icon="faSync" class="w-4 h-4" />
                   <span>Refresh</span>
                 </button>
-                <span v-if="!canRefresh && timeUntilRefresh" class="text-sm text-white/60">
-                  Available in {{ timeUntilRefresh }}
-                </span>
               </div>
             </div>
 
@@ -111,7 +108,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-if="nonBannedReleases.length === 0" class="text-center">
+                      <tr v-if="releases.length === 0" class="text-center">
                         <td colspan="6" class="py-8 text-white/70">No recent releases found. Try refreshing or following more labels.</td>
                       </tr>
                       <template v-else>
@@ -228,7 +225,7 @@
                   </table>
                 </div>
                 <div
-                  v-if="nonBannedReleases.length > releasesPerPage"
+                  v-if="releases.length > releasesPerPage"
                   class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5"
                 >
                   <button
@@ -383,22 +380,18 @@ const handleWatchlistUpdated = (event: Event) => {
   applyWatchlistMutation(detail.action, detail.label)
 }
 
-// Filter out banned tracks
-const nonBannedReleases = computed(() => {
-  return releases.value.filter(release => !release.isBanned)
-})
-
+// Keep all releases visible (banned tracks stay visible but are filtered in future searches)
 const totalPages = computed(() => {
-  if (nonBannedReleases.value.length === 0) {
+  if (releases.value.length === 0) {
     return 1
   }
-  return Math.max(1, Math.ceil(nonBannedReleases.value.length / releasesPerPage))
+  return Math.max(1, Math.ceil(releases.value.length / releasesPerPage))
 })
 
 const paginatedReleases = computed(() => {
   const start = (currentPage.value - 1) * releasesPerPage
   const end = start + releasesPerPage
-  return nonBannedReleases.value.slice(start, end)
+  return releases.value.slice(start, end)
 })
 
 const canRefresh = computed(() => {
@@ -417,14 +410,14 @@ const getTimeUntilRefresh = (): string => {
     }
     const elapsed = Date.now() - last
     const remaining = TWENTY_FOUR_HOURS - elapsed
-    
+
     if (remaining <= 0) {
       return ''
     }
-    
+
     const hours = Math.floor(remaining / (1000 * 60 * 60))
     const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60))
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m`
     }
@@ -1080,13 +1073,13 @@ onMounted(async () => {
   await loadWatchlist()
   loadSessionBanned()
   await loadListenedTracks()
-  
+
   // Initialize and start cooldown timer
   updateRefreshCooldown()
   refreshCooldownTimer.value = window.setInterval(() => {
     updateRefreshCooldown()
   }, 60000) // Update every minute
-  
+
   const refreshedFromSidebar = await refreshIfRequested()
   if (!refreshedFromSidebar) {
     await fetchReleases()

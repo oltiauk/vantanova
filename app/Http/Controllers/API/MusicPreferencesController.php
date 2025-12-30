@@ -1046,6 +1046,74 @@ class MusicPreferencesController extends Controller
     }
 
     /**
+     * Get track streams count from RapidAPI
+     */
+    public function getTrackStreams(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'spotify_track_id' => 'required|string',
+            'isrc' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $spotifyTrackId = $request->input('spotify_track_id');
+        $isrc = $request->input('isrc');
+
+        // Check if this looks like a Koel UUID instead of a Spotify ID
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $spotifyTrackId)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid Spotify track ID format. Please provide a valid Spotify track ID.',
+                'code' => 'INVALID_SPOTIFY_ID'
+            ], 400);
+        }
+
+        if (!$this->rapidApiSpotifyService || !RapidApiSpotifyService::enabled()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'RapidAPI service is not available'
+            ], 503);
+        }
+
+        try {
+            $result = $this->rapidApiSpotifyService->getTrackStreams($spotifyTrackId, $isrc);
+
+            if ($result['success']) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'streams' => $result['streams'],
+                        'spotify_track_id' => $result['spotify_track_id'],
+                        'isrc' => $result['isrc'],
+                    ]
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => $result['error'] ?? 'Failed to fetch track streams'
+            ], 500);
+        } catch (\Exception $e) {
+            \Log::error('Track streams fetch error', [
+                'message' => $e->getMessage(),
+                'track_id' => $spotifyTrackId,
+                'isrc' => $isrc
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch track streams'
+            ], 500);
+        }
+    }
+
+    /**
      * Search for a track on Spotify
      */
     public function searchSpotifyTrack(Request $request): JsonResponse
