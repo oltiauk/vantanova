@@ -500,6 +500,7 @@ const processingTrack = ref<string | null>(null)
 const isPreviewProcessing = ref(false)
 const openActionsDropdown = ref<number | null>(null)
 const soundCloudEmbedUrls = ref<Record<string, string>>({})
+const lastLoadTimestamp = ref<number | null>(null)
 
 // Sort options for the dropdown
 const sortOptions = [
@@ -742,39 +743,136 @@ const loadClientUnsavedTracks = () => {
   }
 }
 
+// Cache for streams data to avoid re-fetching
+const streamsCache = ref<Map<string, number>>(new Map())
+
+// Load streams cache from localStorage
+const loadStreamsCache = () => {
+  try {
+    const cached = localStorage.getItem('koel-saved-tracks-streams-cache')
+    if (cached) {
+      const cacheData = JSON.parse(cached)
+      // Cache expires after 7 days
+      const now = Date.now()
+      const validEntries: Record<string, number> = {}
+      for (const [key, value] of Object.entries(cacheData)) {
+        if (typeof value === 'object' && value !== null && 'streams' in value && 'timestamp' in value) {
+          const entry = value as { streams: number, timestamp: number }
+          // Keep entries that are less than 7 days old
+          if (now - entry.timestamp < 7 * 24 * 60 * 60 * 1000) {
+            validEntries[key] = entry.streams
+            streamsCache.value.set(key, entry.streams)
+          }
+        }
+      }
+      // Update cache with only valid entries
+      if (Object.keys(validEntries).length !== Object.keys(cacheData).length) {
+        const updatedCache: Record<string, { streams: number, timestamp: number }> = {}
+        for (const [key, streams] of Object.entries(validEntries)) {
+          updatedCache[key] = { streams, timestamp: cacheData[key]?.timestamp || now }
+        }
+        localStorage.setItem('koel-saved-tracks-streams-cache', JSON.stringify(updatedCache))
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load streams cache:', error)
+  }
+}
+
+// Save streams cache to localStorage
+const saveStreamsCache = () => {
+  try {
+    const cacheData: Record<string, { streams: number, timestamp: number }> = {}
+    streamsCache.value.forEach((streams, key) => {
+      cacheData[key] = { streams, timestamp: Date.now() }
+    })
+    localStorage.setItem('koel-saved-tracks-streams-cache', JSON.stringify(cacheData))
+  } catch (error) {
+    console.warn('Failed to save streams cache:', error)
+  }
+}
+
 // Methods
 const fetchStreamsForTracks = async () => {
+  // Load cache first
+  loadStreamsCache()
+
   // Fetch streams for Spotify tracks that don't have streams yet
   const tracksToFetch = tracks.value.filter(track => {
     // Only fetch for Spotify tracks (not SoundCloud) that don't have streams
-    return !isSoundCloudTrack(track) && !track.streams && track.spotify_id && isValidSpotifyId(track.spotify_id)
-  })
-
-  // Fetch streams in parallel with a delay between requests to respect rate limits
-  for (const track of tracksToFetch) {
-    track.streamsLoading = true
-    try {
-      const response = await http.get('music-preferences/spotify/track-streams', {
-        params: {
-          spotify_track_id: track.spotify_id,
-          isrc: track.isrc || '',
-        },
-      })
-
-      if (response.success && response.data?.streams) {
-        // Multiply streams by random value between 1.12 and 1.15, rounded to whole number
-        const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
-        track.streams = Math.round(response.data.streams * multiplier)
-      }
-    } catch (error) {
-      console.warn(`Failed to fetch streams for track ${track.track_name}:`, error)
-      // Don't set streams on error, will show as "-"
-    } finally {
-      track.streamsLoading = false
+    if (isSoundCloudTrack(track) || !track.spotify_id || !isValidSpotifyId(track.spotify_id)) {
+      return false
     }
 
-    // Small delay to respect rate limits (5 req/sec = 200ms delay)
-    await new Promise(resolve => setTimeout(resolve, 200))
+    // Check cache first
+    const cacheKey = track.spotify_id
+    if (streamsCache.value.has(cacheKey)) {
+      // Use cached value
+      track.streams = streamsCache.value.get(cacheKey)
+      return false
+    }
+
+    // Only fetch if we don't have streams
+    return !track.streams
+  })
+
+  // Only fetch streams for visible tracks initially (first page)
+  const visibleTracks = tracksToFetch.slice(0, tracksPerPage)
+
+  // Fetch streams in background (non-blocking) with rate limiting
+  const fetchBatch = async (batch: SavedTrack[]) => {
+    for (const track of batch) {
+      const cacheKey = track.spotify_id!
+
+      // Skip if already cached
+      if (streamsCache.value.has(cacheKey)) {
+        track.streams = streamsCache.value.get(cacheKey)
+        continue
+      }
+
+      track.streamsLoading = true
+      try {
+        const response = await http.get('music-preferences/spotify/track-streams', {
+          params: {
+            spotify_track_id: track.spotify_id,
+            isrc: track.isrc || '',
+          },
+        })
+
+        if (response.success && response.data?.streams) {
+          // Multiply streams by random value between 1.12 and 1.15, rounded to whole number
+          const multiplier = 1.12 + Math.random() * 0.03 // Random between 1.12 and 1.15
+          const streams = Math.round(response.data.streams * multiplier)
+          track.streams = streams
+
+          // Cache the result
+          streamsCache.value.set(cacheKey, streams)
+          saveStreamsCache()
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch streams for track ${track.track_name}:`, error)
+        // Don't set streams on error, will show as "-"
+      } finally {
+        track.streamsLoading = false
+      }
+
+      // Small delay to respect rate limits (5 req/sec = 200ms delay)
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
+
+  // Fetch visible tracks first, then rest in background
+  if (visibleTracks.length > 0) {
+    fetchBatch(visibleTracks)
+  }
+
+  // Fetch remaining tracks in background (non-blocking)
+  const remainingTracks = tracksToFetch.slice(tracksPerPage)
+  if (remainingTracks.length > 0) {
+    // Start fetching remaining tracks after a short delay
+    setTimeout(() => {
+      fetchBatch(remainingTracks)
+    }, 1000)
   }
 }
 
@@ -816,8 +914,12 @@ const loadTracks = async () => {
         }
       })
 
-      // Fetch streams for Spotify tracks that don't have streams yet
-      await fetchStreamsForTracks()
+      // Fetch streams for Spotify tracks in background (non-blocking)
+      // Don't await - let it run in background so page loads faster
+      fetchStreamsForTracks()
+
+      // Update last load timestamp
+      lastLoadTimestamp.value = Date.now()
 
       // Enable animations when tracks are loaded
       if (filteredTracks.length > 0) {
@@ -1433,6 +1535,9 @@ const handleVisibilityChange = () => {
 
 // Lifecycle
 onMounted(async () => {
+  // Load streams cache on mount
+  loadStreamsCache()
+
   await loadTracks()
 
   // Listen for custom events
@@ -1453,11 +1558,33 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
-// Always refresh when navigating to SavedTracks (override the previous logic)
+// Refresh when navigating to SavedTracks, but only if tracks are empty or data is stale
 onRouteChanged(route => {
   if (route.screen === 'SavedTracks') {
     // Reload client unsaved tracks first to ensure filtering works
     loadClientUnsavedTracks()
+
+    // Only reload tracks if we don't have any or if it's been more than 5 minutes since last load
+    const shouldReload = tracks.value.length === 0
+      || (lastLoadTimestamp.value && Date.now() - lastLoadTimestamp.value > 5 * 60 * 1000)
+
+    if (shouldReload) {
+      loadTracks()
+    } else {
+      // Just refresh streams cache and fetch any missing streams for visible tracks
+      loadStreamsCache()
+      // Fetch streams for currently visible tracks if needed (non-blocking)
+      const visibleTracks = paginatedTracks.value.filter(track =>
+        !isSoundCloudTrack(track)
+        && !track.streams
+        && track.spotify_id
+        && isValidSpotifyId(track.spotify_id)
+        && !streamsCache.value.has(track.spotify_id),
+      )
+      if (visibleTracks.length > 0) {
+        fetchStreamsForTracks()
+      }
+    }
 
     // Enable animations when entering SavedTracks screen
     if (tracks.value.length > 0) {
@@ -1470,8 +1597,6 @@ onRouteChanged(route => {
         initialLoadComplete.value = true
       }, 2000)
     }
-
-    loadTracks()
   }
 })
 
